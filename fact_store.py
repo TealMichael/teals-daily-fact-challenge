@@ -17,7 +17,8 @@ import string
 import uuid
 from typing import Iterable, Mapping, Sequence
 
-from fact_engine import Fact
+from fact_engine import Fact, canonical_pair
+from adaptive_engine import MasterySnapshot, update_snapshot, mastery_counts, complete_mastery_map
 
 
 class FactStoreError(RuntimeError):
@@ -89,6 +90,7 @@ class AnswerRecord:
     correct_answer: int
     correct: bool
     submitted_at: datetime
+    response_seconds: float | None = None
 
 
 @dataclass(frozen=True)
@@ -101,6 +103,21 @@ class PracticeRecord:
     correct_answer: int
     correct: bool
     created_at: datetime
+    response_seconds: float | None = None
+    challenge_id: str | None = None
+    activity_type: str = "free_practice"
+    activity_index: int | None = None
+    is_retry: bool = False
+
+
+@dataclass(frozen=True)
+class LearningProgressRecord:
+    student_id: str
+    challenge_id: str
+    focus_plan: tuple[Fact, ...] = ()
+    fix_completed_at: datetime | None = None
+    focus_completed_at: datetime | None = None
+    completed_at: datetime | None = None
 
 
 def utc_now() -> datetime:
@@ -172,6 +189,11 @@ class InMemoryFactStore:
         self.attempts: dict[str, AttemptRecord] = {}
         self.answers: dict[str, list[AnswerRecord]] = {}
         self.practice: list[PracticeRecord] = []
+        self.mastery: dict[tuple[str, int, int], MasterySnapshot] = {}
+        self.learning_progress: dict[tuple[str, str], LearningProgressRecord] = {}
+        self.class_focus_overrides: dict[str, int | None] = {}
+        self.student_focus_overrides: dict[str, int | None] = {}
+        self.global_focus_override: int | None = None
 
     # ----- Classes -----
     def create_class(self, class_name: str, class_code: str | None = None) -> ClassRecord:
@@ -384,6 +406,7 @@ class InMemoryFactStore:
         answers: Sequence[tuple[Fact, int]],
         timed_seconds: float,
         *,
+        response_seconds: Sequence[float | None] | None = None,
         completed_at: datetime | None = None,
     ) -> AttemptRecord:
         attempt = self.get_attempt(attempt_id)
@@ -394,22 +417,30 @@ class InMemoryFactStore:
         seconds = float(timed_seconds)
         if not 0.1 <= seconds <= 3600:
             raise ValueError("Timed sprint duration is outside the allowed range.")
+        latencies = list(response_seconds or [None] * 10)
+        if len(latencies) != 10:
+            raise ValueError("Daily response timing must contain exactly 10 values.")
         when = completed_at or utc_now()
         started = when - timedelta(seconds=seconds)
         self.answers[attempt_id] = []
-        for question_number, (fact, value) in enumerate(answers, start=1):
-            self.answers[attempt_id].append(
-                AnswerRecord(
-                    attempt_id=attempt_id,
-                    question_number=question_number,
-                    a=fact.a,
-                    b=fact.b,
-                    student_answer=int(value),
-                    correct_answer=fact.product,
-                    correct=int(value) == fact.product,
-                    submitted_at=when,
-                )
+        for question_number, ((fact, value), latency) in enumerate(zip(answers, latencies), start=1):
+            answer = AnswerRecord(
+                attempt_id=attempt_id,
+                question_number=question_number,
+                a=fact.a,
+                b=fact.b,
+                student_answer=int(value),
+                correct_answer=fact.product,
+                correct=int(value) == fact.product,
+                submitted_at=when,
+                response_seconds=None if latency is None else float(latency),
             )
+            self.answers[attempt_id].append(answer)
+            if max(fact.key) <= 10:
+                self.record_mastery_evidence(
+                    attempt.student_id, fact, answer.correct,
+                    response_seconds=answer.response_seconds, practiced_at=when,
+                )
         correct_count = sum(answer.correct for answer in self.answers[attempt_id])
         updated = replace(
             attempt,
@@ -419,14 +450,46 @@ class InMemoryFactStore:
             timed_seconds=seconds,
         )
         self.attempts[attempt_id] = updated
+        self.get_or_create_learning_progress(attempt.student_id, attempt.challenge_id)
+        if correct_count == 10:
+            self.mark_fix_complete(attempt.student_id, attempt.challenge_id)
         return updated
+
+    def rebuild_mastery(self, student_id: str) -> list[MasterySnapshot]:
+        self.get_student(student_id)
+        self.mastery = {key: row for key, row in self.mastery.items() if key[0] != student_id}
+        events = []
+        completed_attempt_ids = {
+            attempt.attempt_id for attempt in self.attempts.values()
+            if attempt.student_id == student_id and attempt.completed_at is not None
+        }
+        for attempt_id in completed_attempt_ids:
+            for answer in self.answers.get(attempt_id, []):
+                if max(answer.a, answer.b) <= 10:
+                    events.append((answer.submitted_at, answer.a, answer.b, answer.correct, answer.response_seconds))
+        for row in self.practice:
+            if row.student_id == student_id and row.activity_type == "focus" and not row.is_retry and max(row.a, row.b) <= 10:
+                events.append((row.created_at, row.a, row.b, row.correct, row.response_seconds))
+        events.sort(key=lambda item: item[0])
+        for when, a, b, correct, seconds in events:
+            self.record_mastery_evidence(
+                student_id, Fact(a=a, b=b, tier="core"), correct,
+                response_seconds=seconds, practiced_at=when,
+            )
+        return self.get_mastery(student_id)
 
     def reset_daily_attempt(self, student_id: str, challenge_id: str) -> bool:
         target = self.get_attempt_for_student(student_id, challenge_id)
         if target is None:
             return False
+        self.practice = [
+            row for row in self.practice
+            if not (row.student_id == student_id and row.challenge_id == challenge_id and row.activity_type in {"fix_miss", "focus"})
+        ]
+        self.learning_progress.pop((student_id, challenge_id), None)
         self.answers.pop(target.attempt_id, None)
         self.attempts.pop(target.attempt_id, None)
+        self.rebuild_mastery(student_id)
         return True
 
     def completed_attempts_for_class(self, class_id: str, challenge_id: str) -> list[dict]:
@@ -479,29 +542,107 @@ class InMemoryFactStore:
         return result
 
 
-    def student_daily_streak(self, student_id: str, through_date: date | str) -> int:
-        target = date.fromisoformat(through_date) if isinstance(through_date, str) else through_date
-        completed_dates: set[date] = set()
-        challenge_by_id = {record.challenge_id: record for record in self.challenges.values()}
-        for attempt in self.attempts.values():
-            if attempt.student_id == student_id and attempt.completed_at is not None:
-                challenge = challenge_by_id.get(attempt.challenge_id)
-                if challenge:
-                    completed_dates.add(date.fromisoformat(challenge.challenge_date))
-        streak = 0
-        cursor = target
-        from datetime import timedelta
-        while cursor in completed_dates:
-            streak += 1
-            cursor -= timedelta(days=1)
-        return streak
+    # ----- Adaptive learning / Practice -----
+    def record_mastery_evidence(
+        self, student_id: str, fact: Fact, correct: bool, *,
+        response_seconds: float | None = None, practiced_at: datetime | None = None,
+    ) -> MasterySnapshot:
+        self.get_student(student_id)
+        a, b = canonical_pair(fact.a, fact.b)
+        if not (2 <= a <= b <= 10):
+            raise ValueError("The persistent mastery map covers core 2s-10s facts only.")
+        key = (student_id, a, b)
+        updated = update_snapshot(
+            self.mastery.get(key), a=a, b=b, correct=bool(correct),
+            response_seconds=response_seconds, practiced_at=practiced_at,
+        )
+        self.mastery[key] = updated
+        return updated
 
-    # ----- Practice -----
+    def get_mastery(self, student_id: str) -> list[MasterySnapshot]:
+        self.get_student(student_id)
+        rows = [row for (sid, _, _), row in self.mastery.items() if sid == student_id]
+        if rows:
+            return rows
+        # Backfill any v1 Daily history the first time v2 asks for a profile.
+        has_history = any(
+            attempt.student_id == student_id and attempt.completed_at is not None
+            for attempt in self.attempts.values()
+        ) or any(
+            row.student_id == student_id and row.activity_type == "focus" and not row.is_retry
+            for row in self.practice
+        )
+        return self.rebuild_mastery(student_id) if has_history else []
+
+    def mastery_summary(self, student_id: str) -> dict[str, int]:
+        return mastery_counts(self.get_mastery(student_id))
+
+    def class_mastery_summary(self, class_id: str) -> list[dict]:
+        students = self.list_students(class_id)
+        result = []
+        for a in range(2, 11):
+            for b in range(a, 11):
+                counts = {"Fluent": 0, "Building": 0, "Focus": 0, "Unknown": 0}
+                for student in students:
+                    row = self.mastery.get((student.student_id, a, b), MasterySnapshot(a=a, b=b))
+                    counts[row.status] += 1
+                result.append({"a": a, "b": b, "fact": f"{a} × {b}", **counts, "students": len(students)})
+        return result
+
+    def get_or_create_learning_progress(self, student_id: str, challenge_id: str) -> LearningProgressRecord:
+        self.get_student(student_id)
+        key = (student_id, challenge_id)
+        if key not in self.learning_progress:
+            self.learning_progress[key] = LearningProgressRecord(student_id=student_id, challenge_id=challenge_id)
+        return self.learning_progress[key]
+
+    def get_learning_progress(self, student_id: str, challenge_id: str) -> LearningProgressRecord:
+        return self.get_or_create_learning_progress(student_id, challenge_id)
+
+    def set_focus_plan(self, student_id: str, challenge_id: str, facts: Sequence[Fact]) -> LearningProgressRecord:
+        progress = self.get_or_create_learning_progress(student_id, challenge_id)
+        if progress.focus_plan:
+            return progress
+        updated = replace(progress, focus_plan=tuple(facts))
+        self.learning_progress[(student_id, challenge_id)] = updated
+        return updated
+
+    def mark_fix_complete(self, student_id: str, challenge_id: str) -> LearningProgressRecord:
+        progress = self.get_or_create_learning_progress(student_id, challenge_id)
+        updated = replace(progress, fix_completed_at=progress.fix_completed_at or utc_now())
+        self.learning_progress[(student_id, challenge_id)] = updated
+        return updated
+
+    def mark_focus_complete(self, student_id: str, challenge_id: str) -> LearningProgressRecord:
+        progress = self.get_or_create_learning_progress(student_id, challenge_id)
+        now = utc_now()
+        updated = replace(
+            progress,
+            focus_completed_at=progress.focus_completed_at or now,
+            completed_at=progress.completed_at or now,
+        )
+        self.learning_progress[(student_id, challenge_id)] = updated
+        return updated
+
     def record_practice(
-        self, student_id: str | None, focus: str, fact: Fact, student_answer: int
+        self, student_id: str | None, focus: str, fact: Fact, student_answer: int, *,
+        response_seconds: float | None = None, challenge_id: str | None = None,
+        activity_type: str = "free_practice", activity_index: int | None = None,
+        is_retry: bool = False, count_for_mastery: bool = False,
     ) -> PracticeRecord:
         if student_id is not None:
             self.get_student(student_id)
+        if (
+            student_id is not None and challenge_id is not None and activity_type == "focus"
+            and activity_index is not None and not is_retry
+        ):
+            existing = next((
+                row for row in self.practice
+                if row.student_id == student_id and row.challenge_id == challenge_id
+                and row.activity_type == "focus" and row.activity_index == activity_index and not row.is_retry
+            ), None)
+            if existing is not None:
+                return existing
         record = PracticeRecord(
             student_id=student_id,
             focus=str(focus),
@@ -511,10 +652,90 @@ class InMemoryFactStore:
             correct_answer=fact.product,
             correct=int(student_answer) == fact.product,
             created_at=utc_now(),
+            response_seconds=None if response_seconds is None else float(response_seconds),
+            challenge_id=challenge_id,
+            activity_type=str(activity_type),
+            activity_index=activity_index,
+            is_retry=bool(is_retry),
         )
         self.practice.append(record)
+        if count_for_mastery and student_id is not None and not is_retry and max(fact.key) <= 10:
+            self.record_mastery_evidence(
+                student_id, fact, record.correct, response_seconds=response_seconds, practiced_at=record.created_at
+            )
         return record
+
+    def learning_activity_rows(self, student_id: str, challenge_id: str, activity_type: str) -> list[PracticeRecord]:
+        return sorted(
+            [row for row in self.practice if row.student_id == student_id and row.challenge_id == challenge_id and row.activity_type == activity_type],
+            key=lambda row: (row.activity_index if row.activity_index is not None else 999, row.created_at),
+        )
 
     def practice_summary(self, student_id: str) -> dict[str, int]:
         rows = [row for row in self.practice if row.student_id == student_id]
         return {"attempts": len(rows), "correct": sum(row.correct for row in rows)}
+
+    def set_global_focus_override(self, family: int | None) -> None:
+        self.global_focus_override = family
+
+    def set_class_focus_override(self, class_id: str, family: int | None) -> None:
+        self.class_focus_overrides[class_id] = family
+
+    def set_student_focus_override(self, student_id: str, family: int | None) -> None:
+        self.student_focus_overrides[student_id] = family
+
+    def get_effective_focus_override(self, student_id: str) -> int | None:
+        student = self.get_student(student_id)
+        return (
+            self.student_focus_overrides.get(student_id)
+            or self.class_focus_overrides.get(student.class_id)
+            or self.global_focus_override
+        )
+
+    def student_learning_stats(self, student_id: str, through_date: date | str) -> dict[str, int]:
+        self.get_student(student_id)
+        target = date.fromisoformat(through_date) if isinstance(through_date, str) else through_date
+        challenge_dates = {ch.challenge_id: date.fromisoformat(ch.challenge_date) for ch in self.challenges.values()}
+        assigned = sorted({d for d in challenge_dates.values() if d <= target and d.weekday() < 5})
+        completed = {
+            challenge_dates[cid]
+            for (sid, cid), row in self.learning_progress.items()
+            if sid == student_id and row.completed_at is not None and cid in challenge_dates and challenge_dates[cid].weekday() < 5
+        }
+        current = 0
+        for d in reversed(assigned):
+            if d in completed:
+                current += 1
+            else:
+                break
+        longest = 0
+        run = 0
+        for d in assigned:
+            if d in completed:
+                run += 1
+                longest = max(longest, run)
+            else:
+                run = 0
+        return {"current_streak": current, "longest_streak": longest, "stars": len(completed)}
+
+    def get_global_focus_override(self) -> int | None:
+        return self.global_focus_override
+
+    def get_class_focus_override(self, class_id: str) -> int | None:
+        return self.class_focus_overrides.get(class_id)
+
+    def get_student_focus_override(self, student_id: str) -> int | None:
+        return self.student_focus_overrides.get(student_id)
+
+    def class_learning_stats(self, class_id: str, through_date: date | str) -> dict[str, dict[str, int]]:
+        return {
+            student.student_id: self.student_learning_stats(student.student_id, through_date)
+            for student in self.list_students(class_id)
+        }
+
+    def class_learning_progress(self, class_id: str, challenge_id: str) -> dict[str, LearningProgressRecord]:
+        ids = {student.student_id for student in self.list_students(class_id)}
+        return {
+            sid: row for (sid, cid), row in self.learning_progress.items()
+            if cid == challenge_id and sid in ids
+        }

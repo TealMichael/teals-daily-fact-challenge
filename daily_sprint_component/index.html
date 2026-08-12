@@ -11,7 +11,7 @@
   .card { border:1px solid #ccfbf1; background:linear-gradient(180deg,#f0fdfa 0%,#ffffff 100%); border-radius:22px; padding:18px 16px; }
   .topline { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:8px; }
   .qnum { font-weight:850; font-size:14px; color:#374151; }
-  .timer { display:inline-flex; align-items:center; border:1px solid #99f6e4; border-radius:999px; padding:5px 10px; font-weight:850; font-size:13px; color:#115e59; background:#fff; font-variant-numeric:tabular-nums; }
+  .timer { display:inline-flex; align-items:center; border:1px solid #99f6e4; border-radius:999px; padding:5px 10px; font-weight:850; font-size:13px; color:#115e59; background:#fff; }
   .progress { display:flex; gap:4px; margin:8px 0 20px; }
   .seg { height:8px; flex:1; border-radius:999px; background:#e5e7eb; }
   .seg.done { background:#14b8a6; }
@@ -41,7 +41,6 @@
 <script>
 (() => {
   let args = null;
-  let tickHandle = null;
 
   function post(type, extra={}) {
     window.parent.postMessage(Object.assign({isStreamlitMessage:true, type}, extra), "*");
@@ -54,7 +53,15 @@
     return `tdfc_daily_v1:${args.attempt_key}`;
   }
   function freshState() {
-    return {version:args.challenge_version, index:0, answers:Array(10).fill(null), startedMs:null, completePayload:null};
+    return {
+      version:args.challenge_version,
+      index:0,
+      answers:Array(10).fill(null),
+      responseSeconds:Array(10).fill(null),
+      startedMs:null,
+      shownMs:Date.now(),
+      completePayload:null
+    };
   }
   function loadState() {
     try {
@@ -62,6 +69,8 @@
       if (!raw) return freshState();
       const parsed = JSON.parse(raw);
       if (parsed.version !== args.challenge_version || !Array.isArray(parsed.answers) || parsed.answers.length !== 10) return freshState();
+      if (!Array.isArray(parsed.responseSeconds) || parsed.responseSeconds.length !== 10) parsed.responseSeconds = Array(10).fill(null);
+      if (!parsed.shownMs) parsed.shownMs = Date.now();
       return parsed;
     } catch (_) { return freshState(); }
   }
@@ -79,7 +88,7 @@
     return `${m}:${r.toFixed(1).padStart(4,"0")}`;
   }
   function timerText(state) {
-    return !state.startedMs ? "Fact 1 untimed" : `⏱ ${fmtSeconds(elapsedSeconds(state))}`;
+    return !state.startedMs ? "Fact 1 starts the timer" : "Timer running quietly";
   }
   function progressHtml(state) {
     let html = '<div class="progress">';
@@ -128,6 +137,7 @@
       const current = loadState();
       if (current.index > 0) {
         current.index -= 1;
+        current.shownMs = Date.now();
         saveState(current);
         render();
       }
@@ -142,12 +152,19 @@
         return;
       }
       const current = loadState();
+      const firstSubmissionForFact = current.answers[current.index] === null;
       current.answers[current.index] = value;
+      if (firstSubmissionForFact && current.index > 0 && current.responseSeconds[current.index] === null) {
+        current.responseSeconds[current.index] = Number(Math.max(0, (Date.now() - (current.shownMs || Date.now())) / 1000).toFixed(3));
+      }
+      // Fact 1 counts for accuracy but intentionally contributes no speed evidence.
+      current.responseSeconds[0] = null;
       if (current.index === 0 && !current.startedMs) current.startedMs = Date.now();
       if (current.index === 9) {
         const payload = {
           status:'complete',
           answers:current.answers,
+          response_seconds:current.responseSeconds,
           timed_seconds:Number(elapsedSeconds(current).toFixed(3))
         };
         current.completePayload = payload;
@@ -158,6 +175,7 @@
         return;
       }
       current.index += 1;
+      current.shownMs = Date.now();
       saveState(current);
       render();
     });
@@ -167,12 +185,6 @@
     if (!event.data || event.data.type !== 'streamlit:render') return;
     args = event.data.args || {};
     render();
-    if (tickHandle) clearInterval(tickHandle);
-    tickHandle = setInterval(() => {
-      const state = loadState();
-      const timer = document.getElementById('timer');
-      if (timer && state.startedMs && !state.completePayload) timer.textContent = timerText(state);
-    }, 100);
   });
   ready();
   setHeight(385);

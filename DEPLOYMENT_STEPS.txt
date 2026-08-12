@@ -1,83 +1,99 @@
-TEAL'S DAILY FACT CHALLENGE v1.0.0
-ONE-TIME DEPLOYMENT STEPS
+TEAL'S DAILY FACT CHALLENGE v2.0.0
+UPDATE STEPS FOR THE EXISTING LIVE v1 APP
 
-This should be a NEW GitHub repo + NEW Supabase project. Do not reuse the Yahtzee Coach database.
+IMPORTANT: This v2 update uses the SAME GitHub repo, Streamlit app, and Supabase project you already created.
+Do NOT create a second database.
 
-1) CREATE THE GITHUB REPOSITORY
-   - Create a new GitHub repository, suggested name:
-     teals-daily-fact-challenge
-   - Upload EVERY file/folder inside this package's UPLOAD_TO_GITHUB folder to the repository root.
-   - Do not upload the outer ZIP folder itself.
+STEP 1 — RUN THE ONE-TIME SUPABASE MIGRATION FIRST
+1. Open the existing Teal's Daily Fact Challenge Supabase project.
+2. Open SQL Editor -> New query.
+3. Open RUN_THIS_ONCE_IN_SUPABASE_v2.sql from this package.
+4. Copy the ENTIRE file into Supabase SQL Editor.
+5. Click Run.
+6. You should get a successful query result.
 
-2) CREATE A NEW SUPABASE PROJECT
-   - In Supabase, create a new project for this multiplication app.
-   - Open SQL Editor.
-   - Open SUPABASE_SCHEMA.sql from this package.
-   - Paste the whole file into SQL Editor and run it once.
-   - You should end with these six tables:
-       classes
-       students
-       daily_challenges
-       daily_attempts
-       daily_answers
-       practice_answers
+This migration preserves the original v1 data and adds:
+- student_fact_mastery
+- daily_learning_progress
+- app_settings
+- per-fact response timing fields
+- learning-activity fields for Practice/Fix/Focus
+- optional teacher Focus override fields
 
-3) GET THE SUPABASE SERVER CREDENTIALS
-   - Copy the project URL.
-   - Copy the server-side Secret Key / service-role-style secret for trusted backend use.
-   - NEVER paste this secret into chat, GitHub, or student-facing code.
+Do not rerun SUPABASE_SCHEMA.sql on the existing project. The v2 migration is the update file you want.
 
-4) DEPLOY ON STREAMLIT COMMUNITY CLOUD
-   - Create a new Streamlit app from the GitHub repository.
-   - Main file path: app.py
-   - Open the app's Settings -> Secrets.
-   - Add:
+STEP 2 — UPLOAD THE FULL APP TO GITHUB
+1. Open the existing GitHub repo:
+   TealMichael/teals-daily-fact-challenge
+2. Upload EVERY file/folder inside this package's UPLOAD_TO_GITHUB folder to the repository root.
+3. Replace matching files when GitHub asks.
+4. Make sure the folder below is visible in the GitHub root after the commit:
 
-     SUPABASE_URL = "https://YOUR-PROJECT.supabase.co"
-     SUPABASE_SECRET_KEY = "YOUR-SERVER-SECRET-KEY"
-     TEACHER_PASSWORD = "CHOOSE-A-PRIVATE-TEACHER-PASSWORD"
+   daily_sprint_component/
+       index.html
 
-   - Save Secrets and allow the app to reboot.
+   This folder is required for the one-at-a-time Daily sprint.
 
-   NOTE: If the Supabase URL is accidentally copied with /rest/v1 at the end,
-   the app automatically fixes the URL before creating the Python client.
+Suggested commit:
+   v2.0 - add adaptive daily learning routine and persistent mastery
 
-5) OPTIONAL CONNECTION CHECK
-   - Add ?dbcheck=1 to the end of the live app URL.
-   - Open the collapsed "Database diagnostic" section.
-   - It should say the database connection is working.
-   - Remove ?dbcheck=1 for normal student use.
+STEP 3 — WAIT FOR STREAMLIT TO REDEPLOY
+Your existing Streamlit app should redeploy automatically after the GitHub commit.
+No new Streamlit Secrets are needed.
 
-6) SET UP YOUR THREE CLASSES
-   - Open the Teacher tab.
-   - Enter the TEACHER_PASSWORD you placed in Streamlit Secrets.
-   - Open "Classes & Students."
-   - Create each class (for example Period 1, Period 2, Period 3).
+STEP 4 — OPTIONAL DATABASE CHECK
+Add ?dbcheck=1 to the live app URL and open Database diagnostic.
+The v2 diagnostic checks the original database plus the new adaptive-learning tables.
+It should say:
+   Database connection is working.
 
-7) ADD STUDENTS
-   - Choose a class.
-   - Paste the teacher-assigned student nicknames, one per line.
-   - Press "Create students + PINs."
-   - DOWNLOAD THE NEW STUDENT PIN SHEET right away.
+STEP 5 — PILOT WITH A SMALL GROUP FIRST
+Before sending all students through it, sign in with one test student and complete:
 
-   Important: PINs are stored securely as hashes. The old PIN cannot be viewed later.
-   If a student loses a PIN, use Student Tools to generate a new one.
+   Daily 10
+       -> Fix Your Misses (if any)
+       -> Your Focus Practice (8 retrievals)
+       -> ⭐ Day Complete
 
-8) READY FOR STUDENTS
-   - Students open Daily Challenge.
-   - They choose their class, enter nickname + PIN, and sign in.
-   - Everyone receives the exact same Daily 10.
-   - Fact 1 is untimed. The timer begins when Fact 1 is submitted.
-   - Facts 2-10 appear one at a time and make up the timed sprint.
-   - The one-at-a-time browser component measures the sprint without adding Streamlit rerun delays between facts.
-   - Accuracy ranks first; time breaks ties.
-   - Students see only the Top 10 for their own class.
+Confirm:
+- Daily still gives the shared 10 facts.
+- There is no visible ticking stopwatch.
+- Daily ranking is accuracy first, time second.
+- A Daily miss shows an array + strategy and requires a correct retry.
+- Focus Practice is exactly 8 first-try retrievals, with teaching/retry after a miss.
+- Day Complete awards a Daily Star.
+- My Growth begins mostly/entirely as Learning for a new student. That is intentional.
+- There is NO placement test. The profile learns slowly from Daily + assigned Focus Practice.
 
-TEACHER SAFETY TOOLS
-- Teacher Dashboard shows all class results; students do not.
-- Student Tools can reset a PIN.
-- Student Tools can reset today's Daily attempt after a real technology problem or accidental start.
-- Deactivation preserves history while preventing future student sign-in.
+STEP 6 — CHECK THE TEACHER DASHBOARD
+Teacher -> Today
+- See Daily 10 completion and Full routine completion separately.
+- See each student's current step, streak, and total stars.
+
+Teacher -> Mastery & Focus
+- View the 45-fact class heatmap.
+- Early in the pilot many facts will say Learning because the app has not observed them yet.
+- That is expected and should NOT be treated as a deficit.
+- Automatic Focus is the normal setting.
+- Optional overrides can temporarily target one family for everyone or a class.
+
+Teacher -> Student Tools
+- View/reset accounts as before.
+- Set an optional one-student Focus override if needed.
+
+HOW THE v2 MASTERY MODEL STARTS
+A brand-new student has ZERO placement-test data.
+All 45 core facts begin as Learning/unknown.
+The app adds evidence only as the student naturally completes Daily Challenge and assigned Focus Practice over time.
+Fix Your Misses correction retries do not artificially boost mastery.
+
+DAILY REWARD RULE
+A student earns a Daily Star and Learning Streak credit ONLY after finishing the full routine:
+Daily 10 + Fix Your Misses + Focus Practice.
+Leaderboard position is NOT part of the reward requirement.
+
+WEEKENDS
+Learning Streak calculations use assigned weekday Challenge dates, so Friday -> Monday can continue a streak without Saturday/Sunday breaking it.
 
 NO SHARE FEATURE
-This app intentionally has no result-sharing button or public social output. It is designed for classroom use.
+This remains an in-class app. There is no public score-sharing feature.

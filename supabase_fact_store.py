@@ -18,7 +18,8 @@ except ImportError:  # Local/offline Practice can still load before dependencies
     def create_client(*_args, **_kwargs):
         raise RuntimeError("The supabase package is not installed. Install requirements.txt for Daily accounts.")
 
-from fact_engine import Fact
+from fact_engine import Fact, canonical_pair
+from adaptive_engine import MasterySnapshot, update_snapshot, mastery_counts
 from fact_store import (
     AnswerRecord,
     AttemptComplete,
@@ -30,6 +31,7 @@ from fact_store import (
     NameTaken,
     NotFound,
     PracticeRecord,
+    LearningProgressRecord,
     StudentRecord,
     generate_class_code,
     hash_pin,
@@ -147,6 +149,51 @@ def _answer(row: Mapping) -> AnswerRecord:
         correct_answer=int(row["correct_answer"]),
         correct=bool(row["correct"]),
         submitted_at=_dt(row.get("submitted_at")) or utc_now(),
+        response_seconds=None if row.get("response_seconds") is None else float(row["response_seconds"]),
+    )
+
+
+def _practice(row: Mapping) -> PracticeRecord:
+    return PracticeRecord(
+        student_id=None if row.get("student_id") is None else str(row["student_id"]),
+        focus=str(row.get("focus") or "Practice"),
+        a=int(row["a"]),
+        b=int(row["b"]),
+        student_answer=int(row["student_answer"]),
+        correct_answer=int(row["correct_answer"]),
+        correct=bool(row["correct"]),
+        created_at=_dt(row.get("created_at")) or utc_now(),
+        response_seconds=None if row.get("response_seconds") is None else float(row["response_seconds"]),
+        challenge_id=None if row.get("challenge_id") is None else str(row["challenge_id"]),
+        activity_type=str(row.get("activity_type") or "free_practice"),
+        activity_index=None if row.get("activity_index") is None else int(row["activity_index"]),
+        is_retry=bool(row.get("is_retry", False)),
+    )
+
+
+def _mastery(row: Mapping) -> MasterySnapshot:
+    return MasterySnapshot(
+        a=int(row["a"]),
+        b=int(row["b"]),
+        evidence_count=int(row.get("evidence_count") or 0),
+        correct_count=int(row.get("correct_count") or 0),
+        ema_accuracy=None if row.get("ema_accuracy") is None else float(row["ema_accuracy"]),
+        ema_seconds=None if row.get("ema_seconds") is None else float(row["ema_seconds"]),
+        correct_streak=int(row.get("correct_streak") or 0),
+        status=str(row.get("mastery_status") or "Unknown"),
+        last_practiced_at=_dt(row.get("last_practiced_at")),
+    )
+
+
+def _learning(row: Mapping) -> LearningProgressRecord:
+    plan = tuple(Fact.from_dict(item) for item in (row.get("focus_plan") or []))
+    return LearningProgressRecord(
+        student_id=str(row["student_id"]),
+        challenge_id=str(row["challenge_id"]),
+        focus_plan=plan,
+        fix_completed_at=_dt(row.get("fix_completed_at")),
+        focus_completed_at=_dt(row.get("focus_completed_at")),
+        completed_at=_dt(row.get("completed_at")),
     )
 
 
@@ -167,6 +214,8 @@ class SupabaseFactStore:
 
     def health_check(self) -> bool:
         self.client.table("classes").select("class_id").limit(1).execute()
+        self.client.table("student_fact_mastery").select("student_id").limit(1).execute()
+        self.client.table("daily_learning_progress").select("student_id").limit(1).execute()
         return True
 
     # ----- Classes -----
@@ -501,6 +550,7 @@ class SupabaseFactStore:
         answers: Sequence[tuple[Fact, int]],
         timed_seconds: float,
         *,
+        response_seconds: Sequence[float | None] | None = None,
         completed_at: datetime | None = None,
     ) -> AttemptRecord:
         attempt = self.get_attempt(attempt_id)
@@ -511,10 +561,13 @@ class SupabaseFactStore:
         seconds = float(timed_seconds)
         if not 0.1 <= seconds <= 3600:
             raise ValueError("Timed sprint duration is outside the allowed range.")
+        latencies = list(response_seconds or [None] * 10)
+        if len(latencies) != 10:
+            raise ValueError("Daily response timing must contain exactly 10 values.")
         when = completed_at or utc_now()
         started = when - timedelta(seconds=seconds)
         payloads = []
-        for question_number, (fact, value) in enumerate(answers, start=1):
+        for question_number, ((fact, value), latency) in enumerate(zip(answers, latencies), start=1):
             payloads.append({
                 "attempt_id": str(attempt_id),
                 "question_number": question_number,
@@ -524,6 +577,7 @@ class SupabaseFactStore:
                 "correct_answer": fact.product,
                 "correct": int(value) == fact.product,
                 "submitted_at": when.isoformat(),
+                "response_seconds": None if latency is None else round(float(latency), 3),
             })
         self.client.table("daily_answers").upsert(
             payloads, on_conflict="attempt_id,question_number"
@@ -538,13 +592,84 @@ class SupabaseFactStore:
             "correct_count": correct_count,
             "timed_seconds": round(seconds, 3),
         }).eq("attempt_id", str(attempt_id)).execute()
+        # Daily retrievals are the first source of evidence for the gradual
+        # mastery map. Fact 1 intentionally has no speed evidence.
+        for answer in saved:
+            fact = Fact(a=answer.a, b=answer.b, tier="core")
+            if max(fact.key) <= 10:
+                self.record_mastery_evidence(
+                    attempt.student_id, fact, answer.correct,
+                    response_seconds=answer.response_seconds, practiced_at=when,
+                )
+        self.get_or_create_learning_progress(attempt.student_id, attempt.challenge_id)
+        if correct_count == 10:
+            self.mark_fix_complete(attempt.student_id, attempt.challenge_id)
         return self.get_attempt(attempt_id)
+
+    def rebuild_mastery(self, student_id: str) -> list[MasterySnapshot]:
+        attempt_rows = _rows(
+            self.client.table("daily_attempts").select("attempt_id,completed_at")
+            .eq("student_id", str(student_id)).not_.is_("completed_at", "null").range(0, 4999).execute()
+        )
+        attempt_ids = [str(row["attempt_id"]) for row in attempt_rows]
+        daily_rows = []
+        if attempt_ids:
+            daily_rows = _rows(
+                self.client.table("daily_answers").select("a,b,correct,response_seconds,submitted_at")
+                .in_("attempt_id", attempt_ids).range(0, 9999).execute()
+            )
+        focus_rows = _rows(
+            self.client.table("practice_answers").select("a,b,correct,response_seconds,created_at")
+            .eq("student_id", str(student_id)).eq("activity_type", "focus")
+            .eq("is_retry", False).range(0, 9999).execute()
+        )
+        events = []
+        for row in daily_rows:
+            a, b = int(row["a"]), int(row["b"])
+            if max(a, b) <= 10:
+                events.append((_dt(row.get("submitted_at")) or utc_now(), a, b, bool(row["correct"]), None if row.get("response_seconds") is None else float(row["response_seconds"])))
+        for row in focus_rows:
+            a, b = int(row["a"]), int(row["b"])
+            if max(a, b) <= 10:
+                events.append((_dt(row.get("created_at")) or utc_now(), a, b, bool(row["correct"]), None if row.get("response_seconds") is None else float(row["response_seconds"])))
+        events.sort(key=lambda item: item[0])
+        snapshots: dict[tuple[int, int], MasterySnapshot] = {}
+        for when, a, b, correct, seconds in events:
+            key = canonical_pair(a, b)
+            snapshots[key] = update_snapshot(
+                snapshots.get(key), a=key[0], b=key[1], correct=correct,
+                response_seconds=seconds, practiced_at=when,
+            )
+        self.client.table("student_fact_mastery").delete().eq("student_id", str(student_id)).execute()
+        if snapshots:
+            payloads = []
+            for row in snapshots.values():
+                payloads.append({
+                    "student_id": str(student_id), "a": row.a, "b": row.b,
+                    "evidence_count": row.evidence_count, "correct_count": row.correct_count,
+                    "ema_accuracy": row.ema_accuracy, "ema_seconds": row.ema_seconds,
+                    "correct_streak": row.correct_streak, "mastery_status": row.status,
+                    "last_practiced_at": row.last_practiced_at.isoformat() if row.last_practiced_at else None,
+                    "updated_at": utc_now().isoformat(),
+                })
+            self.client.table("student_fact_mastery").insert(payloads).execute()
+        return list(snapshots.values())
 
     def reset_daily_attempt(self, student_id: str, challenge_id: str) -> bool:
         attempt = self.get_attempt_for_student(student_id, challenge_id)
         if attempt is None:
             return False
+        (
+            self.client.table("practice_answers").delete()
+            .eq("student_id", str(student_id)).eq("challenge_id", str(challenge_id))
+            .in_("activity_type", ["fix_miss", "focus"]).execute()
+        )
+        (
+            self.client.table("daily_learning_progress").delete()
+            .eq("student_id", str(student_id)).eq("challenge_id", str(challenge_id)).execute()
+        )
         self.client.table("daily_attempts").delete().eq("attempt_id", attempt.attempt_id).execute()
+        self.rebuild_mastery(student_id)
         return True
 
     def completed_attempts_for_class(self, class_id: str, challenge_id: str) -> list[dict]:
@@ -612,65 +737,298 @@ class SupabaseFactStore:
         return result
 
 
-    def student_daily_streak(self, student_id: str, through_date: date | str) -> int:
-        target = date.fromisoformat(through_date) if isinstance(through_date, str) else through_date
-        attempt_rows = _rows(
-            self.client.table("daily_attempts")
-            .select("challenge_id")
-            .eq("student_id", str(student_id))
-            .not_.is_("completed_at", "null")
-            .execute()
+    # ----- Adaptive learning / Practice -----
+    def record_mastery_evidence(
+        self, student_id: str, fact: Fact, correct: bool, *,
+        response_seconds: float | None = None, practiced_at: datetime | None = None,
+    ) -> MasterySnapshot:
+        a, b = canonical_pair(fact.a, fact.b)
+        if not (2 <= a <= b <= 10):
+            raise ValueError("The persistent mastery map covers core 2s-10s facts only.")
+        existing = _first(
+            self.client.table("student_fact_mastery").select("*")
+            .eq("student_id", str(student_id)).eq("a", a).eq("b", b).limit(1).execute()
         )
-        challenge_ids = [str(row["challenge_id"]) for row in attempt_rows]
-        if not challenge_ids:
-            return 0
-        challenge_rows = _rows(
-            self.client.table("daily_challenges")
-            .select("challenge_date")
-            .in_("challenge_id", challenge_ids)
-            .execute()
+        old = _mastery(existing) if existing else None
+        updated = update_snapshot(
+            old, a=a, b=b, correct=bool(correct), response_seconds=response_seconds,
+            practiced_at=practiced_at or utc_now(),
         )
-        completed_dates = {date.fromisoformat(str(row["challenge_date"])) for row in challenge_rows}
-        from datetime import timedelta
-        streak = 0
-        cursor = target
-        while cursor in completed_dates:
-            streak += 1
-            cursor -= timedelta(days=1)
-        return streak
+        payload = {
+            "student_id": str(student_id), "a": a, "b": b,
+            "evidence_count": updated.evidence_count,
+            "correct_count": updated.correct_count,
+            "ema_accuracy": updated.ema_accuracy,
+            "ema_seconds": updated.ema_seconds,
+            "correct_streak": updated.correct_streak,
+            "mastery_status": updated.status,
+            "last_practiced_at": updated.last_practiced_at.isoformat() if updated.last_practiced_at else None,
+            "updated_at": utc_now().isoformat(),
+        }
+        self.client.table("student_fact_mastery").upsert(
+            payload, on_conflict="student_id,a,b"
+        ).execute()
+        return updated
 
-    # ----- Practice -----
+    def get_mastery(self, student_id: str) -> list[MasterySnapshot]:
+        rows = _rows(
+            self.client.table("student_fact_mastery").select("*")
+            .eq("student_id", str(student_id)).execute()
+        )
+        if rows:
+            return [_mastery(row) for row in rows]
+        # Existing v1 Daily history can seed v2 automatically; there is still
+        # no placement test and no invented evidence.
+        prior_daily = _first(
+            self.client.table("daily_attempts").select("attempt_id")
+            .eq("student_id", str(student_id)).not_.is_("completed_at", "null").limit(1).execute()
+        )
+        prior_focus = _first(
+            self.client.table("practice_answers").select("practice_answer_id")
+            .eq("student_id", str(student_id)).eq("activity_type", "focus")
+            .eq("is_retry", False).limit(1).execute()
+        )
+        if prior_daily or prior_focus:
+            return self.rebuild_mastery(student_id)
+        return []
+
+    def mastery_summary(self, student_id: str) -> dict[str, int]:
+        return mastery_counts(self.get_mastery(student_id))
+
+    def class_mastery_summary(self, class_id: str) -> list[dict]:
+        students = self.list_students(class_id)
+        student_ids = [student.student_id for student in students]
+        rows = []
+        if student_ids:
+            rows = _rows(
+                self.client.table("student_fact_mastery")
+                .select("student_id,a,b,mastery_status")
+                .in_("student_id", student_ids).range(0, 4999).execute()
+            )
+        by_key = {(str(row["student_id"]), int(row["a"]), int(row["b"])): str(row.get("mastery_status") or "Unknown") for row in rows}
+        result = []
+        for a in range(2, 11):
+            for b in range(a, 11):
+                counts = {"Fluent": 0, "Building": 0, "Focus": 0, "Unknown": 0}
+                for student in students:
+                    counts[by_key.get((student.student_id, a, b), "Unknown")] += 1
+                result.append({"a": a, "b": b, "fact": f"{a} × {b}", **counts, "students": len(students)})
+        return result
+
+    def get_or_create_learning_progress(self, student_id: str, challenge_id: str) -> LearningProgressRecord:
+        row = _first(
+            self.client.table("daily_learning_progress").select("*")
+            .eq("student_id", str(student_id)).eq("challenge_id", str(challenge_id)).limit(1).execute()
+        )
+        if row is None:
+            row = _first(
+                self.client.table("daily_learning_progress").insert({
+                    "student_id": str(student_id), "challenge_id": str(challenge_id), "focus_plan": []
+                }).select("*").execute()
+            )
+        if row is None:
+            raise FactStoreError("Could not create today's learning progress.")
+        return _learning(row)
+
+    def get_learning_progress(self, student_id: str, challenge_id: str) -> LearningProgressRecord:
+        return self.get_or_create_learning_progress(student_id, challenge_id)
+
+    def set_focus_plan(self, student_id: str, challenge_id: str, facts: Sequence[Fact]) -> LearningProgressRecord:
+        progress = self.get_or_create_learning_progress(student_id, challenge_id)
+        if progress.focus_plan:
+            return progress
+        payload = {
+            "focus_plan": [fact.as_dict() for fact in facts],
+            "updated_at": utc_now().isoformat(),
+        }
+        row = _first(
+            self.client.table("daily_learning_progress").update(payload)
+            .eq("student_id", str(student_id)).eq("challenge_id", str(challenge_id)).select("*").execute()
+        )
+        return _learning(row) if row else self.get_or_create_learning_progress(student_id, challenge_id)
+
+    def mark_fix_complete(self, student_id: str, challenge_id: str) -> LearningProgressRecord:
+        progress = self.get_or_create_learning_progress(student_id, challenge_id)
+        if progress.fix_completed_at is None:
+            now = utc_now().isoformat()
+            (
+                self.client.table("daily_learning_progress")
+                .update({"fix_completed_at": now, "updated_at": now})
+                .eq("student_id", str(student_id))
+                .eq("challenge_id", str(challenge_id))
+                .execute()
+            )
+        return self.get_or_create_learning_progress(student_id, challenge_id)
+
+    def mark_focus_complete(self, student_id: str, challenge_id: str) -> LearningProgressRecord:
+        progress = self.get_or_create_learning_progress(student_id, challenge_id)
+        if progress.completed_at is None:
+            now = utc_now().isoformat()
+            self.client.table("daily_learning_progress").update({
+                "focus_completed_at": now, "completed_at": now, "updated_at": now
+            }).eq("student_id", str(student_id)).eq("challenge_id", str(challenge_id)).execute()
+        return self.get_or_create_learning_progress(student_id, challenge_id)
+
     def record_practice(
-        self, student_id: str | None, focus: str, fact: Fact, student_answer: int
+        self, student_id: str | None, focus: str, fact: Fact, student_answer: int, *,
+        response_seconds: float | None = None, challenge_id: str | None = None,
+        activity_type: str = "free_practice", activity_index: int | None = None,
+        is_retry: bool = False, count_for_mastery: bool = False,
     ) -> PracticeRecord:
+        if (
+            student_id is not None and challenge_id is not None and activity_type == "focus"
+            and activity_index is not None and not is_retry
+        ):
+            existing = _first(
+                self.client.table("practice_answers").select("*")
+                .eq("student_id", str(student_id)).eq("challenge_id", str(challenge_id))
+                .eq("activity_type", "focus").eq("activity_index", int(activity_index))
+                .eq("is_retry", False).limit(1).execute()
+            )
+            if existing is not None:
+                return _practice(existing)
         payload = {
             "student_id": str(student_id) if student_id else None,
             "focus": str(focus),
-            "a": fact.a,
-            "b": fact.b,
+            "a": fact.a, "b": fact.b,
             "student_answer": int(student_answer),
             "correct_answer": fact.product,
             "correct": int(student_answer) == fact.product,
+            "response_seconds": None if response_seconds is None else round(float(response_seconds), 3),
+            "challenge_id": str(challenge_id) if challenge_id else None,
+            "activity_type": str(activity_type),
+            "activity_index": activity_index,
+            "is_retry": bool(is_retry),
         }
         row = _first(self.client.table("practice_answers").insert(payload).select("*").execute())
         if row is None:
             raise FactStoreError("Could not save Practice answer.")
-        return PracticeRecord(
-            student_id=None if row.get("student_id") is None else str(row["student_id"]),
-            focus=str(row["focus"]),
-            a=int(row["a"]),
-            b=int(row["b"]),
-            student_answer=int(row["student_answer"]),
-            correct_answer=int(row["correct_answer"]),
-            correct=bool(row["correct"]),
-            created_at=_dt(row.get("created_at")) or utc_now(),
+        record = _practice(row)
+        if count_for_mastery and student_id is not None and not is_retry and max(fact.key) <= 10:
+            self.record_mastery_evidence(
+                student_id, fact, record.correct, response_seconds=response_seconds, practiced_at=record.created_at
+            )
+        return record
+
+    def learning_activity_rows(self, student_id: str, challenge_id: str, activity_type: str) -> list[PracticeRecord]:
+        rows = _rows(
+            self.client.table("practice_answers").select("*")
+            .eq("student_id", str(student_id)).eq("challenge_id", str(challenge_id))
+            .eq("activity_type", str(activity_type)).order("activity_index").order("created_at").execute()
         )
+        return [_practice(row) for row in rows]
 
     def practice_summary(self, student_id: str) -> dict[str, int]:
         rows = _rows(
-            self.client.table("practice_answers")
-            .select("correct")
-            .eq("student_id", str(student_id))
-            .execute()
+            self.client.table("practice_answers").select("correct")
+            .eq("student_id", str(student_id)).execute()
         )
         return {"attempts": len(rows), "correct": sum(bool(row.get("correct")) for row in rows)}
+
+    @staticmethod
+    def _normalize_override(family: int | None) -> int | None:
+        if family is None:
+            return None
+        value = int(family)
+        if not 2 <= value <= 10:
+            raise ValueError("Focus override must be 2 through 10 or Automatic.")
+        return value
+
+    def set_global_focus_override(self, family: int | None) -> None:
+        value = self._normalize_override(family)
+        self.client.table("app_settings").upsert({
+            "setting_key": "global_focus_override",
+            "setting_value": value,
+            "updated_at": utc_now().isoformat(),
+        }, on_conflict="setting_key").execute()
+
+    def set_class_focus_override(self, class_id: str, family: int | None) -> None:
+        value = self._normalize_override(family)
+        self.client.table("classes").update({"focus_override": value}).eq("class_id", str(class_id)).execute()
+
+    def set_student_focus_override(self, student_id: str, family: int | None) -> None:
+        value = self._normalize_override(family)
+        self.client.table("students").update({"focus_override": value}).eq("student_id", str(student_id)).execute()
+
+    def get_global_focus_override(self) -> int | None:
+        row = _first(self.client.table("app_settings").select("setting_value").eq("setting_key", "global_focus_override").limit(1).execute())
+        if not row or row.get("setting_value") is None:
+            return None
+        return int(row["setting_value"])
+
+    def get_class_focus_override(self, class_id: str) -> int | None:
+        row = _first(self.client.table("classes").select("focus_override").eq("class_id", str(class_id)).limit(1).execute())
+        return None if not row or row.get("focus_override") is None else int(row["focus_override"])
+
+    def get_student_focus_override(self, student_id: str) -> int | None:
+        row = _first(self.client.table("students").select("focus_override").eq("student_id", str(student_id)).limit(1).execute())
+        return None if not row or row.get("focus_override") is None else int(row["focus_override"])
+
+    def get_effective_focus_override(self, student_id: str) -> int | None:
+        student_row = _first(self.client.table("students").select("class_id,focus_override").eq("student_id", str(student_id)).limit(1).execute())
+        if not student_row:
+            return None
+        if student_row.get("focus_override") is not None:
+            return int(student_row["focus_override"])
+        class_value = self.get_class_focus_override(str(student_row["class_id"]))
+        if class_value is not None:
+            return class_value
+        return self.get_global_focus_override()
+
+    def _learning_stats_for_students(self, student_ids: Sequence[str], through_date: date | str) -> dict[str, dict[str, int]]:
+        target = date.fromisoformat(through_date) if isinstance(through_date, str) else through_date
+        if not student_ids:
+            return {}
+        challenge_rows = _rows(
+            self.client.table("daily_challenges").select("challenge_id,challenge_date")
+            .lte("challenge_date", target.isoformat()).order("challenge_date").range(0, 4999).execute()
+        )
+        challenge_dates = {str(row["challenge_id"]): date.fromisoformat(str(row["challenge_date"])) for row in challenge_rows}
+        assigned = sorted({d for d in challenge_dates.values() if d.weekday() < 5})
+        progress_rows = _rows(
+            self.client.table("daily_learning_progress").select("student_id,challenge_id,completed_at")
+            .in_("student_id", list(student_ids)).not_.is_("completed_at", "null").range(0, 9999).execute()
+        )
+        completed_by_student = {sid: set() for sid in student_ids}
+        for row in progress_rows:
+            sid = str(row["student_id"]); cid = str(row["challenge_id"]); d = challenge_dates.get(cid)
+            if sid in completed_by_student and d is not None and d.weekday() < 5:
+                completed_by_student[sid].add(d)
+        result = {}
+        for sid in student_ids:
+            completed = completed_by_student[sid]
+            current = 0
+            for d in reversed(assigned):
+                if d in completed:
+                    current += 1
+                else:
+                    break
+            longest = 0; run = 0
+            for d in assigned:
+                if d in completed:
+                    run += 1; longest = max(longest, run)
+                else:
+                    run = 0
+            result[sid] = {"current_streak": current, "longest_streak": longest, "stars": len(completed)}
+        return result
+
+    def student_learning_stats(self, student_id: str, through_date: date | str) -> dict[str, int]:
+        return self._learning_stats_for_students([str(student_id)], through_date).get(
+            str(student_id), {"current_streak": 0, "longest_streak": 0, "stars": 0}
+        )
+
+    def class_learning_stats(self, class_id: str, through_date: date | str) -> dict[str, dict[str, int]]:
+        students = self.list_students(class_id)
+        return self._learning_stats_for_students([student.student_id for student in students], through_date)
+
+    def class_learning_progress(self, class_id: str, challenge_id: str) -> dict[str, LearningProgressRecord]:
+        students = self.list_students(class_id)
+        ids = [student.student_id for student in students]
+        if not ids:
+            return {}
+        rows = _rows(
+            self.client.table("daily_learning_progress").select("*")
+            .eq("challenge_id", str(challenge_id)).in_("student_id", ids).execute()
+        )
+        return {str(row["student_id"]): _learning(row) for row in rows}
+

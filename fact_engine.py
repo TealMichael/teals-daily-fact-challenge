@@ -15,7 +15,7 @@ import random
 from typing import Iterable, Sequence
 from zoneinfo import ZoneInfo
 
-APP_VERSION = "1.0.0"
+APP_VERSION = "2.0.0"
 CHALLENGE_VERSION = "TDFC-DAILY-v1"
 DAILY_TIMEZONE = ZoneInfo("America/Indiana/Indianapolis")
 

@@ -1,62 +1,142 @@
 # Teal's Daily Fact Challenge
 
-A classroom-first multiplication fact fluency game built for a shared 10-fact Daily Challenge, accuracy-first class competition, and visual Practice teaching.
+A classroom-first multiplication fact fluency game built around one short shared competition and a private adaptive learning routine.
 
-## Student experience
+## The daily student routine
 
-- **One shared Daily 10**: every class receives the same 10 facts in the same order each day.
-- **Balanced facts**: 2s-10s are the core. A Daily may include one 11/12 fact, but never more than one, and many days include none.
-- **Fair ranking**: accuracy ranks first; total timed-sprint time breaks ties.
-- **Fact 1 starts the game**: Fact 1 counts toward accuracy but is untimed. The clock begins the instant Fact 1 is submitted, then Facts 2-10 appear one at a time with no Streamlit page-load delay added between facts.
-- **No Daily spoilers**: students do not see right/wrong feedback until all 10 are finished. A Back button lets them fix a typo while the timer keeps running, and an in-browser resume preserves the same timed run after an accidental refresh on that device.
-- **Top 10 only**: students see only their class Top 10. Lower exact ranks are intentionally private.
-- **Daily review**: completed players can review all 10 and get array-based teaching for missed facts.
-- **Practice**: students choose Mixed or a specific 2s-12s family and receive immediate feedback, a multiplication array, repeated addition, and a simple strategy tip.
+Every signed-in student follows the same four-part path:
 
-There is intentionally **no social sharing feature**. This app is designed for in-class use.
+**Daily 10 → Fix Your Misses → Your Focus Practice → ⭐ Done**
+
+### 1. Daily 10
+
+- Every class gets the **same balanced 10 facts in the same order** each day.
+- The core is **2s-10s**. Selected days include one 11/12 extension fact; never more than one.
+- Fact 1 counts for accuracy but is untimed. Submitting Fact 1 starts the timed sprint for Facts 2-10.
+- The timer runs **quietly in the background**. Students do not watch a ticking stopwatch.
+- Accuracy ranks first; time breaks ties.
+- No right/wrong feedback is shown until the Daily 10 is complete.
+- Students see only their own class **Top 10**. Lower exact ranks stay private.
+
+### 2. Fix Your Misses
+
+Every missed Daily fact is immediately taught with:
+
+- the correct equation;
+- a multiplication array;
+- repeated-addition meaning;
+- a derived-fact strategy;
+- a required correct retry before moving on.
+
+A correction retry is teaching—not a new mastery observation—so it does not artificially raise the student's profile.
+
+### 3. Your Focus Practice
+
+Each student receives **8 personalized retrievals** chosen from the mastery profile that belongs to that student account.
+
+The app intentionally has **no placement test**. A new student begins with 45 core facts marked as `Learning`, with zero invented evidence. The profile gradually develops from normal Daily Challenge retrievals and first-try answers in assigned Focus Practice.
+
+Focus Practice mixes:
+
+- facts currently needing support;
+- facts that are still building;
+- a small amount of new/unknown evidence gathering;
+- maintenance facts that are already stronger;
+- spaced repeats of priority facts rather than immediate drilling of the same fact.
+
+If a Focus answer is missed, the student sees the visual/strategy teaching and must retry correctly. The retry teaches the fact but does not count as independent retrieval evidence.
+
+### 4. ⭐ Day Complete
+
+Completing the full routine earns:
+
+- one **Daily Star**;
+- progress toward a private **Learning Streak**;
+- milestone celebrations at 3, 5, 10, 20, 30, 50 days and later 50-day milestones.
+
+The reward is for **finishing the learning routine**, not for being fast or being on the leaderboard.
+
+## Persistent mastery
+
+The core mastery map contains the 45 commutative facts from 2×2 through 10×10. `6×7` and `7×6` are one underlying fact.
+
+Student-facing statuses are intentionally simple:
+
+- 🟢 **Fluent**
+- 🟡 **Building**
+- 🔴 **Focus**
+- ⚪ **Learning**
+
+Accuracy is primary. Response time is used only after accurate retrieval has been established; speed never rescues weak accuracy.
+
+The map is stored in Supabase and follows the student's nickname/PIN account across devices and future logins.
+
+## Extra Practice
+
+Practice remains unlimited and lets students choose:
+
+- 🎯 **My Focus Facts** (signed-in students)
+- Mixed Facts
+- 2s through 12s
+
+Every Practice miss uses **teach → retry correctly → next**, with an array and derived-fact strategy.
+
+Extra/manual Practice is saved for history but does not currently change the formal mastery map. The formal profile is deliberately based on the common Daily Challenge and assigned Focus Practice so the evidence stays consistent.
 
 ## Teacher Dashboard
 
-The password-protected Teacher Dashboard supports roughly 90 students across multiple classes and includes:
+The private Teacher Dashboard supports roughly 90 students across multiple classes.
 
-- create and manage classes;
-- paste a batch of nicknames and automatically generate private 4-digit PINs;
-- download the newly generated nickname/PIN sheet immediately;
-- view full class completion, accuracy, and timing data that students cannot see;
-- preview the day's balanced 10 facts;
-- rename student nicknames;
-- reset student PINs;
-- deactivate/reactivate student accounts;
-- reset today's Daily attempt when a technology problem or accidental start requires a fresh run;
-- export class rosters without PINs.
+### Today
 
-The app does not require student emails, school IDs, or full legal names. Public class leaderboards use teacher-assigned nicknames only.
+Teachers can see:
 
-## Daily fact design
+- Daily 10 completion;
+- full learning-routine completion;
+- accuracy and timed-sprint results;
+- private streak and total-star information;
+- every student's current routine step;
+- the student-visible class Top 10.
 
-The deterministic generator is versioned as `TDFC-DAILY-v1`.
+### Mastery & Focus
 
-Each Daily contains exactly 10 unique multiplication decisions, with commutative mirrors treated as the same fact so a set cannot contain both `6 × 7` and `7 × 6`.
+Teachers can see:
 
-Core days contain:
+- a full 45-fact class heatmap;
+- the facts currently showing the greatest observed need;
+- an individual student's private mastery map;
+- an optional Focus override for everybody;
+- an optional class Focus override.
 
-- 3 easier retrieval facts;
-- 4 medium facts;
-- 3 harder facts.
+Override priority is:
 
-On an extension day, one harder slot is replaced by exactly one 11/12 fact. Extension days occur deterministically on roughly 40% of dates.
+**Student override → Class override → All-student override → Automatic personalization**
 
-Consecutive Daily Challenges are intentionally selected from rotating pools so the underlying facts do not repeat from one day to the next.
+### Student Tools
+
+Teachers can:
+
+- rename a nickname;
+- reset a PIN;
+- deactivate/reactivate an account;
+- reset today's Daily after a legitimate technology problem;
+- temporarily override one student's Focus family.
+
+## Daily fact generator
+
+The shared Daily generator remains versioned as `TDFC-DAILY-v1`, so the previously audited daily sequence does not change in v2.
+
+Each Daily contains 10 unique underlying multiplication facts. Commutative mirrors cannot both appear. Normal core days contain 3 easier, 4 medium, and 3 harder facts. On selected extension days, one harder slot becomes one 11/12 fact.
 
 ## Data and privacy
 
-Persistence uses a separate Supabase project and the server-side `SUPABASE_SECRET_KEY`.
-
-- Student PINs are stored only as salted scrypt hashes.
-- Supabase Row Level Security is enabled on every app table with no public browser policies.
-- Students cannot query the database directly.
-- One Daily attempt exists per student per date unless the teacher explicitly resets it.
-- Class leaderboards are isolated by class.
+- Student accounts use teacher-assigned nicknames and private 4-digit PINs.
+- PINs are stored only as salted scrypt hashes.
+- No student email, school ID, or legal name is required.
+- Supabase Row Level Security is enabled on all app tables with no public browser policies.
+- The Streamlit server uses the private `SUPABASE_SECRET_KEY`.
+- Students never receive direct database credentials.
+- There is intentionally **no social sharing feature**.
 
 ## Streamlit Secrets
 
@@ -66,14 +146,24 @@ SUPABASE_SECRET_KEY = "YOUR-SERVER-SECRET-KEY"
 TEACHER_PASSWORD = "CHOOSE-A-PRIVATE-TEACHER-PASSWORD"
 ```
 
-If `SUPABASE_URL` is accidentally pasted with `/rest/v1`, the app automatically normalizes it for the Python client.
+## Updating an existing v1 installation
+
+Before uploading v2 app files, run this file **once** in the existing Supabase project's SQL Editor:
+
+`RUN_THIS_ONCE_IN_SUPABASE_v2.sql`
+
+It adds the adaptive mastery, learning-progress, response-time, and teacher-Focus fields without deleting the six original v1 tables or existing student accounts/results.
+
+Then upload **every file and folder** from the new `UPLOAD_TO_GITHUB` folder to the GitHub repository root. Make sure the `daily_sprint_component` folder is present in GitHub.
 
 ## Version notes
 
+### v2.0.0 — Adaptive Learning Routine
+
+Adds the research-informed full routine **Daily 10 → Fix Your Misses → Your Focus Practice → Done**, persistent individualized mastery with no placement test, eight-fact adaptive Focus sessions, required correction retries, a hidden competition stopwatch, Daily Stars and school-day Learning Streaks, private student growth views, a teacher class heatmap, Focus overrides, and upgraded derived-fact teaching strategies.
+
+The shared Daily 10 generator and accuracy-first Top-10 ranking remain unchanged.
+
 ### v1.0.0 — Full classroom beta
 
-First complete release of **Teal's Daily Fact Challenge**.
-
-Includes the balanced shared Daily 10, Fact-1 timing start, accuracy-first Top 10 class leaderboard, hidden feedback until completion, array-based review, unlimited focus-family Practice, student nickname/PIN accounts, three-class/90-student-ready teacher tools, Supabase persistence, teacher attempt resets, and classroom-safe privacy defaults.
-
-See `DEPLOYMENT_STEPS.txt` for the one-time setup.
+Initial shared Daily 10, class Top 10, student nickname/PIN accounts, visual Practice, teacher roster/dashboard tools, and Supabase persistence.

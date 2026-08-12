@@ -9,13 +9,15 @@ def run():
     required = [
         "app.py",
         "fact_engine.py",
+        "adaptive_engine.py",
         "fact_store.py",
         "supabase_fact_store.py",
         "SUPABASE_SCHEMA.sql",
+        "RUN_THIS_ONCE_IN_SUPABASE_v2.sql",
+        "daily_sprint_component/index.html",
         "requirements.txt",
         "README.md",
         "DEPLOYMENT_STEPS.txt",
-        "daily_sprint_component/index.html",
     ]
     for name in required:
         assert Path(name).exists(), name
