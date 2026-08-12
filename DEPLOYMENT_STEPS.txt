@@ -1,0 +1,83 @@
+TEAL'S DAILY FACT CHALLENGE v1.0.0
+ONE-TIME DEPLOYMENT STEPS
+
+This should be a NEW GitHub repo + NEW Supabase project. Do not reuse the Yahtzee Coach database.
+
+1) CREATE THE GITHUB REPOSITORY
+   - Create a new GitHub repository, suggested name:
+     teals-daily-fact-challenge
+   - Upload EVERY file/folder inside this package's UPLOAD_TO_GITHUB folder to the repository root.
+   - Do not upload the outer ZIP folder itself.
+
+2) CREATE A NEW SUPABASE PROJECT
+   - In Supabase, create a new project for this multiplication app.
+   - Open SQL Editor.
+   - Open SUPABASE_SCHEMA.sql from this package.
+   - Paste the whole file into SQL Editor and run it once.
+   - You should end with these six tables:
+       classes
+       students
+       daily_challenges
+       daily_attempts
+       daily_answers
+       practice_answers
+
+3) GET THE SUPABASE SERVER CREDENTIALS
+   - Copy the project URL.
+   - Copy the server-side Secret Key / service-role-style secret for trusted backend use.
+   - NEVER paste this secret into chat, GitHub, or student-facing code.
+
+4) DEPLOY ON STREAMLIT COMMUNITY CLOUD
+   - Create a new Streamlit app from the GitHub repository.
+   - Main file path: app.py
+   - Open the app's Settings -> Secrets.
+   - Add:
+
+     SUPABASE_URL = "https://YOUR-PROJECT.supabase.co"
+     SUPABASE_SECRET_KEY = "YOUR-SERVER-SECRET-KEY"
+     TEACHER_PASSWORD = "CHOOSE-A-PRIVATE-TEACHER-PASSWORD"
+
+   - Save Secrets and allow the app to reboot.
+
+   NOTE: If the Supabase URL is accidentally copied with /rest/v1 at the end,
+   the app automatically fixes the URL before creating the Python client.
+
+5) OPTIONAL CONNECTION CHECK
+   - Add ?dbcheck=1 to the end of the live app URL.
+   - Open the collapsed "Database diagnostic" section.
+   - It should say the database connection is working.
+   - Remove ?dbcheck=1 for normal student use.
+
+6) SET UP YOUR THREE CLASSES
+   - Open the Teacher tab.
+   - Enter the TEACHER_PASSWORD you placed in Streamlit Secrets.
+   - Open "Classes & Students."
+   - Create each class (for example Period 1, Period 2, Period 3).
+
+7) ADD STUDENTS
+   - Choose a class.
+   - Paste the teacher-assigned student nicknames, one per line.
+   - Press "Create students + PINs."
+   - DOWNLOAD THE NEW STUDENT PIN SHEET right away.
+
+   Important: PINs are stored securely as hashes. The old PIN cannot be viewed later.
+   If a student loses a PIN, use Student Tools to generate a new one.
+
+8) READY FOR STUDENTS
+   - Students open Daily Challenge.
+   - They choose their class, enter nickname + PIN, and sign in.
+   - Everyone receives the exact same Daily 10.
+   - Fact 1 is untimed. The timer begins when Fact 1 is submitted.
+   - Facts 2-10 appear one at a time and make up the timed sprint.
+   - The one-at-a-time browser component measures the sprint without adding Streamlit rerun delays between facts.
+   - Accuracy ranks first; time breaks ties.
+   - Students see only the Top 10 for their own class.
+
+TEACHER SAFETY TOOLS
+- Teacher Dashboard shows all class results; students do not.
+- Student Tools can reset a PIN.
+- Student Tools can reset today's Daily attempt after a real technology problem or accidental start.
+- Deactivation preserves history while preventing future student sign-in.
+
+NO SHARE FEATURE
+This app intentionally has no result-sharing button or public social output. It is designed for classroom use.
