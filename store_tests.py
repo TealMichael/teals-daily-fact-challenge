@@ -84,7 +84,8 @@ def run():
 
     store.reset_student_pin(alice.student_id, "4321")
     assert store.authenticate_student(c1.class_id, "Falcon", "1234") is None
-    assert store.authenticate_student(c1.class_id, "Falcon", "4321") == alice
+    reset_login = store.authenticate_student(c1.class_id, "Falcon", "4321")
+    assert reset_login is not None and reset_login.student_id == alice.student_id and reset_login.pin_code == "4321"
     checks += 1
 
     store.rename_student(alice.student_id, "TealFalcon")

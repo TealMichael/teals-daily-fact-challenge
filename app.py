@@ -350,6 +350,9 @@ def strategy_tip(fact: Fact) -> str:
     if 4 in pair:
         other = b if a == 4 else a
         return f"Double twice: {other} × 2 = {other * 2}, then double {other * 2} to get {fact.product}."
+    if 3 in pair:
+        other = b if a == 3 else a
+        return f"Use a double plus one more group: 2 × {other} = {2 * other}, then + {other} = {fact.product}."
     if 6 in pair:
         other = b if a == 6 else a
         return f"Use 5 groups plus 1 more: 5 × {other} = {5 * other}, then + {other} = {fact.product}."
@@ -1061,6 +1064,7 @@ def render_teacher_today(store: SupabaseFactStore) -> None:
     if completed_rows:
         st.caption(f"Median timed sprint: {format_seconds(median_time)} · accuracy ranks before speed")
 
+    teacher_students = {student.student_id: student for student in store.list_students(selected.class_id)}
     table_rows = []
     for row in status:
         sid = row["student_id"]
@@ -1074,8 +1078,10 @@ def render_teacher_today(store: SupabaseFactStore) -> None:
         else:
             routine = "Fix Your Misses"
         stats = learning_stats.get(sid, {"current_streak": 0, "stars": 0})
+        student_record = teacher_students.get(sid)
         table_rows.append({
             "Nickname": row["nickname"],
+            "PIN": (student_record.pin_code if student_record and student_record.pin_code else "Reset once"),
             "Routine": routine,
             "Correct": "" if row["correct_count"] is None else f"{int(row['correct_count'])}/10",
             "Time": "" if row["timed_seconds"] is None else format_seconds(float(row["timed_seconds"])),
@@ -1176,9 +1182,12 @@ def render_teacher_mastery_focus(store: SupabaseFactStore) -> None:
     students = store.list_students(selected.class_id)
     if students:
         with st.expander("View one student's private fact map", expanded=False):
-            student_by_name = {student.nickname: student for student in students}
-            nickname = st.selectbox("Student", list(student_by_name), key="mastery_student_select")
-            student = student_by_name[nickname]
+            student_by_name = {
+                f"{student.nickname} · PIN {student.pin_code or 'reset once'}": student
+                for student in students
+            }
+            student_label = st.selectbox("Student", list(student_by_name), key="mastery_student_select")
+            student = student_by_name[student_label]
             mastery = complete_mastery_map(store.get_mastery(student.student_id))
             individual = []
             for key in sorted(mastery):
@@ -1216,7 +1225,7 @@ def render_teacher_classes(store: SupabaseFactStore) -> None:
     st.caption(f"Class code: {selected.class_code} · {'Active' if selected.active else 'Inactive'}")
 
     st.markdown("### Add students in a batch")
-    st.caption("Paste nicknames one per line. The app creates a private 4-digit PIN for each student.")
+    st.caption("Paste nicknames one per line. The app creates a 4-digit classroom PIN that stays visible to you in the Teacher Dashboard.")
     with st.form("bulk_student_form", clear_on_submit=True):
         pasted = st.text_area("Nicknames", height=180, placeholder="FalconFox\nMathMaster\nBlueSky")
         create_students = st.form_submit_button("Create students + PINs", use_container_width=True, type="primary")
@@ -1252,8 +1261,8 @@ def render_teacher_classes(store: SupabaseFactStore) -> None:
     created_info = st.session_state.bulk_created_credentials
     created = created_info.get("rows", []) if isinstance(created_info, dict) and created_info.get("class_id") == selected.class_id else []
     if created:
-        st.markdown("#### Save these new PINs now")
-        st.caption("PINs are stored securely as hashes. If one is lost later, reset it rather than retrieving the old one.")
+        st.markdown("#### New student PINs")
+        st.caption("These PINs will also remain visible beside each nickname in your Teacher Dashboard.")
         cred_frame = pd.DataFrame(created)
         st.dataframe(cred_frame, hide_index=True, use_container_width=True)
         st.download_button(
@@ -1271,12 +1280,45 @@ def render_teacher_classes(store: SupabaseFactStore) -> None:
     st.markdown(f"### Roster · {len(roster)} students")
     if roster:
         roster_frame = pd.DataFrame([
-            {"Nickname": student.nickname, "Status": "Active" if student.active else "Inactive"}
+            {
+                "Nickname": student.nickname,
+                "PIN": student.pin_code or "Reset once",
+                "Status": "Active" if student.active else "Inactive",
+            }
             for student in roster
         ])
         st.dataframe(roster_frame, hide_index=True, use_container_width=True)
+
+        missing_pin_students = [student for student in roster if not student.pin_code]
+        if missing_pin_students:
+            st.warning(
+                f"{len(missing_pin_students)} older account{'s' if len(missing_pin_students) != 1 else ''} were created before visible PINs were stored. "
+                "Their old hashed PIN cannot be recovered, so generate replacement classroom PINs once."
+            )
+            if st.button("Generate visible PINs for older accounts", use_container_width=True):
+                regenerated = []
+                for legacy_student in missing_pin_students:
+                    new_pin = generate_pin()
+                    store.reset_student_pin(legacy_student.student_id, new_pin)
+                    regenerated.append({"Nickname": legacy_student.nickname, "PIN": new_pin, "Class": selected.class_name})
+                st.session_state["legacy_pin_refresh"] = {"class_id": selected.class_id, "rows": regenerated}
+                st.rerun()
+
+        refreshed = st.session_state.get("legacy_pin_refresh")
+        if isinstance(refreshed, dict) and refreshed.get("class_id") == selected.class_id and refreshed.get("rows"):
+            refreshed_frame = pd.DataFrame(refreshed["rows"])
+            st.success("Visible classroom PINs were created for the older accounts. Students must use these new PINs from now on.")
+            st.dataframe(refreshed_frame, hide_index=True, use_container_width=True)
+            st.download_button(
+                "Download replacement PINs (CSV)",
+                refreshed_frame.to_csv(index=False).encode("utf-8"),
+                file_name="replacement_student_pins.csv",
+                mime="text/csv",
+                use_container_width=True,
+            )
+
         st.download_button(
-            "Download roster (no PINs)",
+            "Download roster + PINs",
             roster_frame.to_csv(index=False).encode("utf-8"),
             file_name=f"{selected.class_name.replace(' ', '_')}_roster.csv",
             mime="text/csv",
@@ -1296,7 +1338,10 @@ def render_teacher_student_tools(store: SupabaseFactStore) -> None:
     if not students:
         st.info("This class has no students yet.")
         return
-    student_by_label = {f"{s.nickname}{' (inactive)' if not s.active else ''}": s for s in students}
+    student_by_label = {
+        f"{s.nickname} · PIN {s.pin_code or 'reset once'}{' (inactive)' if not s.active else ''}": s
+        for s in students
+    }
     label = st.selectbox("Student", list(student_by_label), key="teacher_tools_student")
     student = student_by_label[label]
 
@@ -1312,8 +1357,12 @@ def render_teacher_student_tools(store: SupabaseFactStore) -> None:
         except Exception as exc:
             st.error(str(exc))
 
-    st.markdown("#### Reset PIN")
-    st.caption("The old PIN cannot be viewed. Resetting creates a new 4-digit PIN.")
+    st.markdown("#### Student PIN")
+    if student.pin_code:
+        st.info(f"Current classroom PIN: **{student.pin_code}**")
+        st.caption("This PIN stays visible to you in the Teacher Dashboard. Generate a new one only when you want to change it.")
+    else:
+        st.warning("This older account does not have a viewable PIN yet. Generate a new one once to make it permanently visible here.")
     if st.button("Generate new PIN", use_container_width=True):
         pin = generate_pin()
         try:
@@ -1325,8 +1374,8 @@ def render_teacher_student_tools(store: SupabaseFactStore) -> None:
     reset_info = st.session_state.get("last_reset_pin")
     if reset_info and reset_info.get("student_id") == student.student_id:
         st.success(f"New PIN for {reset_info['nickname']}: **{reset_info['pin']}**")
-        st.caption("Give it to the student privately, then clear it from the screen.")
-        if st.button("Clear new PIN", use_container_width=True):
+        st.caption("It is now saved as the student's visible classroom PIN in your Teacher Dashboard.")
+        if st.button("Clear reset message", use_container_width=True):
             st.session_state.pop("last_reset_pin", None)
             st.rerun()
 

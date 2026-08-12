@@ -1,5 +1,5 @@
--- Teal's Daily Fact Challenge v2.0 adaptive learning migration
--- Run this entire file ONCE in the existing v1 Supabase project.
+-- Teal's Daily Fact Challenge v2.1 adaptive learning + teacher PIN migration
+-- Run this entire file ONCE in the existing v1/v2 Supabase project.
 
 alter table public.daily_answers
     add column if not exists response_seconds numeric(8,3);
@@ -15,7 +15,13 @@ alter table public.classes
     add column if not exists focus_override smallint;
 
 alter table public.students
-    add column if not exists focus_override smallint;
+    add column if not exists focus_override smallint,
+    add column if not exists pin_code text;
+
+alter table public.students
+    drop constraint if exists pin_code_shape;
+alter table public.students
+    add constraint pin_code_shape check (pin_code is null or pin_code ~ '^[0-9]{4}$');
 
 alter table public.classes
     drop constraint if exists class_focus_override_range;

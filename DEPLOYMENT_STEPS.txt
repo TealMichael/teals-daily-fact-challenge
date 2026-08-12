@@ -1,54 +1,49 @@
-TEAL'S DAILY FACT CHALLENGE v2.0.0
-UPDATE STEPS FOR THE EXISTING LIVE v1 APP
+TEAL'S DAILY FACT CHALLENGE v2.1.0
+UPDATE STEPS FOR THE EXISTING LIVE APP
 
-IMPORTANT: This v2 update uses the SAME GitHub repo, Streamlit app, and Supabase project you already created.
+IMPORTANT: Use the SAME GitHub repo, Streamlit app, and Supabase project you already created.
 Do NOT create a second database.
 
-STEP 1 — RUN THE ONE-TIME SUPABASE MIGRATION FIRST
-1. Open the existing Teal's Daily Fact Challenge Supabase project.
+STEP 1 — RUN THE CORRECT ONE-TIME SUPABASE UPDATE
+
+IF YOUR LIVE DATABASE IS STILL v1 (you have NOT run the adaptive v2 migration yet):
+1. Open the existing Fact Challenge Supabase project.
 2. Open SQL Editor -> New query.
 3. Open RUN_THIS_ONCE_IN_SUPABASE_v2.sql from this package.
-4. Copy the ENTIRE file into Supabase SQL Editor.
-5. Click Run.
-6. You should get a successful query result.
+4. Copy the ENTIRE file into Supabase and click Run.
+5. This single file now includes both the v2 adaptive-learning upgrade and the v2.1 visible-PIN field.
 
-This migration preserves the original v1 data and adds:
-- student_fact_mastery
-- daily_learning_progress
-- app_settings
-- per-fact response timing fields
-- learning-activity fields for Practice/Fix/Focus
-- optional teacher Focus override fields
+IF YOU ALREADY RAN RUN_THIS_ONCE_IN_SUPABASE_v2.sql from the earlier v2.0 package:
+1. Open SQL Editor -> New query.
+2. Run only RUN_THIS_ONCE_IN_SUPABASE_v2_1.sql from this package.
 
-Do not rerun SUPABASE_SCHEMA.sql on the existing project. The v2 migration is the update file you want.
+Do NOT rerun SUPABASE_SCHEMA.sql on an existing project.
 
-STEP 2 — UPLOAD THE FULL APP TO GITHUB
-1. Open the existing GitHub repo:
-   TealMichael/teals-daily-fact-challenge
-2. Upload EVERY file/folder inside this package's UPLOAD_TO_GITHUB folder to the repository root.
-3. Replace matching files when GitHub asks.
-4. Make sure the folder below is visible in the GitHub root after the commit:
+STEP 2 — IMPORTANT NOTE ABOUT EXISTING STUDENT PINs
+Older student accounts stored only one-way PIN hashes. Those original PINs cannot be recovered.
+After this update, Teacher -> Classes & Students will show "Reset once" for any such older account and offer:
+   Generate visible PINs for older accounts
+This creates replacement PINs, updates student login, and keeps the new PIN visible in teacher-only views from then on.
+
+New students created after v2.1 automatically have a visible classroom PIN.
+
+STEP 3 — UPLOAD THE FULL APP TO GITHUB
+1. Open: TealMichael/teals-daily-fact-challenge
+2. Upload EVERY file/folder inside this package's UPLOAD_TO_GITHUB folder to the repo root.
+3. Replace matching files.
+4. Confirm this folder exists after the commit:
 
    daily_sprint_component/
        index.html
 
-   This folder is required for the one-at-a-time Daily sprint.
-
 Suggested commit:
-   v2.0 - add adaptive daily learning routine and persistent mastery
+   v2.1 - align adaptive fact learning and show teacher PINs
 
-STEP 3 — WAIT FOR STREAMLIT TO REDEPLOY
-Your existing Streamlit app should redeploy automatically after the GitHub commit.
+STEP 4 — WAIT FOR STREAMLIT TO REDEPLOY
 No new Streamlit Secrets are needed.
 
-STEP 4 — OPTIONAL DATABASE CHECK
-Add ?dbcheck=1 to the live app URL and open Database diagnostic.
-The v2 diagnostic checks the original database plus the new adaptive-learning tables.
-It should say:
-   Database connection is working.
-
-STEP 5 — PILOT WITH A SMALL GROUP FIRST
-Before sending all students through it, sign in with one test student and complete:
+STEP 5 — QUICK CLASSROOM PILOT CHECK
+With one test student, complete:
 
    Daily 10
        -> Fix Your Misses (if any)
@@ -56,44 +51,18 @@ Before sending all students through it, sign in with one test student and comple
        -> ⭐ Day Complete
 
 Confirm:
-- Daily still gives the shared 10 facts.
-- There is no visible ticking stopwatch.
-- Daily ranking is accuracy first, time second.
-- A Daily miss shows an array + strategy and requires a correct retry.
-- Focus Practice is exactly 8 first-try retrievals, with teaching/retry after a miss.
-- Day Complete awards a Daily Star.
-- My Growth begins mostly/entirely as Learning for a new student. That is intentional.
-- There is NO placement test. The profile learns slowly from Daily + assigned Focus Practice.
+- no placement test appears;
+- the Daily timer runs quietly rather than displaying elapsed seconds;
+- accuracy ranks before time;
+- a missed fact is taught with an array + relationship strategy and must be retried correctly;
+- early Focus Practice for an unknown profile leans on 2s/5s/10s anchor relationships;
+- Focus Practice stays short and spaced rather than drilling one fact repeatedly;
+- student mastery grows only from independent retrieval evidence;
+- the teacher-only roster/progress views show PINs beside nicknames;
+- student-visible Top 10 does NOT show PINs.
 
-STEP 6 — CHECK THE TEACHER DASHBOARD
-Teacher -> Today
-- See Daily 10 completion and Full routine completion separately.
-- See each student's current step, streak, and total stars.
-
-Teacher -> Mastery & Focus
-- View the 45-fact class heatmap.
-- Early in the pilot many facts will say Learning because the app has not observed them yet.
-- That is expected and should NOT be treated as a deficit.
-- Automatic Focus is the normal setting.
-- Optional overrides can temporarily target one family for everyone or a class.
-
-Teacher -> Student Tools
-- View/reset accounts as before.
-- Set an optional one-student Focus override if needed.
-
-HOW THE v2 MASTERY MODEL STARTS
-A brand-new student has ZERO placement-test data.
-All 45 core facts begin as Learning/unknown.
-The app adds evidence only as the student naturally completes Daily Challenge and assigned Focus Practice over time.
-Fix Your Misses correction retries do not artificially boost mastery.
-
-DAILY REWARD RULE
-A student earns a Daily Star and Learning Streak credit ONLY after finishing the full routine:
-Daily 10 + Fix Your Misses + Focus Practice.
-Leaderboard position is NOT part of the reward requirement.
-
-WEEKENDS
-Learning Streak calculations use assigned weekday Challenge dates, so Friday -> Monday can continue a streak without Saturday/Sunday breaking it.
+RESEARCH-INFORMED DESIGN IN v2.1
+The app uses one-at-a-time active retrieval, conceptual arrays/derived-fact strategies after errors, corrective retry, spaced mixed practice, short daily sessions, and quiet timing. The adaptive profile grows gradually from Daily + Focus evidence instead of a beginning placement test.
 
 NO SHARE FEATURE
-This remains an in-class app. There is no public score-sharing feature.
+This remains an in-class app.

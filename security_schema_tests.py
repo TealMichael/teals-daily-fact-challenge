@@ -22,13 +22,15 @@ def run():
     assert "mastery_core_canonical" in schema
     assert "focus_override" in migration
     assert "activity_type" in migration and "is_retry" in migration
+    assert "pin_code text" in schema and "pin_code_shape" in schema
+    assert "pin_code" in migration
 
     encoded = hash_pin("2468")
     assert "2468" not in encoded and encoded.startswith("scrypt$")
     assert "def normalize_supabase_url" in backend and '"/rest/v1"' in backend
     assert "SUPABASE_SECRET_KEY" in backend
 
-    print(f"security_schema_tests: PASS ({len(tables) + 11} security/data-integrity checks)")
+    print(f"security_schema_tests: PASS ({len(tables) + 14} security/data-integrity checks)")
 
 
 if __name__ == "__main__":

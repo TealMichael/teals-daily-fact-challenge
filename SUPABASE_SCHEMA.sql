@@ -1,4 +1,4 @@
--- Teal's Daily Fact Challenge v2.0
+-- Teal's Daily Fact Challenge v2.1
 -- Run this entire file once in the Supabase SQL Editor for a NEW project.
 -- The Streamlit app uses the server-side SUPABASE_SECRET_KEY. No browser gets
 -- direct database credentials.
@@ -22,9 +22,11 @@ create table if not exists public.students (
     nickname text not null,
     nickname_key text not null,
     pin_hash text not null,
+    pin_code text,
     active boolean not null default true,
     created_at timestamptz not null default now(),
     constraint nickname_not_blank check (length(btrim(nickname)) between 1 and 28),
+    constraint pin_code_shape check (pin_code is null or pin_code ~ '^[0-9]{4}$'),
     unique (class_id, nickname_key)
 );
 

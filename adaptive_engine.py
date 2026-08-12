@@ -161,6 +161,83 @@ def _stable_seed(text: str) -> int:
     return int.from_bytes(hashlib.sha256(text.encode("utf-8")).digest()[:8], "big")
 
 
+FOUNDATION_FAMILIES = (2, 5, 10)
+
+
+def _derived_anchor_keys(pair: tuple[int, int]) -> tuple[tuple[int, int], ...]:
+    """Return easier fact relationships that can support a derived fact.
+
+    The app does not test these up front.  It simply uses already-collected
+    mastery evidence to decide which *unknown* facts are sensible to explore
+    next.
+    """
+    a, b = canonical_pair(*pair)
+    factors = {a, b}
+    if any(family in factors for family in FOUNDATION_FAMILIES):
+        return ()
+    if a == b:
+        return ()
+
+    # Match the teaching strategies used in app.py.
+    if 9 in factors:
+        other = b if a == 9 else a
+        return (canonical_pair(10, other),)
+    if 4 in factors:
+        other = b if a == 4 else a
+        return (canonical_pair(2, other),)
+    if 3 in factors:
+        other = b if a == 3 else a
+        return (canonical_pair(2, other),)
+    if 6 in factors:
+        other = b if a == 6 else a
+        return (canonical_pair(5, other),)
+    if 7 in factors:
+        other = b if a == 7 else a
+        return (canonical_pair(5, other), canonical_pair(2, other))
+    if 8 in factors:
+        other = b if a == 8 else a
+        return (canonical_pair(10, other), canonical_pair(2, other))
+    return ()
+
+
+def _unknown_learning_stage(row: MasterySnapshot, full: Mapping[tuple[int, int], MasterySnapshot]) -> int:
+    """Smaller stages are better early-learning exploration choices.
+
+    0 = foundational 2s/5s/10s;
+    1 = derived fact whose supporting anchors are already Building/Fluent;
+    2 = other unknown fact.
+
+    This creates relationship-aware growth without a placement test.
+    """
+    if any(family in row.key for family in FOUNDATION_FAMILIES):
+        return 0
+    anchors = _derived_anchor_keys(row.key)
+    if anchors and all(full[key].status in {STATUS_BUILDING, STATUS_FLUENT} for key in anchors):
+        return 1
+    return 2
+
+
+def _order_unknown_for_learning(
+    rows: Sequence[MasterySnapshot],
+    *,
+    full: Mapping[tuple[int, int], MasterySnapshot],
+    rng: random.Random,
+) -> list[MasterySnapshot]:
+    """Prefer anchor relationships while retaining variety within each stage."""
+    buckets: dict[int, list[MasterySnapshot]] = {0: [], 1: [], 2: []}
+    for row in rows:
+        buckets[_unknown_learning_stage(row, full)].append(row)
+    ordered: list[MasterySnapshot] = []
+    for stage in (0, 1, 2):
+        bucket = buckets[stage]
+        rng.shuffle(bucket)
+        # Keep easier core relationships slightly earlier without turning the
+        # practice into a rigid multiplication-table sequence.
+        bucket.sort(key=lambda row: (core_difficulty(row.key) == "hard", core_difficulty(row.key) == "medium"))
+        ordered.extend(bucket)
+    return ordered
+
+
 def _choose_dissimilar(
     candidates: Sequence[MasterySnapshot],
     count: int,
@@ -202,7 +279,7 @@ def build_focus_plan(
     between them rather than appearing back-to-back.
     """
     full = complete_mastery_map(rows)
-    rng = random.Random(_stable_seed(f"focus-v2:{student_id}:{date_key}:{override_family}"))
+    rng = random.Random(_stable_seed(f"focus-v2.1:{student_id}:{date_key}:{override_family}"))
 
     if override_family is not None:
         family = int(override_family)
@@ -224,8 +301,11 @@ def build_focus_plan(
             [row for row in full.values() if row.status == STATUS_BUILDING and row.key not in miss_keys],
             key=lambda row: (-mastery_priority(row), row.key),
         )
-        unknown_rows = [row for row in full.values() if row.status == STATUS_UNKNOWN and row.key not in miss_keys]
-        rng.shuffle(unknown_rows)
+        unknown_rows = _order_unknown_for_learning(
+            [row for row in full.values() if row.status == STATUS_UNKNOWN and row.key not in miss_keys],
+            full=full,
+            rng=rng,
+        )
 
         targets: list[MasterySnapshot] = []
         for pool in (missed, focus_rows, building_rows, unknown_rows):
@@ -254,8 +334,11 @@ def build_focus_plan(
         non_targets.sort(key=lambda row: (mastery_priority(row), row.key))
         maintenance = non_targets[0] if non_targets else None
 
-    unknown = [row for row in non_targets if row.status == STATUS_UNKNOWN and row is not maintenance]
-    rng.shuffle(unknown)
+    unknown = _order_unknown_for_learning(
+        [row for row in non_targets if row.status == STATUS_UNKNOWN and row is not maintenance],
+        full=full,
+        rng=rng,
+    )
     explore = unknown[0] if unknown else next((row for row in non_targets if row is not maintenance), None)
 
     # Ensure at least three target anchors when an override yields fewer due to

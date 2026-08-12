@@ -57,6 +57,7 @@ class StudentRecord:
     nickname: str
     active: bool
     created_at: datetime
+    pin_code: str | None = None
 
 
 @dataclass(frozen=True)
@@ -232,11 +233,13 @@ class InMemoryFactStore:
             for row in self.students.values()
         ):
             raise NameTaken(f"{nickname} already exists in this class.")
-        record = StudentRecord(_uuid(), class_id, nickname, True, utc_now())
+        pin = validate_pin(pin)
+        record = StudentRecord(_uuid(), class_id, nickname, True, utc_now(), pin)
         self.students[record.student_id] = {
             "record": record,
             "nickname_key": key,
             "pin_hash": pin_hash,
+            "pin_code": pin,
         }
         return record
 
@@ -280,7 +283,10 @@ class InMemoryFactStore:
     def reset_student_pin(self, student_id: str, pin: str) -> None:
         if student_id not in self.students:
             raise NotFound("Student not found.")
+        pin = validate_pin(pin)
         self.students[student_id]["pin_hash"] = hash_pin(pin)
+        self.students[student_id]["pin_code"] = pin
+        self.students[student_id]["record"] = replace(self.students[student_id]["record"], pin_code=pin)
 
     def set_student_active(self, student_id: str, active: bool) -> StudentRecord:
         if student_id not in self.students:

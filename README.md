@@ -44,6 +44,8 @@ Focus Practice mixes:
 - maintenance facts that are already stronger;
 - spaced repeats of priority facts rather than immediate drilling of the same fact.
 
+For brand-new/mostly-unknown profiles, v2.1 makes that exploration **relationship-aware**: 2s, 5s, and 10s are used as early anchor relationships, then unknown derived facts move forward as their supporting anchors become Building/Fluent. This happens gradually through normal use; there is still no placement test or giant opening assessment.
+
 If a Focus answer is missed, the student sees the visual/strategy teaching and must retry correctly. The retry teaches the fact but does not count as independent retrieval evidence.
 
 ### 4. ⭐ Day Complete
@@ -79,7 +81,7 @@ Practice remains unlimited and lets students choose:
 - Mixed Facts
 - 2s through 12s
 
-Every Practice miss uses **teach → retry correctly → next**, with an array and derived-fact strategy.
+Every Practice miss uses **teach → retry correctly → next**, with an array and derived-fact strategy. The teaching library includes doubles, double-twice, 5-groups plus more, 10-groups minus groups, and decomposition strategies so facts are connected to relationships instead of treated as isolated memorization.
 
 Extra/manual Practice is saved for history but does not currently change the formal mastery map. The formal profile is deliberately based on the common Daily Challenge and assigned Focus Practice so the evidence stays consistent.
 
@@ -116,8 +118,9 @@ Override priority is:
 
 Teachers can:
 
+- see each student's classroom PIN beside the nickname throughout teacher-only roster/progress tools;
 - rename a nickname;
-- reset a PIN;
+- reset/change a PIN;
 - deactivate/reactivate an account;
 - reset today's Daily after a legitimate technology problem;
 - temporarily override one student's Focus family.
@@ -130,8 +133,9 @@ Each Daily contains 10 unique underlying multiplication facts. Commutative mirro
 
 ## Data and privacy
 
-- Student accounts use teacher-assigned nicknames and private 4-digit PINs.
-- PINs are stored only as salted scrypt hashes.
+- Student accounts use teacher-assigned nicknames and 4-digit classroom PINs.
+- v2.1 intentionally stores a teacher-readable copy of each PIN (`pin_code`) so classroom PINs remain visible in the password-protected Teacher Dashboard. Authentication still verifies the salted scrypt hash.
+- Student-facing pages never show classmates' PINs.
 - No student email, school ID, or legal name is required.
 - Supabase Row Level Security is enabled on all app tables with no public browser policies.
 - The Streamlit server uses the private `SUPABASE_SECRET_KEY`.
@@ -146,17 +150,23 @@ SUPABASE_SECRET_KEY = "YOUR-SERVER-SECRET-KEY"
 TEACHER_PASSWORD = "CHOOSE-A-PRIVATE-TEACHER-PASSWORD"
 ```
 
-## Updating an existing v1 installation
+## Updating an existing installation
 
-Before uploading v2 app files, run this file **once** in the existing Supabase project's SQL Editor:
+**If you are still on v1:** run `RUN_THIS_ONCE_IN_SUPABASE_v2.sql`. In this package it includes the full adaptive-learning upgrade plus the v2.1 visible-PIN field.
 
-`RUN_THIS_ONCE_IN_SUPABASE_v2.sql`
+**If you already ran the v2.0 migration:** run only `RUN_THIS_ONCE_IN_SUPABASE_v2_1.sql`.
 
-It adds the adaptive mastery, learning-progress, response-time, and teacher-Focus fields without deleting the six original v1 tables or existing student accounts/results.
+Existing student PINs created before v2.1 cannot be recovered from their old one-way hashes. The Teacher Dashboard offers a one-click replacement-PIN tool for those legacy accounts; after that, the new classroom PIN remains visible beside the nickname.
 
 Then upload **every file and folder** from the new `UPLOAD_TO_GITHUB` folder to the GitHub repository root. Make sure the `daily_sprint_component` folder is present in GitHub.
 
 ## Version notes
+
+### v2.1.0 — Research Alignment + Teacher PIN Visibility
+
+Tightens the adaptive learning sequence around multiplication relationships: early unknown exploration now favors 2s/5s/10s anchors, then derived facts become higher-priority as supporting anchors are learned. Adds a clearer ×3 derived-fact strategy while preserving arrays, retrieval-first practice, correction retries, spacing, the hidden Daily timer, and the no-placement-test model.
+
+Teacher-only views now keep each student's 4-digit classroom PIN visible beside the nickname. Authentication still uses the salted hash internally; a readable copy is retained solely for classroom management. Existing legacy accounts can receive one-click replacement PINs because their original hashes are not reversible.
 
 ### v2.0.0 — Adaptive Learning Routine
 

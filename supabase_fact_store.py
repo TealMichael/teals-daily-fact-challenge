@@ -38,6 +38,7 @@ from fact_store import (
     normalize_name,
     utc_now,
     verify_pin,
+    validate_pin,
 )
 
 
@@ -112,6 +113,7 @@ def _student(row: Mapping) -> StudentRecord:
         nickname=str(row["nickname"]),
         active=bool(row.get("active", True)),
         created_at=_dt(row.get("created_at")) or utc_now(),
+        pin_code=None if row.get("pin_code") is None else str(row.get("pin_code")),
     )
 
 
@@ -278,11 +280,13 @@ class SupabaseFactStore:
     # ----- Students -----
     def create_student(self, class_id: str, nickname: str, pin: str) -> StudentRecord:
         name, key = normalize_name(nickname, label="Nickname", max_length=28)
+        pin = validate_pin(pin)
         payload = {
             "class_id": str(class_id),
             "nickname": name,
             "nickname_key": key,
             "pin_hash": hash_pin(pin),
+            "pin_code": pin,
         }
         try:
             row = _first(self.client.table("students").insert(payload).select("*").execute())
@@ -313,7 +317,7 @@ class SupabaseFactStore:
         return _student(row)
 
     def list_students(self, class_id: str, *, include_inactive: bool = False) -> list[StudentRecord]:
-        query = self.client.table("students").select("student_id,class_id,nickname,active,created_at").eq("class_id", str(class_id))
+        query = self.client.table("students").select("student_id,class_id,nickname,pin_code,active,created_at").eq("class_id", str(class_id))
         if not include_inactive:
             query = query.eq("active", True)
         return [_student(row) for row in _rows(query.order("nickname").execute())]
@@ -321,7 +325,7 @@ class SupabaseFactStore:
     def get_student(self, student_id: str) -> StudentRecord:
         row = _first(
             self.client.table("students")
-            .select("student_id,class_id,nickname,active,created_at")
+            .select("student_id,class_id,nickname,pin_code,active,created_at")
             .eq("student_id", str(student_id))
             .limit(1)
             .execute()
@@ -338,7 +342,7 @@ class SupabaseFactStore:
                 self.client.table("students")
                 .update({"nickname": name, "nickname_key": key})
                 .eq("student_id", student.student_id)
-                .select("student_id,class_id,nickname,active,created_at")
+                .select("student_id,class_id,nickname,pin_code,active,created_at")
                 .execute()
             )
         except Exception as exc:
@@ -350,9 +354,10 @@ class SupabaseFactStore:
         return _student(row)
 
     def reset_student_pin(self, student_id: str, pin: str) -> None:
+        pin = validate_pin(pin)
         response = (
             self.client.table("students")
-            .update({"pin_hash": hash_pin(pin)})
+            .update({"pin_hash": hash_pin(pin), "pin_code": pin})
             .eq("student_id", str(student_id))
             .select("student_id")
             .execute()
@@ -365,7 +370,7 @@ class SupabaseFactStore:
             self.client.table("students")
             .update({"active": bool(active)})
             .eq("student_id", str(student_id))
-            .select("student_id,class_id,nickname,active,created_at")
+            .select("student_id,class_id,nickname,pin_code,active,created_at")
             .execute()
         )
         if row is None:
