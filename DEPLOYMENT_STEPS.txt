@@ -1,51 +1,22 @@
-TEAL'S DAILY FACT CHALLENGE v2.5.0
-STUDENT EXPERIENCE PASS — EXISTING LIVE v2.4 APP
+TEAL'S DAILY FACT CHALLENGE v2.5.1
 
-THIS UPDATE HAS ONE SUPABASE MIGRATION.
-NO new Streamlit Secret is required.
-Do NOT rerun v2, v2_1, v2_2, or SUPABASE_SCHEMA.sql.
-
-STEP 1 — SUPABASE
-1. Open the existing Teal's Daily Fact Challenge Supabase project.
-2. Open SQL Editor.
-3. Start a NEW query.
-4. Open RUN_THIS_ONCE_IN_SUPABASE_v2_5.sql from this package.
-5. Paste the entire file into the new query and click Run.
-6. Confirm it succeeds.
-
-STEP 2 — GITHUB
-1. Upload EVERY file/folder inside UPLOAD_TO_GITHUB to the existing GitHub repo root.
-2. Replace matching files.
-3. Confirm these component folders exist:
+CURRENT UPDATE FROM v2.5.0
+--------------------------
+1. No Supabase SQL is required for v2.5.1.
+2. Upload/replace every file and folder inside UPLOAD_TO_GITHUB in the existing GitHub repository.
+3. Confirm these component folders are present in GitHub:
    - daily_sprint_component/index.html
    - answer_pad_component/index.html
    - persistent_login_component/index.html
-4. Commit the upload.
-5. Streamlit should redeploy automatically.
+   - pin_entry_component/index.html
+4. Let Streamlit redeploy automatically.
+5. Test one student login on an iPad and one Step 3 Focus answer before class.
 
-Suggested commit:
-   v2.5 - improve student input, Mystery rules, Top 10, and finish screen
+IMPORTANT
+---------
+- Keep RUN_THIS_ONCE_IN_SUPABASE_v2_5.sql in the repository/package history, but DO NOT rerun it if v2.5 was already installed.
+- No new Streamlit Secrets are required.
 
-WHAT CHANGED
-- Large browser-local phone-style number pad for Daily, Fix Misses, Focus Practice, and optional Practice.
-- Digit taps cause NO Streamlit rerun and NO Supabase request; only ✓ submits.
-- Physical number keys + Enter still work as a fallback.
-- Top 10 now appears immediately after the Daily using the existing cached standings, without reloading throughout Focus Practice.
-- Student Top 10 remains rank + nickname only; accuracy/time stay teacher-only.
-- Day Complete is cleaner and makes the Mystery reward the clear finish.
-- Weekly Mystery now follows the corrected classroom rule:
-  Monday-Wednesday: clues only, no guesses.
-  Thursday: earned clue + Guess #1.
-  Friday: Guess #2 + reveal.
-  Missed clue days are never backfilled.
-
-PRESERVED
-- v2.4 optional 30-day remembered login
-- v2.3 Teacher Mode organization and clear routine progress
-- v2.2.5 classroom-load retries/batching
-- v2.2.6 Focus Practice speed improvements
-- adaptive mastery / no placement test
-- Fix Your Misses / 8 Focus Facts
-- Stars / school-day streaks
-- all teacher roster/PIN/support tools
-- Daily fact generator and private accuracy-first/time-second ranking logic
+SUGGESTED COMMIT
+----------------
+v2.5.1 - fix iPad keypad, student PIN login, and Mystery celebration

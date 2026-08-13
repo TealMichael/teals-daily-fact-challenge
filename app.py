@@ -39,6 +39,7 @@ from weekly_mystery import (
     MYSTERIES,
     default_mystery_key_for_week,
     is_correct_guess,
+    learning_paragraph_for,
     mystery_for_key,
     next_mystery_key,
     school_day_number,
@@ -69,6 +70,21 @@ ANSWER_PAD_COMPONENT = components.declare_component(
     "tdfc_answer_pad",
     path=str(Path(__file__).with_name("answer_pad_component")),
 )
+
+PIN_ENTRY_COMPONENT = components.declare_component(
+    "tdfc_student_pin",
+    path=str(Path(__file__).with_name("pin_entry_component")),
+)
+
+def render_student_pin(*, key: str) -> str:
+    """Classroom PIN pad with no browser password field/autofill surface."""
+    state_key = f"student_pin_value::{key}"
+    current = str(st.session_state.get(state_key) or "")
+    result = PIN_ENTRY_COMPONENT(value=current, key=key, default=None)
+    if isinstance(result, str):
+        cleaned = "".join(ch for ch in result if ch.isdigit())[:4]
+        st.session_state[state_key] = cleaned
+    return str(st.session_state.get(state_key) or "")
 
 def render_number_pad(*, key: str) -> tuple[int, float] | None:
     """Browser-local touch keypad; digit taps never rerun Streamlit."""
@@ -126,6 +142,18 @@ st.markdown(
         color:#111827 !important;
     }
     .hero-card * { color:inherit; }
+    .mystery-win-card {
+        border:2px solid #f59e0b;
+        border-radius:24px;
+        padding:1.15rem 1rem;
+        background:linear-gradient(180deg,#fffbeb 0%,#ffffff 100%);
+        margin:0.75rem 0 0.9rem 0;
+        color:#111827 !important;
+    }
+    .mystery-win-kicker { font-size:1.05rem; font-weight:950; letter-spacing:0.01em; }
+    .mystery-win-answer { font-size:clamp(2rem,8vw,3.2rem); font-weight:950; margin-top:0.35rem; color:#92400e; }
+    .mystery-win-title { font-size:1.1rem; font-weight:900; margin-top:0.35rem; }
+    .mystery-win-detail { font-size:0.98rem; margin-top:0.25rem; color:#4b5563; }
     .section-label {
         color:#6b7280;
         font-size:0.77rem;
@@ -605,15 +633,21 @@ def render_student_sign_in(store: SupabaseFactStore | None) -> bool:
     st.markdown("### Student sign in")
     st.caption("Use the nickname and 4-digit PIN your teacher gave you.")
     class_by_name = {item.class_name: item for item in classes}
-    with st.form("student_signin", clear_on_submit=False):
-        class_name = st.selectbox("Class", list(class_by_name))
-        nickname = st.text_input("Nickname", max_chars=28)
-        pin = st.text_input("4-digit PIN", type="password", max_chars=4)
-        remember_device = st.checkbox(f"Keep me signed in on this device for {REMEMBER_DAYS} days")
-        st.caption("Great for your assigned Chromebook or iPad. Leave this unchecked on a shared device.")
-        submitted = st.form_submit_button("Sign in", use_container_width=True, type="primary")
+    class_name = st.selectbox("Class", list(class_by_name), key="student_login_class")
+    nickname = st.text_input("Nickname", max_chars=28, key="student_login_nickname")
+    st.markdown("**4-digit PIN**")
+    pin = render_student_pin(key="student_login_pin_pad")
+    remember_device = st.checkbox(
+        f"Keep me signed in on this device for {REMEMBER_DAYS} days",
+        key="student_login_remember",
+    )
+    st.caption("Great for your assigned Chromebook or iPad. Leave this unchecked on a shared device.")
+    submitted = st.button("Sign in", use_container_width=True, type="primary", key="student_login_submit")
     if submitted:
         selected = class_by_name[class_name]
+        if len(pin) != 4:
+            st.error("Enter your 4-digit PIN first.")
+            return False
         try:
             student = store.authenticate_student(selected.class_id, nickname, pin)
         except Exception:
@@ -622,6 +656,7 @@ def render_student_sign_in(store: SupabaseFactStore | None) -> bool:
             st.error("That nickname/PIN combination did not match this class.")
             return False
         _set_student_session(student, selected)
+        st.session_state.pop("student_pin_value::student_login_pin_pad", None)
         if remember_device:
             token = issue_student_token(student.student_id, pin, _persistent_login_secret())
             st.session_state.persistent_login_pending_action = {"action": "store", "token": token}
@@ -675,6 +710,31 @@ def _render_mystery_stats(store: SupabaseFactStore) -> None:
         st.caption(f"Mysteries solved: {solved} · Earliest solve: {earliest_text}")
 
 
+def _render_mystery_learning(mystery) -> None:
+    st.markdown(f"### 📚 Meet {mystery.answer}")
+    st.markdown(learning_paragraph_for(mystery))
+    st.info(f"🤯 **Fun fact:** {mystery.reveal_note}")
+
+
+def _render_mystery_win(mystery, solved_guess, week_start) -> None:
+    clue_count = max(1, int(solved_guess.clue_count or 1))
+    title = _mystery_solve_title(clue_count)
+    celebration_key = f"mystery_win_fanfare::{st.session_state.student_id}::{week_start.isoformat()}::{solved_guess.guess_day}"
+    if not st.session_state.get(celebration_key):
+        st.session_state[celebration_key] = True
+        st.balloons()
+    st.markdown(
+        f"<div class='mystery-win-card center'>"
+        f"<div class='mystery-win-kicker'>🎉🎉 YOU SOLVED THE MYSTERY! 🎉🎉</div>"
+        f"<div class='mystery-win-answer'>{html.escape(mystery.answer)}</div>"
+        f"<div class='mystery-win-title'>{html.escape(title)}</div>"
+        f"<div class='mystery-win-detail'>You solved it with {clue_count} clue{'s' if clue_count != 1 else ''}!</div>"
+        f"</div>",
+        unsafe_allow_html=True,
+    )
+    _render_mystery_learning(mystery)
+
+
 def render_weekly_mystery_reward(store: SupabaseFactStore, day, challenge) -> None:
     """Earn clues Monday-Thursday; guessing exists only Thursday and Friday."""
     try:
@@ -720,7 +780,8 @@ def render_weekly_mystery_reward(store: SupabaseFactStore, day, challenge) -> No
         existing = guess_by_day.get(4)
         if existing is not None:
             if existing.correct:
-                st.success(f"🕵️ You solved it on Thursday! Your guess was **{existing.guess_text}**. The official reveal is Friday.")
+                _render_mystery_win(mystery, existing, week_start)
+                st.caption("You solved it early! Friday will still reveal the mystery to everyone who finishes.")
             else:
                 st.info(f"Thursday guess: **{existing.guess_text}** · Not quite. You get one final guess Friday.")
         else:
@@ -757,8 +818,9 @@ def render_weekly_mystery_reward(store: SupabaseFactStore, day, challenge) -> No
     reveal_key = f"mystery_reveal_without_guess_{week_start.isoformat()}"
 
     if solved_guess is not None:
-        when = "Thursday" if int(solved_guess.guess_day) == 4 else "Friday"
-        st.success(f"🏆 Mystery solved on {when}! Your guess was **{solved_guess.guess_text}**.")
+        _render_mystery_win(mystery, solved_guess, week_start)
+        _render_mystery_stats(store)
+        return
     elif friday_guess is None and not st.session_state.get(reveal_key):
         if thursday_guess is not None:
             st.caption(f"Thursday guess: {thursday_guess.guess_text}")
@@ -788,10 +850,10 @@ def render_weekly_mystery_reward(store: SupabaseFactStore, day, challenge) -> No
 
     st.markdown(
         f"<div class='hero-card center'><div style='font-size:1rem;font-weight:850'>🎉 MYSTERY REVEALED</div>"
-        f"<div style='font-size:2rem;font-weight:950;margin-top:.25rem'>{html.escape(mystery.answer)}</div>"
-        f"<div style='margin-top:.45rem'>{html.escape(mystery.reveal_note)}</div></div>",
+        f"<div style='font-size:2rem;font-weight:950;margin-top:.25rem'>{html.escape(mystery.answer)}</div></div>",
         unsafe_allow_html=True,
     )
+    _render_mystery_learning(mystery)
     if friday_guess is not None:
         if friday_guess.correct:
             st.success("✅ Your Friday guess was correct!")

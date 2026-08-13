@@ -1,1 +1,1 @@
-v2.5 - improve student input, Mystery rules, Top 10, and finish screen
+v2.5.1 - fix iPad keypad, student PIN login, and Mystery celebration

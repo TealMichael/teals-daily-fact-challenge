@@ -119,7 +119,7 @@ Every existing teacher function remains available, but the dashboard is reorgani
 
 ## Daily fact generator
 
-The shared Daily generator remains versioned as `TDFC-DAILY-v1`, so the previously audited Daily sequence does not change in v2.5.0.
+The shared Daily generator remains versioned as `TDFC-DAILY-v1`, so the previously audited Daily sequence does not change in v2.5.1.
 
 Each Daily contains 10 unique underlying multiplication facts. Commutative mirrors cannot both appear. Normal core days contain 3 easier, 4 medium, and 3 harder facts. On selected extension days, one harder slot becomes one 11/12 fact.
 
@@ -158,6 +158,15 @@ Make sure all three browser-component folders are present in GitHub:
 `SUPABASE_SCHEMA.sql` represents the current full schema for a brand-new installation.
 
 ## Version notes
+
+
+### v2.5.1 — Classroom iPad Hotfix
+- The shared answer keypad now measures its real browser height and resizes automatically, preventing the bottom row from being clipped on iPads, Chromebooks, and desktop browsers.
+- Student PIN entry is now a custom four-digit masked touch pad with no HTML password/input field, preventing iPad strong-password suggestions while keeping the teacher password protected.
+- Correct Weekly Mystery guesses now trigger a one-time celebration with balloons, a large solve banner, a solve title, and a short learning section.
+- Every one of the 80 curated mysteries now includes a kid-friendly learning paragraph plus its existing fun fact.
+- Abraham Lincoln's reveal teaches that he was the 16th president, led during the Civil War, issued the Emancipation Proclamation, and delivered the Gettysburg Address.
+- No database migration is required when updating from v2.5.0.
 
 ### v2.5.0 — Student Experience Pass
 

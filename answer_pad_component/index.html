@@ -37,12 +37,13 @@
   let digits = '';
   let startedAt = performance.now();
   let submitted = false;
+  let lastHeight = 0;
 
   function post(type, extra={}) {
     window.parent.postMessage(Object.assign({isStreamlitMessage:true, type}, extra), '*');
   }
   function ready() { post('streamlit:componentReady', {apiVersion:1}); }
-  function setHeight(height=310) { post('streamlit:setFrameHeight', {height}); }
+  function setHeight() { requestAnimationFrame(() => { const height = Math.ceil(document.documentElement.scrollHeight + 4); if (height !== lastHeight) { lastHeight = height; post('streamlit:setFrameHeight', {height}); } }); }
   function setValue(value) { post('streamlit:setComponentValue', {value, dataType:'json'}); }
 
   function render() {
@@ -58,7 +59,7 @@
       </div>
       <div id="error" class="error"></div>
       <div class="hint">Tap the numbers, then ✓. A physical keyboard still works too.</div>`;
-    setHeight(310);
+    setHeight();
 
     document.querySelectorAll('[data-digit]').forEach(btn => btn.addEventListener('click', () => addDigit(btn.dataset.digit)));
     document.getElementById('back').addEventListener('click', erase);
@@ -99,7 +100,11 @@
     if (!event.data || event.data.type !== 'streamlit:render') return;
     args = event.data.args || {};
     if (!document.getElementById('display')) render();
+    else setHeight();
   });
+  if (window.ResizeObserver) {
+    new ResizeObserver(setHeight).observe(document.documentElement);
+  }
   ready();
   render();
 })();

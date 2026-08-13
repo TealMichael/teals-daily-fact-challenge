@@ -1,0 +1,116 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<style>
+  :root { font-family: system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; color:#111827; }
+  * { box-sizing:border-box; }
+  body { margin:0; padding:2px 2px 8px; background:transparent; }
+  .wrap { max-width:360px; margin:0 auto; }
+  .slots { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin:2px 0 10px; }
+  .slot {
+    min-height:48px; border:1px solid #cbd5e1; border-radius:14px; background:#fff;
+    display:flex; align-items:center; justify-content:center; font-size:25px; font-weight:900;
+  }
+  .slot.filled { border-color:#5eead4; background:#f0fdfa; }
+  .pad { display:grid; grid-template-columns:repeat(3,1fr); gap:7px; }
+  button {
+    min-height:46px; border:1px solid #d1d5db; border-radius:13px;
+    background:#fff; color:#111827; font-size:21px; font-weight:900;
+    cursor:pointer; touch-action:manipulation; -webkit-tap-highlight-color:transparent;
+  }
+  button:active { transform:translateY(1px); background:#f3f4f6; }
+  .back { color:#4b5563; background:#f9fafb; }
+  .ready { background:#0f766e; color:#fff; border-color:#0f766e; cursor:default; }
+  .hint { margin-top:6px; text-align:center; color:#6b7280; font-size:12px; }
+</style>
+</head>
+<body>
+<div id="root" class="wrap"></div>
+<script>
+(() => {
+  let digits = '';
+  let lastSent = null;
+  let lastHeight = 0;
+
+  function post(type, extra={}) {
+    window.parent.postMessage(Object.assign({isStreamlitMessage:true, type}, extra), '*');
+  }
+  function ready() { post('streamlit:componentReady', {apiVersion:1}); }
+  function setValue(value) { post('streamlit:setComponentValue', {value, dataType:'json'}); }
+  function resize() {
+    requestAnimationFrame(() => {
+      const height = Math.ceil(document.documentElement.scrollHeight + 4);
+      if (height !== lastHeight) { lastHeight = height; post('streamlit:setFrameHeight', {height}); }
+    });
+  }
+
+  function render() {
+    const slots = Array.from({length:4}, (_, index) =>
+      `<div class="slot ${index < digits.length ? 'filled' : ''}">${index < digits.length ? '●' : ''}</div>`
+    ).join('');
+    const readyCell = digits.length === 4
+      ? '<button type="button" class="ready" aria-label="PIN ready">✓</button>'
+      : '<button type="button" class="ready" aria-label="Enter four digits" disabled>••••</button>';
+    document.getElementById('root').innerHTML = `
+      <div class="slots" aria-label="Four digit PIN">${slots}</div>
+      <div class="pad" aria-label="PIN number pad">
+        <button type="button" data-digit="1">1</button><button type="button" data-digit="2">2</button><button type="button" data-digit="3">3</button>
+        <button type="button" data-digit="4">4</button><button type="button" data-digit="5">5</button><button type="button" data-digit="6">6</button>
+        <button type="button" data-digit="7">7</button><button type="button" data-digit="8">8</button><button type="button" data-digit="9">9</button>
+        <button type="button" id="back" class="back" aria-label="Delete last PIN digit">⌫</button><button type="button" data-digit="0">0</button>${readyCell}
+      </div>
+      <div class="hint">Tap your 4-digit classroom PIN. Nothing is saved on this screen.</div>`;
+    document.querySelectorAll('[data-digit]').forEach(btn => btn.addEventListener('click', () => addDigit(btn.dataset.digit)));
+    document.getElementById('back').addEventListener('click', erase);
+    resize();
+  }
+
+  function sendIfComplete() {
+    if (digits.length !== 4 || digits === lastSent) return;
+    lastSent = digits;
+    setValue(digits);
+  }
+  function addDigit(d) {
+    if (digits.length >= 4) return;
+    digits += d;
+    render();
+    sendIfComplete();
+  }
+  function erase() {
+    if (!digits.length) return;
+    const wasComplete = digits.length === 4;
+    digits = digits.slice(0, -1);
+    render();
+    if (wasComplete) {
+      lastSent = null;
+      setValue('');
+    }
+  }
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key >= '0' && event.key <= '9') { event.preventDefault(); addDigit(event.key); }
+    else if (event.key === 'Backspace' || event.key === 'Delete') { event.preventDefault(); erase(); }
+  });
+
+  window.addEventListener('message', (event) => {
+    if (!event.data || event.data.type !== 'streamlit:render') return;
+    const args = event.data.args || {};
+    const incoming = String(args.value || '').replace(/\D/g, '').slice(0,4);
+    if (incoming && incoming !== digits) {
+      digits = incoming;
+      lastSent = incoming.length === 4 ? incoming : null;
+    }
+    render();
+  });
+
+  if (window.ResizeObserver) {
+    new ResizeObserver(resize).observe(document.documentElement);
+  }
+  ready();
+  render();
+})();
+</script>
+</body>
+</html>
