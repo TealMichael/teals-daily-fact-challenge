@@ -346,22 +346,40 @@ class InMemoryFactStore:
         return updated
 
     def delete_student(self, student_id: str) -> None:
-        if student_id not in self.students:
+        self.delete_students([student_id])
+
+    def delete_students(self, student_ids: Sequence[str]) -> int:
+        ids = [str(student_id) for student_id in student_ids if str(student_id)]
+        if not ids:
+            return 0
+        missing = [student_id for student_id in ids if student_id not in self.students]
+        if missing:
             raise NotFound("Student not found.")
+        id_set = set(ids)
         attempt_ids = [
             attempt_id for attempt_id, attempt in self.attempts.items()
-            if attempt.student_id == student_id
+            if attempt.student_id in id_set
         ]
         for attempt_id in attempt_ids:
             self.answers.pop(attempt_id, None)
             self.attempts.pop(attempt_id, None)
-        self.practice = [row for row in self.practice if row.student_id != student_id]
-        self.mastery = {key: row for key, row in self.mastery.items() if key[0] != student_id}
-        self.learning_progress = {key: row for key, row in self.learning_progress.items() if key[0] != student_id}
-        self.student_focus_overrides.pop(student_id, None)
-        self.mystery_unlocks = {key: row for key, row in self.mystery_unlocks.items() if key[0] != student_id}
-        self.mystery_guesses = {key: row for key, row in self.mystery_guesses.items() if key[0] != student_id}
-        self.students.pop(student_id, None)
+        self.practice = [row for row in self.practice if row.student_id not in id_set]
+        self.mastery = {key: row for key, row in self.mastery.items() if key[0] not in id_set}
+        self.learning_progress = {key: row for key, row in self.learning_progress.items() if key[0] not in id_set}
+        for student_id in id_set:
+            self.student_focus_overrides.pop(student_id, None)
+        self.mystery_unlocks = {key: row for key, row in self.mystery_unlocks.items() if key[0] not in id_set}
+        self.mystery_guesses = {key: row for key, row in self.mystery_guesses.items() if key[0] not in id_set}
+        for student_id in id_set:
+            self.students.pop(student_id, None)
+        return len(id_set)
+
+    def delete_class_students(self, class_id: str) -> int:
+        ids = [
+            student_id for student_id, row in self.students.items()
+            if row["record"].class_id == str(class_id)
+        ]
+        return self.delete_students(ids)
 
     # ----- Daily challenge -----
     def get_or_create_challenge(

@@ -128,9 +128,9 @@ TEACHER_PASSWORD = "CHOOSE-A-PRIVATE-TEACHER-PASSWORD"
 
 ## Updating an existing installation
 
-**Current live v2.2 installation:** v2.2.2 is a code-only roster-management hotfix. **No Supabase SQL is required.** Upload every file/folder in `UPLOAD_TO_GITHUB` to the existing GitHub repo and let Streamlit redeploy.
+**Current live v2.2 installation:** v2.2.3 is a code-only fast roster-delete hotfix. **No Supabase SQL is required.** Upload every file/folder in `UPLOAD_TO_GITHUB` to the existing GitHub repo and let Streamlit redeploy.
 
-**If coming from v2.1:** run `RUN_THIS_ONCE_IN_SUPABASE_v2_2.sql` first, then upload the v2.2.2 app files.
+**If coming from v2.1:** run `RUN_THIS_ONCE_IN_SUPABASE_v2_2.sql` first, then upload the v2.2.3 app files.
 
 **If already on v2.0 but not v2.1:** run `RUN_THIS_ONCE_IN_SUPABASE_v2_1.sql`, then `RUN_THIS_ONCE_IN_SUPABASE_v2_2.sql`.
 
@@ -141,6 +141,15 @@ Do not rerun `SUPABASE_SCHEMA.sql` on an existing project. It is the full schema
 Make sure `daily_sprint_component/index.html` remains present in GitHub.
 
 ## Version notes
+
+### v2.2.3 — Fast Roster Delete Hotfix
+
+- **Delete selected student(s)** now sends one true bulk database delete instead of deleting each selected student one at a time.
+- Adds **Clear this entire roster** under each class for fast cleanup when a whole roster was entered by mistake.
+- Whole-roster clear keeps the class itself but permanently removes every student in it and their linked history.
+- Whole-roster clear requires typing `DELETE <class name>` before the button enables.
+- Single-student permanent delete was also reduced to one database request.
+- Code-only update: no database migration or new Streamlit secret.
 
 ### v2.2.2 — Visible Roster Management Hotfix
 

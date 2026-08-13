@@ -1,5 +1,5 @@
-TEAL'S DAILY FACT CHALLENGE v2.2.2
-ROSTER MANAGEMENT HOTFIX — EXISTING LIVE v2.2 APP
+TEAL'S DAILY FACT CHALLENGE v2.2.3
+FAST ROSTER DELETE HOTFIX — EXISTING LIVE v2.2 APP
 
 IMPORTANT: This is a CODE-ONLY hotfix.
 NO Supabase SQL step is required.
@@ -13,17 +13,20 @@ YOUR CURRENT PATH
 5. Streamlit should redeploy automatically.
 
 Suggested commit:
-   v2.2.2 - make roster move and bulk delete tools obvious
+   v2.2.3 - make bulk student deletion fast
 
 WHAT CHANGED
-Teacher -> Student Tools now includes:
-- Bulk move: select several students and move them from one class to another at once.
-- Individual move: move one student to a different class.
-- Permanent delete: remove a truly accidental/duplicate account only after confirmation.
+Teacher -> Classes & Students -> Roster Management now uses a true bulk database delete:
+- Select one or many students and press Delete selected student(s).
+- All selected accounts are deleted in one database request instead of one student at a time.
+- Student-linked Daily, Practice, mastery, Focus, and Mystery rows are removed by existing database cascades.
 
-Moving a student preserves the account, classroom PIN, mastery, Stars, streak, saved Daily work, Focus settings, and Mystery history. Use Move for students entered into the wrong block.
+A new fast cleanup tool is also available:
+- Expand “Clear this entire roster (N students)” under Roster Management.
+- Type DELETE followed by the exact class name.
+- One action permanently clears every student currently in that class while keeping the class itself.
 
-Permanent Delete removes the student account and student-linked learning history. Use it only for duplicates or entries that should not exist.
+For the current duplicate-roster cleanup, this is the fastest option if every student in that wrong roster should be removed.
 
 NO CHANGES
 - Daily 10

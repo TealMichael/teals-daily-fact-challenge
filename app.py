@@ -1557,26 +1557,50 @@ def render_teacher_classes(store: SupabaseFactStore) -> None:
                 disabled=not selected_roster_labels or not confirm_bulk_delete,
                 key=f"roster_bulk_delete_{selected.class_id}",
             ):
-                deleted = 0
-                errors = []
-                for selected_label in selected_roster_labels:
-                    target = roster_by_label[selected_label]
-                    try:
-                        store.delete_student(target.student_id)
-                        deleted += 1
-                    except Exception as exc:
-                        errors.append(f"{target.nickname}: {exc}")
-                if errors:
-                    st.session_state["teacher_roster_flash"] = (
-                        "warning",
-                        f"Deleted {deleted} student(s). Could not delete: " + " | ".join(errors[:8]),
-                    )
-                else:
+                targets = [roster_by_label[label] for label in selected_roster_labels]
+                try:
+                    deleted = store.delete_students([target.student_id for target in targets])
                     st.session_state["teacher_roster_flash"] = (
                         "success",
-                        f"Permanently deleted {deleted} student account{'s' if deleted != 1 else ''}.",
+                        f"Permanently deleted {deleted} student account{'s' if deleted != 1 else ''} in one bulk action.",
+                    )
+                except Exception as exc:
+                    st.session_state["teacher_roster_flash"] = (
+                        "warning",
+                        f"Bulk delete did not finish: {exc}",
                     )
                 st.rerun()
+
+        if roster:
+            with st.expander(f"⚠️ Clear this entire roster ({len(roster)} students)"):
+                st.caption(
+                    f"Fast cleanup for a class created by mistake. This permanently deletes every student currently in {selected.class_name}, "
+                    "but keeps the class itself so you can reuse it. Student-linked history is deleted too."
+                )
+                clear_phrase = f"DELETE {selected.class_name}"
+                typed_clear = st.text_input(
+                    f"Type {clear_phrase} to confirm",
+                    key=f"clear_roster_phrase_{selected.class_id}",
+                )
+                if st.button(
+                    f"Permanently delete all {len(roster)} students from {selected.class_name}",
+                    type="secondary",
+                    use_container_width=True,
+                    disabled=typed_clear.strip() != clear_phrase,
+                    key=f"clear_roster_{selected.class_id}",
+                ):
+                    try:
+                        deleted = store.delete_class_students(selected.class_id)
+                        st.session_state["teacher_roster_flash"] = (
+                            "success",
+                            f"Permanently deleted all {deleted} student accounts from {selected.class_name}. The class itself was kept.",
+                        )
+                    except Exception as exc:
+                        st.session_state["teacher_roster_flash"] = (
+                            "warning",
+                            f"Roster clear did not finish: {exc}",
+                        )
+                    st.rerun()
 
 
 def render_teacher_student_tools(store: SupabaseFactStore) -> None:

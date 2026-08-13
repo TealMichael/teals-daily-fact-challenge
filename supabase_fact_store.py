@@ -436,16 +436,34 @@ class SupabaseFactStore:
         return _student(row)
 
     def delete_student(self, student_id: str) -> None:
-        student = self.get_student(student_id)
-        response = (
+        # One database request. Child rows are removed by ON DELETE CASCADE.
+        self.client.table("students").delete().eq("student_id", str(student_id)).execute()
+
+    def delete_students(self, student_ids: Sequence[str]) -> int:
+        """Delete many student accounts in one PostgREST request.
+
+        Student-linked Daily, practice, mastery, focus, and mystery rows are
+        removed by the database's ON DELETE CASCADE foreign keys.
+        """
+        ids = list(dict.fromkeys(str(student_id) for student_id in student_ids if str(student_id)))
+        if not ids:
+            return 0
+        self.client.table("students").delete().in_("student_id", ids).execute()
+        return len(ids)
+
+    def delete_class_students(self, class_id: str) -> int:
+        """Clear an entire class roster in one database request, leaving the class itself intact."""
+        # Count first only so the teacher can receive an accurate confirmation.
+        rows = _rows(
             self.client.table("students")
-            .delete()
-            .eq("student_id", student.student_id)
+            .select("student_id")
+            .eq("class_id", str(class_id))
             .execute()
         )
-        # Supabase may return an empty payload depending on client/PostgREST settings;
-        # a successful request without an exception is sufficient here.
-        _ = response
+        count = len(rows)
+        if count:
+            self.client.table("students").delete().eq("class_id", str(class_id)).execute()
+        return count
 
     # ----- Challenge -----
     def get_challenge(self, challenge_date: date | str) -> ChallengeRecord | None:
