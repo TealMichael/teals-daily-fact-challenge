@@ -103,7 +103,7 @@ def run():
     assert "render_weekly_mystery_reward(store, day, challenge)" in app
     assert "Use my one guess" in app and "Submit final guess & reveal" in app
     assert "_render_mystery_clues(mystery, 4)" in app  # Friday catch-up shows the full clue set before reveal.
-    assert '"Weekly Mystery"' in app and "Pick another mystery" in app
+    assert "Weekly Mystery" in app and "Pick another mystery" in app
     assert "weekly_mysteries" in schema and "weekly_mystery_unlocks" in schema and "weekly_mystery_guesses" in schema
     assert "alter table public.weekly_mystery_guesses enable row level security" in schema
     assert "create table if not exists public.weekly_mysteries" in migration

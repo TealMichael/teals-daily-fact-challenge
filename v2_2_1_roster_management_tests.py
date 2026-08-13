@@ -75,10 +75,10 @@ def run():
     ui = open("app.py", encoding="utf-8").read()
     assert "def move_student(" in backend and '.update({"class_id": str(new_class_id)})' in backend
     assert "def delete_student(" in backend and '.delete()' in backend
-    assert "Move several students to another class" in ui
+    assert "Bulk move shortcut" in ui and "Move selected students" in ui
     assert "Move student" in ui
     assert "Delete student permanently" in ui
-    assert "Permanent: this removes the student's account" in ui
+    assert "Permanent: removes the student's account" in ui
 
     print("v2_2_1_roster_management_tests: PASS (move, bulk move, duplicate protection, permanent delete, teacher UI)")
 

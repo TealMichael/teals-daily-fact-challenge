@@ -1,11 +1,11 @@
-TEAL'S DAILY FACT CHALLENGE v2.2.6
-FOCUS PRACTICE SPEED HOTFIX — EXISTING LIVE v2.2 APP
+TEAL'S DAILY FACT CHALLENGE v2.3.0
+CLASSROOM CLARITY PASS — EXISTING LIVE v2.2 APP
 
-IMPORTANT: This is a CODE-ONLY hotfix.
+IMPORTANT: This is a CODE-ONLY update.
 NO Supabase SQL step is required.
 Do NOT rerun v2, v2_1, v2_2, or SUPABASE_SCHEMA.sql.
 
-YOUR CURRENT PATH
+YOUR UPDATE PATH
 1. Upload EVERY file/folder inside this package's UPLOAD_TO_GITHUB folder to the existing GitHub repo root.
 2. Replace matching files.
 3. Confirm daily_sprint_component/index.html is still present.
@@ -13,20 +13,28 @@ YOUR CURRENT PATH
 5. Streamlit should redeploy automatically.
 
 Suggested commit:
-   v2.2.6 - speed up Focus Practice under classroom load
+   v2.3 - make Daily completion obvious and simplify Teacher Mode
 
 WHAT CHANGED
-- Stops reloading the Top 10 after every Focus answer; one snapshot is reused until Day Complete.
-- Caches Focus activity history and teacher-focus settings during the student's current session.
-- Reuses already-loaded learning progress when preparing the Focus plan.
-- Saves a normal first-try Focus answer with one insert instead of a pre-read plus insert.
-- Applies the eight Focus mastery updates in one safe batch at the end instead of updating mastery after every answer.
+- Students now see a clear Daily 10 → Fix Misses → Focus → Mystery progress strip.
+- The finish screen says YOU'RE DONE FOR TODAY and ends with All done. See you next Challenge day.
+- The clue is clearly presented as an earned reward; using the weekly guess is optional.
+- Student Top 10 data is privacy-sanitized to rank + nickname only after private ranking is calculated.
+- Teacher Mode is reorganized into Today, Classes & Rosters, Mastery & Focus, Weekly Mystery, and Student Support.
+- No teacher functionality was removed.
+
+PRESERVED
+- v2.2.5 classroom-load retries and batched Daily mastery writes
+- v2.2.6 Focus Practice speed improvements
+- adaptive mastery / no placement test
+- Fix Your Misses / 8 Focus Facts
+- Stars / school-day streaks
+- Weekly Mystery logic
+- roster move/delete/clear tools
+- visible teacher PINs
+- accuracy-first, time-second ranking (teacher/private only)
 
 UNCHANGED
-- Daily fact generator and ranking rules
-- Fix Your Misses and Focus Practice selection logic
-- Weekly Mystery
-- roster management / visible teacher PINs
-- Teacher Tools layout (cleanup still deferred)
 - Supabase schema
 - Streamlit Secrets
+- Daily fact generator

@@ -1,0 +1,1 @@
+v2.3 - make Daily completion obvious and simplify Teacher Mode

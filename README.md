@@ -38,7 +38,7 @@ If a Focus answer is missed, the student sees visual/strategy teaching and must 
 
 ### 4. ⭐ Day Complete
 
-Completing the full learning routine earns one **Daily Star**, progress toward a private **Learning Streak**, and milestone celebrations at 3, 5, 10, 20, 30, 50 days and later 50-day milestones.
+The finish screen now says **YOU'RE DONE FOR TODAY!** and checks off Daily 10, Fix Your Misses, and Focus Practice before presenting the Weekly Mystery as the earned reward. Completing the full learning routine earns one **Daily Star**, progress toward a private **Learning Streak**, and milestone celebrations at 3, 5, 10, 20, 30, 50 days and later 50-day milestones.
 
 The reward is for **finishing the learning routine**, not for being fast or being on the leaderboard.
 
@@ -83,7 +83,7 @@ The private Teacher Dashboard supports roughly 90 students across multiple class
 
 ### Today
 
-Teachers can see Daily completion, full learning-routine completion, accuracy/time, private streak and star information, each student's current routine step, visible classroom PINs, and the student-visible class Top 10. The teacher view keeps full accuracy/time data even though students see rank + nickname only.
+The teacher home view is organized around **🟢 Done / 🟡 Working / ⚪ Not started**. PINs and routine status stay visible in the main table; accuracy and timing are tucked into a teacher-only detail section. **Done** means Daily 10 + Fix Your Misses + Focus Practice are complete; using the Mystery guess is optional.
 
 ### Mastery & Focus
 
@@ -97,13 +97,13 @@ Override priority is:
 
 Teachers can preview the week's answer and all four clues, see unlock/guess/solve counts, and press **Pick Another Mystery** before any student earns a clue. Once the first clue is earned, the mystery locks for the week so students cannot receive a changed answer midstream.
 
-### Student Tools
+### Classes & Rosters / Student Support
 
-Teachers can see each student's classroom PIN beside the nickname, rename nicknames, move one or many students between classes, permanently delete accidental/duplicate accounts with confirmation, reset/change PINs, deactivate/reactivate accounts, reset today's Daily after a legitimate technology problem, and temporarily override one student's Focus family.
+Every existing teacher function remains available, but the dashboard is reorganized into **Today → Classes & Rosters → Mastery & Focus → Weekly Mystery → Student Support**. Whole-class setup and roster management live together; one-student troubleshooting groups nickname/PIN, Daily reset, Focus override, move/status, and permanent-delete tools into clearly labeled sections.
 
 ## Daily fact generator
 
-The shared Daily generator remains versioned as `TDFC-DAILY-v1`, so the previously audited Daily sequence does not change in v2.2.5.
+The shared Daily generator remains versioned as `TDFC-DAILY-v1`, so the previously audited Daily sequence does not change in v2.3.0.
 
 Each Daily contains 10 unique underlying multiplication facts. Commutative mirrors cannot both appear. Normal core days contain 3 easier, 4 medium, and 3 harder facts. On selected extension days, one harder slot becomes one 11/12 fact.
 
@@ -128,9 +128,9 @@ TEACHER_PASSWORD = "CHOOSE-A-PRIVATE-TEACHER-PASSWORD"
 
 ## Updating an existing installation
 
-**Current live v2.2 installation:** v2.2.6 is a code-only Focus Practice speed hotfix. **No Supabase SQL is required.** Upload every file/folder in `UPLOAD_TO_GITHUB` to the existing GitHub repo and let Streamlit redeploy.
+**Current live v2.2 installation:** v2.3.0 is a code-only classroom clarity update. **No Supabase SQL is required.** Upload every file/folder in `UPLOAD_TO_GITHUB` to the existing GitHub repo and let Streamlit redeploy.
 
-**If coming from v2.1:** run `RUN_THIS_ONCE_IN_SUPABASE_v2_2.sql` first, then upload the v2.2.6 app files.
+**If coming from v2.1:** run `RUN_THIS_ONCE_IN_SUPABASE_v2_2.sql` first, then upload the v2.3.0 app files.
 
 **If already on v2.0 but not v2.1:** run `RUN_THIS_ONCE_IN_SUPABASE_v2_1.sql`, then `RUN_THIS_ONCE_IN_SUPABASE_v2_2.sql`.
 
@@ -141,6 +141,20 @@ Do not rerun `SUPABASE_SCHEMA.sql` on an existing project. It is the full schema
 Make sure `daily_sprint_component/index.html` remains present in GitHub.
 
 ## Version notes
+
+### v2.3.0 — Classroom Clarity Pass
+
+- Adds a persistent four-part student progress strip: **Daily 10 → Fix Misses → Focus → Mystery reward**.
+- Replaces the subtle finish state with an unmistakable **YOU'RE DONE FOR TODAY!** screen and an explicit **All done. See you next Challenge day!** ending.
+- Makes it clear that the Mystery clue is **earned after the learning work** and that using the one weekly guess is optional.
+- Adds an explicit **I'm waiting for another clue · Done for today ✓** choice so students never wonder whether they have another required step.
+- Hardens Top 10 privacy: after Supabase performs the private accuracy/time ranking, the student-side leaderboard context discards all score/time fields and keeps only **student ID + nickname + rank**.
+- Reorganizes Teacher Mode into **Today, Classes & Rosters, Mastery & Focus, Weekly Mystery, Student Support** without removing any teacher function.
+- Today now emphasizes **Done / Working / Not started**; teacher-only accuracy and timing are moved into a secondary detail section.
+- Classes & Rosters groups class creation, student creation/PINs, roster exports, moves, bulk delete, and clear-roster tools.
+- Student Support groups one-student nickname/PIN, Daily reset, Focus override, move/status, and permanent-delete tools.
+- Preserves the v2.2.5 classroom-load retry/batching work and v2.2.6 Focus Practice performance improvements.
+- Code-only update: no database migration or new Streamlit secret.
 
 ### v2.2.6 — Focus Practice Speed Hotfix
 

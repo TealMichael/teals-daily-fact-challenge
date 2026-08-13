@@ -5,13 +5,13 @@ APP = (ROOT / "app.py").read_text()
 ENGINE = (ROOT / "fact_engine.py").read_text()
 
 checks = {
-    "version bumped": 'APP_VERSION = "2.2.6"' in ENGINE,
-    "roster management visible": 'st.markdown("### Roster Management")' in APP,
+    "version bumped": 'APP_VERSION = "2.3.0"' in ENGINE,
+    "roster management visible": '🔧 Roster Management' in APP,
     "bulk selector": '"Select student(s)"' in APP,
     "bulk move visible": '"Move selected student(s)"' in APP,
     "bulk delete visible": '"Delete selected student(s)"' in APP,
     "delete confirmation": '"I understand deletion is permanent."' in APP,
-    "move preserves history copy": "Moving keeps the student's PIN, mastery, Stars, streak, Daily history, Focus work, and Mystery history." in APP,
+    "move preserves history copy": "Moving preserves all student history" in APP,
     "move uses store method": 'store.move_student(target.student_id, destination.class_id)' in APP,
     "delete uses bulk store method": 'store.delete_students([target.student_id for target in targets])' in APP,
     "move fallback if no other class": 'Create another active class first, then you can move students into it.' in APP,

@@ -143,6 +143,38 @@ st.markdown(
     .progress-seg.done { background:#14b8a6; }
     .progress-seg.current { background:#99f6e4; }
 
+    .routine-strip {
+        display:grid;
+        grid-template-columns:repeat(4,minmax(0,1fr));
+        gap:0.42rem;
+        margin:0.65rem 0 0.9rem 0;
+    }
+    .routine-step {
+        border:1px solid #d1d5db;
+        border-radius:14px;
+        padding:0.55rem 0.4rem;
+        background:#f9fafb;
+        color:#6b7280 !important;
+        text-align:center;
+        font-size:0.78rem;
+        font-weight:850;
+        line-height:1.15;
+    }
+    .routine-step.done { border-color:#5eead4; background:#f0fdfa; color:#115e59 !important; }
+    .routine-step.current { border-color:#14b8a6; background:#ccfbf1; color:#115e59 !important; }
+    .routine-step.reward { border-color:#facc15; background:#fefce8; color:#854d0e !important; }
+    .finish-banner {
+        border:2px solid #14b8a6;
+        border-radius:24px;
+        padding:1.15rem 1rem;
+        background:linear-gradient(180deg,#ccfbf1 0%,#ffffff 100%);
+        text-align:center;
+        margin:0.75rem 0 0.85rem 0;
+        color:#111827 !important;
+    }
+    .finish-banner .big { font-size:clamp(1.8rem,6vw,2.7rem); font-weight:950; line-height:1.03; }
+    .finish-banner .sub { margin-top:0.45rem; font-size:1rem; font-weight:800; }
+
     .timer-pill {
         display:inline-block;
         border:1px solid #99f6e4;
@@ -156,7 +188,7 @@ st.markdown(
     }
     .leader-row {
         display:grid;
-        grid-template-columns:2.2rem 1fr auto;
+        grid-template-columns:2.2rem 1fr;
         align-items:center;
         gap:0.5rem;
         border-bottom:1px solid #e5e7eb;
@@ -165,7 +197,6 @@ st.markdown(
     }
     .leader-rank { font-size:1.03rem; font-weight:950; text-align:center; }
     .leader-name { font-weight:850; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-    .leader-score { text-align:right; font-weight:850; font-variant-numeric:tabular-nums; }
 
     .answer-correct { border-left:5px solid #16a34a; }
     .answer-miss { border-left:5px solid #dc2626; }
@@ -206,8 +237,9 @@ st.markdown(
     @media (max-width: 520px) {
         .block-container { padding-left:0.85rem; padding-right:0.85rem; }
         .result-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
-        .leader-row { grid-template-columns:2rem 1fr auto; }
+        .leader-row { grid-template-columns:2rem 1fr; }
         .array-dot { width:14px; height:14px; }
+        .routine-strip { grid-template-columns:repeat(2,minmax(0,1fr)); }
     }
     </style>
     """,
@@ -314,6 +346,31 @@ def progress_bar(completed: int, total: int = 10, current: int | None = None) ->
             cls = "progress-seg current"
         cells.append(f'<div class="{cls}"></div>')
     st.markdown('<div class="progress-row">' + "".join(cells) + "</div>", unsafe_allow_html=True)
+
+
+def render_routine_strip(stage: str) -> None:
+    """Make the four-part student path obvious without turning Mystery into required work."""
+    stages = ["daily", "fix", "focus", "mystery"]
+    labels = {
+        "daily": "1 · Daily 10",
+        "fix": "2 · Fix Misses",
+        "focus": "3 · Focus",
+        "mystery": "4 · Mystery",
+    }
+    current_index = stages.index(stage) if stage in stages else 0
+    cells = []
+    for index, key in enumerate(stages):
+        if index < current_index:
+            cls = "routine-step done"
+            prefix = "✓ "
+        elif index == current_index:
+            cls = "routine-step reward" if key == "mystery" else "routine-step current"
+            prefix = "★ " if key == "mystery" else "→ "
+        else:
+            cls = "routine-step"
+            prefix = "🔒 "
+        cells.append(f'<div class="{cls}">{prefix}{labels[key]}</div>')
+    st.markdown('<div class="routine-strip">' + "".join(cells) + "</div>", unsafe_allow_html=True)
 
 
 def render_array(fact: Fact) -> None:
@@ -515,8 +572,8 @@ def render_weekly_mystery_reward(store: SupabaseFactStore, day, challenge) -> No
     clue_count = min(4, sum(1 for row in unlocks if int(row.day_number) <= 4))
     friday_unlocked = any(int(row.day_number) == 5 for row in unlocks)
 
-    st.markdown("### 🕵️ Weekly Mystery")
-    st.caption("A just-for-fun mystery reward. One guess for the whole week — use it early or wait for more clues.")
+    st.markdown("### This Week's Mystery")
+    st.caption("One guess for the whole week — use it now or save it for another clue. Guessing is optional.")
 
     if day_number is None:
         st.info("The Weekly Mystery continues on school days.")
@@ -525,7 +582,7 @@ def render_weekly_mystery_reward(store: SupabaseFactStore, day, challenge) -> No
         return
 
     if day_number <= 4:
-        st.success(f"🔎 Clue #{clue_count} unlocked!" if clue_count else "🔎 Mystery unlocked!")
+        st.success(f"🎁 You earned Clue #{clue_count}!" if clue_count else "🎁 You earned today's Mystery reward!")
         _render_mystery_clues(mystery, clue_count)
         if guess is not None:
             if guess.correct:
@@ -539,7 +596,9 @@ def render_weekly_mystery_reward(store: SupabaseFactStore, day, challenge) -> No
                 )
         else:
             st.markdown("**🎯 Your one weekly guess is still available.**")
-            st.caption("Not sure yet? Do nothing and come back after your next completed routine.")
+            st.caption("You can guess now or save it. Either choice means you are completely done for today.")
+            if st.button("I'm waiting for another clue · Done for today ✓", use_container_width=True, key=f"mystery_wait_{week_start.isoformat()}_{day.isoformat()}"):
+                st.success("Guess saved for later ✓ · You're all done for today!")
             with st.form(f"weekly_mystery_guess_{week_start.isoformat()}", clear_on_submit=True):
                 raw_guess = st.text_input("Your guess", max_chars=80, placeholder="What do you think the answer is?")
                 submit_guess = st.form_submit_button("Use my one guess", use_container_width=True, type="primary")
@@ -612,11 +671,23 @@ def ensure_today(store: SupabaseFactStore):
 
 
 def load_leaderboard_context(store: SupabaseFactStore, challenge) -> dict:
-    """Load the student-facing leaderboard in two database reads for this rerun."""
+    """Load a privacy-sanitized student leaderboard snapshot.
+
+    Supabase performs the accuracy-first/time-second ranking.  After ranking,
+    the student session intentionally keeps only rank, nickname, and student ID.
+    Classmates' scores and times never enter the student-facing context.
+    """
     class_id = st.session_state.student_class_id
     roster = store.list_students(class_id)
     completed = store.completed_attempts_for_class(class_id, challenge.challenge_id, students=roster)
-    rows = [dict(row, rank=index) for index, row in enumerate(completed[:10], start=1)]
+    rows = [
+        {
+            "student_id": row["student_id"],
+            "nickname": row["nickname"],
+            "rank": index,
+        }
+        for index, row in enumerate(completed[:10], start=1)
+    ]
     return {"rows": rows, "finished": len(completed), "roster_count": len(roster)}
 
 
@@ -711,13 +782,22 @@ def render_daily_review(facts: list[Fact], answers) -> None:
 
 
 def render_learning_path(progress, missed_count: int) -> None:
-    daily = "✅ Daily 10"
-    fixes = "✅ Fix Your Misses" if progress.fix_completed_at else ("➡️ Fix Your Misses" if missed_count else "✅ No Misses")
-    focus = "✅ Focus Practice" if progress.focus_completed_at else ("➡️ Focus Practice" if progress.fix_completed_at else "Focus Practice")
-    st.markdown(
-        f"<div class='private-note'><strong>Today's path:</strong> {daily} &nbsp; → &nbsp; {fixes} &nbsp; → &nbsp; {focus} &nbsp; → &nbsp; ⭐ Done</div>",
-        unsafe_allow_html=True,
-    )
+    if progress.completed_at is not None or progress.focus_completed_at is not None:
+        stage = "mystery"
+    elif progress.fix_completed_at is not None:
+        stage = "focus"
+    else:
+        stage = "fix"
+    render_routine_strip(stage)
+    if stage == "fix":
+        if missed_count:
+            st.caption(f"Next: fix {missed_count} missed fact{'s' if missed_count != 1 else ''}, then your personalized Focus Practice.")
+        else:
+            st.caption("No misses today ✓ · next up is your personalized Focus Practice.")
+    elif stage == "focus":
+        st.caption("Next: finish 8 Focus Facts. Then your learning work is DONE and your Mystery reward unlocks.")
+    else:
+        st.caption("Learning work complete ✓ · your Weekly Mystery is the reward, not another assignment.")
 
 
 def render_daily_result_summary(store: SupabaseFactStore, day, challenge, attempt, *, leaderboard_context: dict | None = None) -> None:
@@ -767,7 +847,7 @@ def render_fix_misses(store: SupabaseFactStore, challenge, facts: list[Fact], an
     current_position, (question_number, fact, daily_answer) = next(
         (idx, item) for idx, item in enumerate(missed) if item[0] not in corrected
     )
-    st.markdown("## Step 2 of 3 · Fix Your Misses")
+    st.markdown("## Learning Step 2 of 3 · Fix Your Misses")
     st.caption("A miss is useful information. Learn it, answer it correctly, then move on.")
     progress_bar(len(corrected), total=len(missed), current=current_position + 1)
 
@@ -868,7 +948,7 @@ def render_focus_practice(store: SupabaseFactStore, day, challenge, answers, pro
     first, _ = _focus_index_state(rows, index)
     override = get_cached_focus_override(store, challenge)
 
-    st.markdown("## Step 3 of 3 · 🎯 Your Focus Practice")
+    st.markdown("## Learning Step 3 of 3 · 🎯 Your Focus Practice")
     if override:
         st.caption(f"8 short retrievals · your teacher has temporarily focused this practice on the {override}s")
     else:
@@ -958,10 +1038,12 @@ def render_day_complete(store: SupabaseFactStore, day, facts: list[Fact], challe
     stats = store.student_learning_stats(st.session_state.student_id, day)
     streak = int(stats.get("current_streak", 0))
     stars = int(stats.get("stars", 0))
-    st.markdown("## ⭐ Day Complete!")
+
+    render_routine_strip("mystery")
     st.markdown(
-        "<div class='hero-card center'><div style='font-size:2.2rem'>⭐</div>"
-        "<div style='font-size:1.35rem;font-weight:950'>Daily 10 ✓ · Fix Your Misses ✓ · Focus Practice ✓</div></div>",
+        "<div class='finish-banner'><div class='big'>✅ YOU'RE DONE FOR TODAY!</div>"
+        "<div class='sub'>Daily 10 ✓ &nbsp; · &nbsp; Fix Your Misses ✓ &nbsp; · &nbsp; Focus Practice ✓</div>"
+        "<div style='margin-top:.45rem'>Your learning work is finished. The Mystery below is your reward.</div></div>",
         unsafe_allow_html=True,
     )
     if streak in {3, 5, 10, 20, 30, 50} or (streak > 0 and streak % 50 == 0):
@@ -971,20 +1053,24 @@ def render_day_complete(store: SupabaseFactStore, day, facts: list[Fact], challe
     else:
         st.success(f"⭐ Daily Star earned · {stars} total")
 
-    focus_rows = store.learning_activity_rows(st.session_state.student_id, challenge.challenge_id, "focus")
+    focus_rows = get_cached_focus_rows(store, challenge)
     first_tries = [row for row in focus_rows if not row.is_retry]
     focus_correct = sum(row.correct for row in first_tries)
     if first_tries:
         st.caption(f"Focus Practice: {focus_correct}/{len(first_tries)} correct on the first try. Corrections never lower your Daily leaderboard result.")
 
+    st.markdown("## 🕵️ You earned today's Mystery reward!")
+    st.caption("Read your clue, then either use your one weekly guess or save it. Your schoolwork is already complete either way.")
     render_weekly_mystery_reward(store, day, challenge)
+
+    st.markdown("---")
+    st.markdown("### ✅ All done. See you next Challenge day!")
+    st.caption("You can look at your growth or the class Top 10 below, but there is no more required work today.")
     render_mastery_card(store)
     render_leaderboard(store, challenge, highlight_student_id=st.session_state.student_id)
     render_daily_review(facts, answers)
-    if st.button("Extra Practice", use_container_width=True, type="primary", on_click=switch_mode, args=("Practice",)):
+    if st.button("Extra Practice (optional)", use_container_width=True, type="secondary", on_click=switch_mode, args=("Practice",)):
         pass
-    st.caption("Come back on the next Challenge day. Your personal fact map will pick up exactly where it left off.")
-
 
 def render_classroom_connection_retry(exc: Exception, *, key: str = "classroom_retry") -> None:
     st.warning("The classroom connection is busy for a moment. Your completed Daily is still saved.")
@@ -1072,6 +1158,8 @@ def render_daily(store: SupabaseFactStore | None) -> None:
         return
 
     st.markdown(f"### {day.strftime('%A, %B %d').replace(' 0', ' ')}")
+    render_routine_strip("daily")
+    st.caption("Finish the three learning steps to earn today's Mystery reward.")
     st.markdown(
         "<div class='private-note'><strong>How today's timing works:</strong> Fact 1 counts toward accuracy, but it is untimed. "
         "The clock starts the instant you submit Fact 1 and runs quietly in the background. Facts 2–10 then appear one at a time. Accuracy always ranks before speed.</div>",
@@ -1282,9 +1370,11 @@ def teacher_login() -> bool:
 
 
 def render_teacher_today(store: SupabaseFactStore) -> None:
+    st.markdown("### 📊 Today")
+    st.caption("Done means Daily 10 + Fix Your Misses + Focus Practice are complete. The Mystery guess is optional.")
     classes = store.list_classes()
     if not classes:
-        st.info("Create your first class in Classes & Students.")
+        st.info("Create your first class in Classes & Rosters.")
         return
     class_by_name = {item.class_name: item for item in classes}
     selected_name = st.selectbox("Class", list(class_by_name), key="teacher_today_class")
@@ -1296,11 +1386,13 @@ def render_teacher_today(store: SupabaseFactStore) -> None:
     learning_stats = store.class_learning_stats(selected.class_id, day)
 
     total = len(status)
-    daily_complete = sum(row["status"] == "Complete" for row in status)
     full_complete = sum(
         bool(progress_map.get(row["student_id"]) and progress_map[row["student_id"]].completed_at)
         for row in status
     )
+    not_started = sum(row["status"] == "Not started" for row in status)
+    working = max(0, total - full_complete - not_started)
+    daily_complete = sum(row["status"] == "Complete" for row in status)
     average_accuracy = (
         sum(int(row["correct_count"]) for row in completed_rows) / len(completed_rows)
         if completed_rows else 0
@@ -1311,51 +1403,61 @@ def render_teacher_today(store: SupabaseFactStore) -> None:
     )
 
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Students", total)
-    c2.metric("Daily 10", f"{daily_complete}/{total}")
-    c3.metric("Full routine", f"{full_complete}/{total}")
-    c4.metric("Avg accuracy", f"{average_accuracy:.1f}/10" if completed_rows else "—")
-    if completed_rows:
-        st.caption(f"Median timed sprint: {format_seconds(median_time)} · accuracy ranks before speed")
+    c1.metric("🟢 Done", f"{full_complete}/{total}")
+    c2.metric("🟡 Working", working)
+    c3.metric("⚪ Not started", not_started)
+    c4.metric("Daily 10 finished", f"{daily_complete}/{total}")
 
     teacher_students = {student.student_id: student for student in store.list_students(selected.class_id)}
-    table_rows = []
+    summary_rows = []
+    performance_rows = []
     for row in status:
         sid = row["student_id"]
         progress = progress_map.get(sid)
-        if row["status"] != "Complete":
-            routine = row["status"]
-        elif progress and progress.completed_at:
-            routine = "⭐ Done"
+        if progress and progress.completed_at:
+            routine = "🟢 Done"
+        elif row["status"] == "Not started":
+            routine = "⚪ Not started"
+        elif row["status"] != "Complete":
+            routine = "🟡 Daily 10"
         elif progress and progress.fix_completed_at:
-            routine = "Focus Practice"
+            routine = "🟡 Focus Practice"
         else:
-            routine = "Fix Your Misses"
+            routine = "🟡 Fix Your Misses"
         stats = learning_stats.get(sid, {"current_streak": 0, "stars": 0})
         student_record = teacher_students.get(sid)
-        table_rows.append({
+        pin = student_record.pin_code if student_record and student_record.pin_code else "Reset once"
+        summary_rows.append({
             "Nickname": row["nickname"],
-            "PIN": (student_record.pin_code if student_record and student_record.pin_code else "Reset once"),
-            "Routine": routine,
-            "Correct": "" if row["correct_count"] is None else f"{int(row['correct_count'])}/10",
-            "Time": "" if row["timed_seconds"] is None else format_seconds(float(row["timed_seconds"])),
+            "PIN": pin,
+            "Status": routine,
             "Streak": f"🔥 {stats.get('current_streak', 0)}" if stats.get("current_streak", 0) else "—",
             "Stars": int(stats.get("stars", 0)),
         })
-    if table_rows:
-        st.dataframe(pd.DataFrame(table_rows), hide_index=True, use_container_width=True)
+        performance_rows.append({
+            "Nickname": row["nickname"],
+            "PIN": pin,
+            "Daily accuracy": "" if row["correct_count"] is None else f"{int(row['correct_count'])}/10",
+            "Timed sprint": "" if row["timed_seconds"] is None else format_seconds(float(row["timed_seconds"])),
+        })
+    if summary_rows:
+        st.markdown("#### Where everyone is")
+        st.dataframe(pd.DataFrame(summary_rows), hide_index=True, use_container_width=True)
 
-    st.markdown("#### Student-visible Top 10")
-    st.caption("Students see rank and nickname only. Accuracy and time stay teacher-only.")
-    board = store.leaderboard(selected.class_id, challenge.challenge_id, limit=10)
-    if board:
-        board_frame = pd.DataFrame([
-            {"Rank": row["rank"], "Nickname": row["nickname"]}
-            for row in board
-        ])
-        st.dataframe(board_frame, hide_index=True, use_container_width=True)
-    else:
-        st.caption("No completed Daily attempts yet today.")
+    with st.expander("Teacher-only accuracy & timing", expanded=False):
+        st.caption("Students never see these scores or times. Accuracy ranks first; time only breaks ties.")
+        if completed_rows:
+            st.caption(f"Class average: {average_accuracy:.1f}/10 · median timed sprint: {format_seconds(median_time)}")
+        st.dataframe(pd.DataFrame(performance_rows), hide_index=True, use_container_width=True)
+
+    with st.expander("Student-visible Top 10 preview", expanded=False):
+        st.caption("This is exactly the information students are allowed to see: rank + nickname only.")
+        board = store.leaderboard(selected.class_id, challenge.challenge_id, limit=10)
+        if board:
+            board_frame = pd.DataFrame([{"Rank": row["rank"], "Nickname": row["nickname"]} for row in board])
+            st.dataframe(board_frame, hide_index=True, use_container_width=True)
+        else:
+            st.caption("No completed Daily attempts yet today.")
 
     with st.expander("Preview today's balanced 10", expanded=False):
         mix = daily_mix_summary(facts)
@@ -1366,7 +1468,6 @@ def render_teacher_today(store: SupabaseFactStore) -> None:
         for index, fact in enumerate(facts, start=1):
             st.write(f"{index}. **{fact.label} = {fact.product}** · {fact.tier}")
 
-
 def _override_label(value: int | None) -> str:
     return "Automatic" if value is None else f"{value}s"
 
@@ -1376,41 +1477,16 @@ def _override_value(label: str) -> int | None:
 
 
 def render_teacher_mastery_focus(store: SupabaseFactStore) -> None:
-    st.markdown("### Mastery & Focus")
-    st.caption("The mastery map grows from normal Daily + assigned Focus Practice. New students begin as Learning — there is no placement test.")
+    st.markdown("### 🎯 Mastery & Focus")
+    st.caption("See what students are learning now. New students begin as Learning — there is no placement test.")
     classes = store.list_classes()
     if not classes:
         st.info("Create a class first.")
         return
 
-    override_options = ["Automatic"] + [f"{value}s" for value in range(2, 11)]
-    current_global = store.get_global_focus_override()
-    global_choice = st.selectbox(
-        "All-student Focus override",
-        override_options,
-        index=override_options.index(_override_label(current_global)),
-        key="global_focus_override_ui",
-        help="Automatic uses each student's personal profile. A selected family temporarily guides Focus Practice for everyone unless a class/student override is more specific.",
-    )
-    if st.button("Save all-student focus", use_container_width=True):
-        store.set_global_focus_override(_override_value(global_choice))
-        st.success("All-student Focus setting saved.")
-        st.rerun()
-
     class_by_name = {item.class_name: item for item in classes}
-    class_name = st.selectbox("Class mastery view", list(class_by_name), key="teacher_mastery_class")
+    class_name = st.selectbox("Class", list(class_by_name), key="teacher_mastery_class")
     selected = class_by_name[class_name]
-    current_class = store.get_class_focus_override(selected.class_id)
-    class_choice = st.selectbox(
-        "Class Focus override",
-        override_options,
-        index=override_options.index(_override_label(current_class)),
-        key=f"class_focus_override_{selected.class_id}",
-    )
-    if st.button("Save class focus", use_container_width=True):
-        store.set_class_focus_override(selected.class_id, _override_value(class_choice))
-        st.success("Class Focus setting saved.")
-        st.rerun()
 
     rows = store.class_mastery_summary(selected.class_id)
     if not rows:
@@ -1421,15 +1497,15 @@ def render_teacher_mastery_focus(store: SupabaseFactStore) -> None:
     frame["Need score"] = frame["Focus"] * 2 + frame["Building"]
 
     observed_needs = frame[(frame["Observed"] > 0) & ((frame["Focus"] > 0) | (frame["Building"] > 0))].copy()
+    st.markdown("#### What this class needs most")
     if not observed_needs.empty:
-        st.markdown("#### Facts currently needing the most class support")
         top = observed_needs.sort_values(["Need score", "Focus", "Building"], ascending=False).head(8)
         for _, row in top.iterrows():
             st.write(f"**{row['fact']}** · 🔴 {int(row['Focus'])} Focus · 🟡 {int(row['Building'])} Building · 🟢 {int(row['Fluent'])} Fluent")
     else:
         st.info("The app is still gathering evidence. That's intentional — it learns gradually instead of giving students a placement test.")
 
-    st.markdown("#### Full class fact heatmap")
+    st.markdown("#### Full class fact map")
     heat = frame[["fact", "Fluent", "Building", "Focus", "Unknown"]].copy()
     heat.columns = ["Fact", "🟢 Fluent", "🟡 Building", "🔴 Focus", "⚪ Learning"]
     st.dataframe(heat, hide_index=True, use_container_width=True)
@@ -1456,132 +1532,171 @@ def render_teacher_mastery_focus(store: SupabaseFactStore) -> None:
                 })
             st.dataframe(pd.DataFrame(individual), hide_index=True, use_container_width=True)
 
-def render_teacher_classes(store: SupabaseFactStore) -> None:
-    st.markdown("### Classes")
-    with st.form("create_class_form", clear_on_submit=True):
-        class_name = st.text_input("New class name", placeholder="Example: Period 1")
-        create = st.form_submit_button("Create class", use_container_width=True)
-    if create:
-        try:
-            record = store.create_class(class_name)
-            st.success(f"Created {record.class_name}.")
+    with st.expander("Teacher Focus overrides", expanded=False):
+        st.caption("Leave these on Automatic unless you intentionally want to steer Focus Practice. Student override > class override > everyone > Automatic.")
+        override_options = ["Automatic"] + [f"{value}s" for value in range(2, 11)]
+        current_global = store.get_global_focus_override()
+        global_choice = st.selectbox(
+            "Everyone",
+            override_options,
+            index=override_options.index(_override_label(current_global)),
+            key="global_focus_override_ui",
+        )
+        if st.button("Save everyone focus", use_container_width=True):
+            store.set_global_focus_override(_override_value(global_choice))
+            st.success("Everyone Focus setting saved.")
             st.rerun()
-        except (ValueError, NameTaken) as exc:
-            st.error(str(exc))
-        except Exception:
-            st.error("That class could not be created.")
+
+        current_class = store.get_class_focus_override(selected.class_id)
+        class_choice = st.selectbox(
+            f"{selected.class_name}",
+            override_options,
+            index=override_options.index(_override_label(current_class)),
+            key=f"class_focus_override_{selected.class_id}",
+        )
+        if st.button("Save class focus", use_container_width=True):
+            store.set_class_focus_override(selected.class_id, _override_value(class_choice))
+            st.success("Class Focus setting saved.")
+            st.rerun()
+
+def render_teacher_classes(store: SupabaseFactStore) -> None:
+    st.markdown("### 👥 Classes & Rosters")
+    st.caption("Create classes, add students, view PINs, move students, or clean up accidental accounts.")
+    flash = st.session_state.pop("teacher_roster_flash", None)
+    if flash:
+        kind, message = flash
+        getattr(st, kind)(message)
+
+    classes = store.list_classes(include_inactive=True)
+    with st.expander("➕ Create a class", expanded=not bool(classes)):
+        with st.form("create_class_form", clear_on_submit=True):
+            class_name = st.text_input("New class name", placeholder="Example: Block 1")
+            create = st.form_submit_button("Create class", use_container_width=True)
+        if create:
+            try:
+                record = store.create_class(class_name)
+                st.success(f"Created {record.class_name}.")
+                st.rerun()
+            except (ValueError, NameTaken) as exc:
+                st.error(str(exc))
+            except Exception:
+                st.error("That class could not be created.")
 
     classes = store.list_classes(include_inactive=True)
     if not classes:
         return
     class_by_name = {item.class_name: item for item in classes}
-    selected_name = st.selectbox("Manage class", list(class_by_name), key="teacher_manage_class")
+    selected_name = st.selectbox("Class to manage", list(class_by_name), key="teacher_manage_class")
     selected = class_by_name[selected_name]
     st.caption(f"Class code: {selected.class_code} · {'Active' if selected.active else 'Inactive'}")
 
-    st.markdown("### Add students in a batch")
-    st.caption("Paste nicknames one per line. The app creates a 4-digit classroom PIN that stays visible to you in the Teacher Dashboard.")
-    with st.form("bulk_student_form", clear_on_submit=True):
-        pasted = st.text_area("Nicknames", height=180, placeholder="FalconFox\nMathMaster\nBlueSky")
-        create_students = st.form_submit_button("Create students + PINs", use_container_width=True, type="primary")
-    if create_students:
-        names = []
-        seen = set()
-        for line in pasted.splitlines():
-            name = " ".join(line.strip().split())
-            if not name:
-                continue
-            key = name.casefold()
-            if key not in seen:
-                names.append(name)
-                seen.add(key)
-        if not names:
-            st.error("Paste at least one nickname.")
-        else:
-            created = []
-            errors = []
-            for name in names:
-                pin = generate_pin()
-                try:
-                    student = store.create_student(selected.class_id, name, pin)
-                    created.append({"Nickname": student.nickname, "PIN": pin, "Class": selected.class_name})
-                except Exception as exc:
-                    errors.append(f"{name}: {exc}")
-            st.session_state.bulk_created_credentials = {"class_id": selected.class_id, "rows": created}
-            if created:
-                st.success(f"Created {len(created)} student account{'s' if len(created) != 1 else ''}.")
-            if errors:
-                st.warning("Some nicknames were skipped: " + " | ".join(errors[:8]))
-
-    created_info = st.session_state.bulk_created_credentials
-    created = created_info.get("rows", []) if isinstance(created_info, dict) and created_info.get("class_id") == selected.class_id else []
-    if created:
-        st.markdown("#### New student PINs")
-        st.caption("These PINs will also remain visible beside each nickname in your Teacher Dashboard.")
-        cred_frame = pd.DataFrame(created)
-        st.dataframe(cred_frame, hide_index=True, use_container_width=True)
-        st.download_button(
-            "Download new student PIN sheet (CSV)",
-            cred_frame.to_csv(index=False).encode("utf-8"),
-            file_name="new_student_pins.csv",
-            mime="text/csv",
-            use_container_width=True,
-        )
-        if st.button("Clear PIN sheet from screen", use_container_width=True):
-            st.session_state.bulk_created_credentials = None
-            st.rerun()
-
     roster = store.list_students(selected.class_id, include_inactive=True)
-    st.markdown(f"### Roster · {len(roster)} students")
-    if roster:
-        roster_frame = pd.DataFrame([
-            {
-                "Nickname": student.nickname,
-                "PIN": student.pin_code or "Reset once",
-                "Status": "Active" if student.active else "Inactive",
-            }
-            for student in roster
-        ])
-        st.dataframe(roster_frame, hide_index=True, use_container_width=True)
 
-        missing_pin_students = [student for student in roster if not student.pin_code]
-        if missing_pin_students:
-            st.warning(
-                f"{len(missing_pin_students)} older account{'s' if len(missing_pin_students) != 1 else ''} were created before visible PINs were stored. "
-                "Their old hashed PIN cannot be recovered, so generate replacement classroom PINs once."
-            )
-            if st.button("Generate visible PINs for older accounts", use_container_width=True):
-                regenerated = []
-                for legacy_student in missing_pin_students:
-                    new_pin = generate_pin()
-                    store.reset_student_pin(legacy_student.student_id, new_pin)
-                    regenerated.append({"Nickname": legacy_student.nickname, "PIN": new_pin, "Class": selected.class_name})
-                st.session_state["legacy_pin_refresh"] = {"class_id": selected.class_id, "rows": regenerated}
-                st.rerun()
+    with st.expander("➕ Add students", expanded=not bool(roster)):
+        st.caption("Paste nicknames one per line. Each student receives a 4-digit classroom PIN that stays visible to you.")
+        with st.form("bulk_student_form", clear_on_submit=True):
+            pasted = st.text_area("Nicknames", height=180, placeholder="FalconFox\nMathMaster\nBlueSky")
+            create_students = st.form_submit_button("Create students + PINs", use_container_width=True, type="primary")
+        if create_students:
+            names = []
+            seen = set()
+            for line in pasted.splitlines():
+                name = " ".join(line.strip().split())
+                if not name:
+                    continue
+                key = name.casefold()
+                if key not in seen:
+                    names.append(name)
+                    seen.add(key)
+            if not names:
+                st.error("Paste at least one nickname.")
+            else:
+                created = []
+                errors = []
+                for name in names:
+                    pin = generate_pin()
+                    try:
+                        student = store.create_student(selected.class_id, name, pin)
+                        created.append({"Nickname": student.nickname, "PIN": pin, "Class": selected.class_name})
+                    except Exception as exc:
+                        errors.append(f"{name}: {exc}")
+                st.session_state.bulk_created_credentials = {"class_id": selected.class_id, "rows": created}
+                if created:
+                    st.success(f"Created {len(created)} student account{'s' if len(created) != 1 else ''}.")
+                if errors:
+                    st.warning("Some nicknames were skipped: " + " | ".join(errors[:8]))
 
-        refreshed = st.session_state.get("legacy_pin_refresh")
-        if isinstance(refreshed, dict) and refreshed.get("class_id") == selected.class_id and refreshed.get("rows"):
-            refreshed_frame = pd.DataFrame(refreshed["rows"])
-            st.success("Visible classroom PINs were created for the older accounts. Students must use these new PINs from now on.")
-            st.dataframe(refreshed_frame, hide_index=True, use_container_width=True)
+        created_info = st.session_state.bulk_created_credentials
+        created = created_info.get("rows", []) if isinstance(created_info, dict) and created_info.get("class_id") == selected.class_id else []
+        if created:
+            st.markdown("#### New student PINs")
+            cred_frame = pd.DataFrame(created)
+            st.dataframe(cred_frame, hide_index=True, use_container_width=True)
             st.download_button(
-                "Download replacement PINs (CSV)",
-                refreshed_frame.to_csv(index=False).encode("utf-8"),
-                file_name="replacement_student_pins.csv",
+                "Download new student PIN sheet (CSV)",
+                cred_frame.to_csv(index=False).encode("utf-8"),
+                file_name="new_student_pins.csv",
                 mime="text/csv",
                 use_container_width=True,
             )
+            if st.button("Clear PIN sheet from screen", use_container_width=True):
+                st.session_state.bulk_created_credentials = None
+                st.rerun()
 
+    roster = store.list_students(selected.class_id, include_inactive=True)
+    st.markdown(f"#### Roster · {len(roster)} students")
+    if not roster:
+        st.info("No students in this class yet.")
+        return
+
+    roster_frame = pd.DataFrame([
+        {
+            "Nickname": student.nickname,
+            "PIN": student.pin_code or "Reset once",
+            "Status": "Active" if student.active else "Inactive",
+        }
+        for student in roster
+    ])
+    st.dataframe(roster_frame, hide_index=True, use_container_width=True)
+
+    missing_pin_students = [student for student in roster if not student.pin_code]
+    if missing_pin_students:
+        st.warning(
+            f"{len(missing_pin_students)} older account{'s' if len(missing_pin_students) != 1 else ''} need one new visible PIN. "
+            "Their old hashed PIN cannot be recovered."
+        )
+        if st.button("Generate visible PINs for older accounts", use_container_width=True):
+            regenerated = []
+            for legacy_student in missing_pin_students:
+                new_pin = generate_pin()
+                store.reset_student_pin(legacy_student.student_id, new_pin)
+                regenerated.append({"Nickname": legacy_student.nickname, "PIN": new_pin, "Class": selected.class_name})
+            st.session_state["legacy_pin_refresh"] = {"class_id": selected.class_id, "rows": regenerated}
+            st.rerun()
+
+    refreshed = st.session_state.get("legacy_pin_refresh")
+    if isinstance(refreshed, dict) and refreshed.get("class_id") == selected.class_id and refreshed.get("rows"):
+        refreshed_frame = pd.DataFrame(refreshed["rows"])
+        st.success("Replacement classroom PINs created. Students must use these new PINs from now on.")
+        st.dataframe(refreshed_frame, hide_index=True, use_container_width=True)
         st.download_button(
-            "Download roster + PINs",
-            roster_frame.to_csv(index=False).encode("utf-8"),
-            file_name=f"{selected.class_name.replace(' ', '_')}_roster.csv",
+            "Download replacement PINs (CSV)",
+            refreshed_frame.to_csv(index=False).encode("utf-8"),
+            file_name="replacement_student_pins.csv",
             mime="text/csv",
             use_container_width=True,
         )
 
-        st.markdown("### Roster Management")
-        st.caption("Select one student or several at once. Moving keeps the student's PIN, mastery, Stars, streak, Daily history, Focus work, and Mystery history. Delete is permanent.")
+    st.download_button(
+        "Download roster + PINs",
+        roster_frame.to_csv(index=False).encode("utf-8"),
+        file_name=f"{selected.class_name.replace(' ', '_')}_roster.csv",
+        mime="text/csv",
+        use_container_width=True,
+    )
+
+    with st.expander("🔧 Roster Management", expanded=False):
+        st.caption("Select one student or several. Moving preserves all student history. Delete is permanent.")
         roster_labels = [
             f"{student.nickname} · PIN {student.pin_code or 'reset once'}{' (inactive)' if not student.active else ''}"
             for student in roster
@@ -1591,113 +1706,68 @@ def render_teacher_classes(store: SupabaseFactStore) -> None:
             for student in roster
         }
         selected_roster_labels = st.multiselect(
-            "Select student(s)",
-            roster_labels,
-            key=f"roster_manage_students_{selected.class_id}",
+            "Select student(s)", roster_labels, key=f"roster_manage_students_{selected.class_id}",
             placeholder="Choose one or more students",
         )
 
         other_classes = [item for item in classes if item.class_id != selected.class_id and item.active]
-        move_col, delete_col = st.columns(2)
-        with move_col:
-            st.markdown("#### Move")
-            if other_classes:
-                destination_by_name = {item.class_name: item for item in other_classes}
-                destination_name = st.selectbox(
-                    "Move to",
-                    list(destination_by_name),
-                    key=f"roster_move_destination_{selected.class_id}",
+        st.markdown("##### Move selected")
+        if other_classes:
+            destination_by_name = {item.class_name: item for item in other_classes}
+            destination_name = st.selectbox("Move to", list(destination_by_name), key=f"roster_move_destination_{selected.class_id}")
+            if st.button("Move selected student(s)", use_container_width=True, disabled=not selected_roster_labels, key=f"roster_bulk_move_{selected.class_id}"):
+                destination = destination_by_name[destination_name]
+                moved = 0
+                errors = []
+                for selected_label in selected_roster_labels:
+                    target = roster_by_label[selected_label]
+                    try:
+                        store.move_student(target.student_id, destination.class_id)
+                        moved += 1
+                    except Exception as exc:
+                        errors.append(f"{target.nickname}: {exc}")
+                st.session_state["teacher_roster_flash"] = (
+                    "warning" if errors else "success",
+                    (f"Moved {moved} student(s). Could not move: " + " | ".join(errors[:8])) if errors
+                    else f"Moved {moved} student(s) from {selected.class_name} to {destination.class_name}.",
                 )
-                if st.button(
-                    "Move selected student(s)",
-                    use_container_width=True,
-                    disabled=not selected_roster_labels,
-                    key=f"roster_bulk_move_{selected.class_id}",
-                ):
-                    destination = destination_by_name[destination_name]
-                    moved = 0
-                    errors = []
-                    for selected_label in selected_roster_labels:
-                        target = roster_by_label[selected_label]
-                        try:
-                            store.move_student(target.student_id, destination.class_id)
-                            moved += 1
-                        except Exception as exc:
-                            errors.append(f"{target.nickname}: {exc}")
-                    if errors:
-                        st.session_state["teacher_roster_flash"] = (
-                            "warning",
-                            f"Moved {moved} student(s). Could not move: " + " | ".join(errors[:8]),
-                        )
-                    else:
-                        st.session_state["teacher_roster_flash"] = (
-                            "success",
-                            f"Moved {moved} student(s) from {selected.class_name} to {destination.class_name}.",
-                        )
-                    st.rerun()
-            else:
-                st.info("Create another active class first, then you can move students into it.")
+                st.rerun()
+        else:
+            st.info("Create another active class first, then you can move students into it.")
 
-        with delete_col:
-            st.markdown("#### Delete")
-            st.caption("Use this only for accidental or duplicate accounts. Student-linked history is removed too.")
-            confirm_bulk_delete = st.checkbox(
-                "I understand deletion is permanent.",
-                key=f"roster_bulk_delete_confirm_{selected.class_id}",
-            )
+        st.markdown("##### Delete selected")
+        st.caption("Use only for accidental or duplicate accounts. Student-linked history is removed too.")
+        confirm_bulk_delete = st.checkbox("I understand deletion is permanent.", key=f"roster_bulk_delete_confirm_{selected.class_id}")
+        if st.button(
+            "Delete selected student(s)", use_container_width=True,
+            disabled=not selected_roster_labels or not confirm_bulk_delete, key=f"roster_bulk_delete_{selected.class_id}",
+        ):
+            targets = [roster_by_label[label] for label in selected_roster_labels]
+            try:
+                deleted = store.delete_students([target.student_id for target in targets])
+                st.session_state["teacher_roster_flash"] = ("success", f"Permanently deleted {deleted} student account{'s' if deleted != 1 else ''}.")
+            except Exception as exc:
+                st.session_state["teacher_roster_flash"] = ("warning", f"Bulk delete did not finish: {exc}")
+            st.rerun()
+
+        with st.expander(f"⚠️ Clear this entire roster ({len(roster)} students)"):
+            st.caption(f"Permanently deletes every student currently in {selected.class_name}, but keeps the class itself.")
+            clear_phrase = f"DELETE {selected.class_name}"
+            typed_clear = st.text_input(f"Type {clear_phrase} to confirm", key=f"clear_roster_phrase_{selected.class_id}")
             if st.button(
-                "Delete selected student(s)",
-                use_container_width=True,
-                disabled=not selected_roster_labels or not confirm_bulk_delete,
-                key=f"roster_bulk_delete_{selected.class_id}",
+                f"Permanently delete all {len(roster)} students from {selected.class_name}",
+                type="secondary", use_container_width=True, disabled=typed_clear.strip() != clear_phrase, key=f"clear_roster_{selected.class_id}",
             ):
-                targets = [roster_by_label[label] for label in selected_roster_labels]
                 try:
-                    deleted = store.delete_students([target.student_id for target in targets])
-                    st.session_state["teacher_roster_flash"] = (
-                        "success",
-                        f"Permanently deleted {deleted} student account{'s' if deleted != 1 else ''} in one bulk action.",
-                    )
+                    deleted = store.delete_class_students(selected.class_id)
+                    st.session_state["teacher_roster_flash"] = ("success", f"Permanently deleted all {deleted} student accounts from {selected.class_name}. The class itself was kept.")
                 except Exception as exc:
-                    st.session_state["teacher_roster_flash"] = (
-                        "warning",
-                        f"Bulk delete did not finish: {exc}",
-                    )
+                    st.session_state["teacher_roster_flash"] = ("warning", f"Roster clear did not finish: {exc}")
                 st.rerun()
 
-        if roster:
-            with st.expander(f"⚠️ Clear this entire roster ({len(roster)} students)"):
-                st.caption(
-                    f"Fast cleanup for a class created by mistake. This permanently deletes every student currently in {selected.class_name}, "
-                    "but keeps the class itself so you can reuse it. Student-linked history is deleted too."
-                )
-                clear_phrase = f"DELETE {selected.class_name}"
-                typed_clear = st.text_input(
-                    f"Type {clear_phrase} to confirm",
-                    key=f"clear_roster_phrase_{selected.class_id}",
-                )
-                if st.button(
-                    f"Permanently delete all {len(roster)} students from {selected.class_name}",
-                    type="secondary",
-                    use_container_width=True,
-                    disabled=typed_clear.strip() != clear_phrase,
-                    key=f"clear_roster_{selected.class_id}",
-                ):
-                    try:
-                        deleted = store.delete_class_students(selected.class_id)
-                        st.session_state["teacher_roster_flash"] = (
-                            "success",
-                            f"Permanently deleted all {deleted} student accounts from {selected.class_name}. The class itself was kept.",
-                        )
-                    except Exception as exc:
-                        st.session_state["teacher_roster_flash"] = (
-                            "warning",
-                            f"Roster clear did not finish: {exc}",
-                        )
-                    st.rerun()
-
-
 def render_teacher_student_tools(store: SupabaseFactStore) -> None:
+    st.markdown("### 🛠️ Student Support")
+    st.caption("Use this area for one-student fixes: PINs, nickname changes, Daily resets, Focus overrides, moves, and account status.")
     classes = store.list_classes(include_inactive=True)
     if not classes:
         st.info("Create a class first.")
@@ -1708,51 +1778,6 @@ def render_teacher_student_tools(store: SupabaseFactStore) -> None:
         kind, message = flash
         getattr(st, kind)(message)
 
-    st.markdown("### Roster fixes")
-    st.caption("Move students between classes without re-entering them. Their PIN and individual learning history stay with the account.")
-
-    if len(classes) >= 2:
-        with st.expander("Move several students to another class", expanded=False):
-            source_by_name = {item.class_name: item for item in classes}
-            source_name = st.selectbox("From class", list(source_by_name), key="bulk_move_source_class")
-            source = source_by_name[source_name]
-            source_students = store.list_students(source.class_id, include_inactive=True)
-            destination_options = [item for item in classes if item.class_id != source.class_id]
-            destination_by_name = {item.class_name: item for item in destination_options}
-            destination_name = st.selectbox("To class", list(destination_by_name), key="bulk_move_destination_class")
-            selected_labels = st.multiselect(
-                "Students to move",
-                [f"{student.nickname} · PIN {student.pin_code or 'reset once'}" for student in source_students],
-                key="bulk_move_students",
-            )
-            source_by_label = {
-                f"{student.nickname} · PIN {student.pin_code or 'reset once'}": student
-                for student in source_students
-            }
-            if st.button("Move selected students", use_container_width=True, disabled=not selected_labels):
-                destination = destination_by_name[destination_name]
-                moved = 0
-                errors: list[str] = []
-                for selected_label in selected_labels:
-                    target = source_by_label[selected_label]
-                    try:
-                        store.move_student(target.student_id, destination.class_id)
-                        moved += 1
-                    except Exception as exc:
-                        errors.append(f"{target.nickname}: {exc}")
-                if errors:
-                    st.session_state["teacher_roster_flash"] = (
-                        "warning",
-                        f"Moved {moved} student(s). Could not move: " + " | ".join(errors),
-                    )
-                else:
-                    st.session_state["teacher_roster_flash"] = (
-                        "success",
-                        f"Moved {moved} student(s) from {source.class_name} to {destination.class_name}.",
-                    )
-                st.rerun()
-
-    st.markdown("---")
     class_by_name = {item.class_name: item for item in classes}
     class_name = st.selectbox("Class", list(class_by_name), key="teacher_tools_class")
     class_record = class_by_name[class_name]
@@ -1767,123 +1792,139 @@ def render_teacher_student_tools(store: SupabaseFactStore) -> None:
     label = st.selectbox("Student", list(student_by_label), key="teacher_tools_student")
     student = student_by_label[label]
 
-    st.markdown("#### Rename nickname")
-    with st.form("rename_student_form"):
-        new_name = st.text_input("Nickname", value=student.nickname, max_chars=28)
-        rename = st.form_submit_button("Save nickname", use_container_width=True)
-    if rename:
-        try:
-            store.rename_student(student.student_id, new_name)
-            st.success("Nickname updated.")
-            st.rerun()
-        except Exception as exc:
-            st.error(str(exc))
+    st.info(f"**{student.nickname}** · PIN **{student.pin_code or 'Reset once'}** · {class_record.class_name} · {'Active' if student.active else 'Inactive'}")
 
-    if len(classes) >= 2:
-        st.markdown("#### Move to another class")
-        destination_options = [item for item in classes if item.class_id != student.class_id]
-        destination_by_name = {item.class_name: item for item in destination_options}
-        destination_name = st.selectbox(
-            "Destination class",
-            list(destination_by_name),
-            key=f"move_student_destination_{student.student_id}",
-        )
-        st.caption("The student's PIN, mastery, Stars, streak, and saved work stay with the account.")
-        if st.button("Move student", use_container_width=True, key=f"move_student_{student.student_id}"):
+    with st.expander("🔑 Nickname & PIN", expanded=True):
+        with st.form("rename_student_form"):
+            new_name = st.text_input("Nickname", value=student.nickname, max_chars=28)
+            rename = st.form_submit_button("Save nickname", use_container_width=True)
+        if rename:
             try:
-                destination = destination_by_name[destination_name]
-                store.move_student(student.student_id, destination.class_id)
-                st.session_state["teacher_roster_flash"] = (
-                    "success",
-                    f"Moved {student.nickname} to {destination.class_name}.",
-                )
+                store.rename_student(student.student_id, new_name)
+                st.success("Nickname updated.")
                 st.rerun()
             except Exception as exc:
                 st.error(str(exc))
 
-    st.markdown("#### Student PIN")
-    if student.pin_code:
-        st.info(f"Current classroom PIN: **{student.pin_code}**")
-        st.caption("This PIN stays visible to you in the Teacher Dashboard. Generate a new one only when you want to change it.")
-    else:
-        st.warning("This older account does not have a viewable PIN yet. Generate a new one once to make it permanently visible here.")
-    if st.button("Generate new PIN", use_container_width=True):
-        pin = generate_pin()
-        try:
-            store.reset_student_pin(student.student_id, pin)
-            st.session_state["last_reset_pin"] = {"student_id": student.student_id, "nickname": student.nickname, "pin": pin}
-            st.rerun()
-        except Exception:
-            st.error("PIN reset failed.")
-    reset_info = st.session_state.get("last_reset_pin")
-    if reset_info and reset_info.get("student_id") == student.student_id:
-        st.success(f"New PIN for {reset_info['nickname']}: **{reset_info['pin']}**")
-        st.caption("It is now saved as the student's visible classroom PIN in your Teacher Dashboard.")
-        if st.button("Clear reset message", use_container_width=True):
-            st.session_state.pop("last_reset_pin", None)
-            st.rerun()
-
-    st.markdown("#### Account status")
-    target_active = not student.active
-    if st.button(("Reactivate student" if target_active else "Deactivate student"), use_container_width=True):
-        store.set_student_active(student.student_id, target_active)
-        st.rerun()
-
-    st.markdown("#### Personal Focus override")
-    st.caption("Automatic follows this student's evolving mastery profile. A temporary family choice overrides class/all-student settings for this student.")
-    override_options = ["Automatic"] + [f"{value}s" for value in range(2, 11)]
-    current_override = store.get_student_focus_override(student.student_id)
-    personal_choice = st.selectbox(
-        "Student Focus",
-        override_options,
-        index=override_options.index(_override_label(current_override)),
-        key=f"student_focus_override_{student.student_id}",
-    )
-    if st.button("Save student focus", use_container_width=True):
-        store.set_student_focus_override(student.student_id, _override_value(personal_choice))
-        st.success("Student Focus setting saved.")
-        st.rerun()
-
-    st.markdown("#### Today's Daily attempt")
-    try:
-        _, _, challenge = ensure_today(store)
-        attempt = store.get_attempt_for_student(student.student_id, challenge.challenge_id)
-    except Exception:
-        attempt = None
-        challenge = None
-    if attempt is None:
-        st.caption("No attempt started today.")
-    else:
-        state = "Complete" if attempt.completed_at else "Timer running" if attempt.timed_started_at else "Opened"
-        st.caption(f"Current state: {state}")
-        st.warning("Use reset only for a technology problem or accidental start. It gives the student a fresh Daily attempt.")
-        if st.button("Reset today's Daily attempt", use_container_width=True):
-            store.reset_daily_attempt(student.student_id, challenge.challenge_id)
-            st.success("Today's attempt was reset.")
-            st.rerun()
-
-    st.markdown("#### Delete student")
-    st.warning("Permanent: this removes the student's account and student-linked Daily, mastery, reward, and mystery history. Use Move instead if the student simply belongs in another class.")
-    confirm_delete = st.checkbox(
-        f"I want to permanently delete {student.nickname}.",
-        key=f"confirm_delete_student_{student.student_id}",
-    )
-    if st.button(
-        "Delete student permanently",
-        use_container_width=True,
-        disabled=not confirm_delete,
-        key=f"delete_student_{student.student_id}",
-    ):
-        try:
-            store.delete_student(student.student_id)
-            reset_info = st.session_state.get("last_reset_pin")
-            if reset_info and reset_info.get("student_id") == student.student_id:
+        if student.pin_code:
+            st.markdown(f"**Current classroom PIN: {student.pin_code}**")
+        else:
+            st.warning("This older account needs one replacement PIN before it can be shown here.")
+        if st.button("Generate new PIN", use_container_width=True, key=f"generate_pin_{student.student_id}"):
+            pin = generate_pin()
+            try:
+                store.reset_student_pin(student.student_id, pin)
+                st.session_state["last_reset_pin"] = {"student_id": student.student_id, "nickname": student.nickname, "pin": pin}
+                st.rerun()
+            except Exception:
+                st.error("PIN reset failed.")
+        reset_info = st.session_state.get("last_reset_pin")
+        if reset_info and reset_info.get("student_id") == student.student_id:
+            st.success(f"New PIN for {reset_info['nickname']}: **{reset_info['pin']}**")
+            if st.button("Clear reset message", use_container_width=True, key=f"clear_pin_msg_{student.student_id}"):
                 st.session_state.pop("last_reset_pin", None)
-            st.session_state["teacher_roster_flash"] = ("success", f"Deleted {student.nickname}.")
-            st.rerun()
-        except Exception as exc:
-            st.error(str(exc))
+                st.rerun()
 
+    with st.expander("🧰 Today's Daily troubleshooting", expanded=False):
+        try:
+            _, _, challenge = ensure_today(store)
+            attempt = store.get_attempt_for_student(student.student_id, challenge.challenge_id)
+        except Exception:
+            attempt = None
+            challenge = None
+        if attempt is None:
+            st.caption("No attempt started today.")
+        else:
+            state = "Complete" if attempt.completed_at else "Timer running" if attempt.timed_started_at else "Opened"
+            st.write(f"Current state: **{state}**")
+            st.warning("Reset only for a technology problem or accidental start. It gives the student a fresh Daily attempt.")
+            if st.button("Reset today's Daily attempt", use_container_width=True, key=f"reset_daily_{student.student_id}"):
+                store.reset_daily_attempt(student.student_id, challenge.challenge_id)
+                st.success("Today's attempt was reset.")
+                st.rerun()
+
+    with st.expander("🎯 Personal Focus override", expanded=False):
+        st.caption("Automatic follows this student's evolving mastery. A student setting overrides class/everyone settings.")
+        override_options = ["Automatic"] + [f"{value}s" for value in range(2, 11)]
+        current_override = store.get_student_focus_override(student.student_id)
+        personal_choice = st.selectbox(
+            "Student Focus", override_options, index=override_options.index(_override_label(current_override)),
+            key=f"student_focus_override_{student.student_id}",
+        )
+        if st.button("Save student focus", use_container_width=True, key=f"save_student_focus_{student.student_id}"):
+            store.set_student_focus_override(student.student_id, _override_value(personal_choice))
+            st.success("Student Focus setting saved.")
+            st.rerun()
+
+    with st.expander("↔️ Move or change account status", expanded=False):
+        if len(classes) >= 2:
+            destination_options = [item for item in classes if item.class_id != student.class_id]
+            destination_by_name = {item.class_name: item for item in destination_options}
+            destination_name = st.selectbox("Move to another class", list(destination_by_name), key=f"move_student_destination_{student.student_id}")
+            st.caption("Moving keeps the student's PIN, mastery, Stars, streak, saved work, and Mystery history.")
+            if st.button("Move student", use_container_width=True, key=f"move_student_{student.student_id}"):
+                try:
+                    destination = destination_by_name[destination_name]
+                    store.move_student(student.student_id, destination.class_id)
+                    st.session_state["teacher_roster_flash"] = ("success", f"Moved {student.nickname} to {destination.class_name}.")
+                    st.rerun()
+                except Exception as exc:
+                    st.error(str(exc))
+
+        target_active = not student.active
+        if st.button(("Reactivate student" if target_active else "Deactivate student"), use_container_width=True, key=f"student_active_{student.student_id}"):
+            store.set_student_active(student.student_id, target_active)
+            st.rerun()
+
+    with st.expander("📦 Bulk move shortcut", expanded=False):
+        st.caption("The same bulk move tool also lives in Classes & Rosters → Roster Management.")
+        if len(classes) >= 2:
+            source_by_name = {item.class_name: item for item in classes}
+            source_name = st.selectbox("From class", list(source_by_name), key="bulk_move_source_class")
+            source = source_by_name[source_name]
+            source_students = store.list_students(source.class_id, include_inactive=True)
+            destination_options = [item for item in classes if item.class_id != source.class_id]
+            destination_by_name = {item.class_name: item for item in destination_options}
+            destination_name = st.selectbox("To class", list(destination_by_name), key="bulk_move_destination_class")
+            selected_labels = st.multiselect(
+                "Students to move", [f"{s.nickname} · PIN {s.pin_code or 'reset once'}" for s in source_students], key="bulk_move_students",
+            )
+            source_by_label = {f"{s.nickname} · PIN {s.pin_code or 'reset once'}": s for s in source_students}
+            if st.button("Move selected students", use_container_width=True, disabled=not selected_labels, key="support_bulk_move"):
+                destination = destination_by_name[destination_name]
+                moved = 0
+                errors = []
+                for selected_label in selected_labels:
+                    target = source_by_label[selected_label]
+                    try:
+                        store.move_student(target.student_id, destination.class_id)
+                        moved += 1
+                    except Exception as exc:
+                        errors.append(f"{target.nickname}: {exc}")
+                st.session_state["teacher_roster_flash"] = (
+                    "warning" if errors else "success",
+                    (f"Moved {moved} student(s). Could not move: " + " | ".join(errors[:8])) if errors
+                    else f"Moved {moved} student(s) from {source.class_name} to {destination.class_name}.",
+                )
+                st.rerun()
+        else:
+            st.info("Create another class first.")
+
+    with st.expander("⚠️ Permanently delete this student", expanded=False):
+        st.warning("Permanent: removes the student's account and linked Daily, mastery, reward, and mystery history. Use Move instead if they belong in another class.")
+        confirm_delete = st.checkbox(f"I want to permanently delete {student.nickname}.", key=f"confirm_delete_student_{student.student_id}")
+        if st.button(
+            "Delete student permanently", use_container_width=True, disabled=not confirm_delete, key=f"delete_student_{student.student_id}",
+        ):
+            try:
+                store.delete_student(student.student_id)
+                reset_info = st.session_state.get("last_reset_pin")
+                if reset_info and reset_info.get("student_id") == student.student_id:
+                    st.session_state.pop("last_reset_pin", None)
+                st.session_state["teacher_roster_flash"] = ("success", f"Deleted {student.nickname}.")
+                st.rerun()
+            except Exception as exc:
+                st.error(str(exc))
 
 def render_teacher_weekly_mystery(store: SupabaseFactStore) -> None:
     st.markdown("### 🕵️ Weekly Mystery")
@@ -1947,15 +1988,18 @@ def render_teacher(store: SupabaseFactStore | None) -> None:
             st.session_state.teacher_authed = False
             st.rerun()
 
-    today_tab, mastery_tab, mystery_tab, class_tab, tools_tab = st.tabs(["Today", "Mastery & Focus", "Weekly Mystery", "Classes & Students", "Student Tools"])
+    st.caption("Start with Today. Use Classes & Rosters for whole-class setup; use Student Support when one student needs help.")
+    today_tab, class_tab, mastery_tab, mystery_tab, tools_tab = st.tabs([
+        "📊 Today", "👥 Classes & Rosters", "🎯 Mastery & Focus", "🕵️ Weekly Mystery", "🛠️ Student Support"
+    ])
     with today_tab:
         render_teacher_today(store)
+    with class_tab:
+        render_teacher_classes(store)
     with mastery_tab:
         render_teacher_mastery_focus(store)
     with mystery_tab:
         render_teacher_weekly_mystery(store)
-    with class_tab:
-        render_teacher_classes(store)
     with tools_tab:
         render_teacher_student_tools(store)
 
