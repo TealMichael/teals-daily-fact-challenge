@@ -1,5 +1,5 @@
-TEAL'S DAILY FACT CHALLENGE v2.2.3
-FAST ROSTER DELETE HOTFIX — EXISTING LIVE v2.2 APP
+TEAL'S DAILY FACT CHALLENGE v2.2.5
+CLASSROOM LOAD RELIABILITY HOTFIX — EXISTING LIVE v2.2 APP
 
 IMPORTANT: This is a CODE-ONLY hotfix.
 NO Supabase SQL step is required.
@@ -13,27 +13,21 @@ YOUR CURRENT PATH
 5. Streamlit should redeploy automatically.
 
 Suggested commit:
-   v2.2.3 - make bulk student deletion fast
+   v2.2.5 - improve classroom load reliability
 
 WHAT CHANGED
-Teacher -> Classes & Students -> Roster Management now uses a true bulk database delete:
-- Select one or many students and press Delete selected student(s).
-- All selected accounts are deleted in one database request instead of one student at a time.
-- Student-linked Daily, Practice, mastery, Focus, and Mystery rows are removed by existing database cascades.
+- Retries transient Supabase/httpx ReadError-style failures automatically.
+- Batches Daily mastery writes so 10 facts no longer create ~20 mastery requests per student.
+- Loads the completed-screen leaderboard once per rerun instead of repeatedly.
+- Replaces post-Daily red tracebacks with a friendly Try again state when the classroom connection is briefly busy.
+- A completed Daily remains saved; students should not redo their 10 facts after a retry screen.
 
-A new fast cleanup tool is also available:
-- Expand “Clear this entire roster (N students)” under Roster Management.
-- Type DELETE followed by the exact class name.
-- One action permanently clears every student currently in that class while keeping the class itself.
-
-For the current duplicate-roster cleanup, this is the fastest option if every student in that wrong roster should be removed.
-
-NO CHANGES
-- Daily 10
-- adaptive mastery / Focus Practice
-- Fix Your Misses
-- leaderboard ranking
+UNCHANGED
+- Daily fact generator and ranking rules
+- student leaderboard privacy (rank + nickname only)
+- Fix Your Misses / adaptive Focus Practice
 - Weekly Mystery
-- student PIN behavior
+- roster management / visible teacher PINs
+- Teacher Tools layout (cleanup still deferred)
 - Supabase schema
 - Streamlit Secrets

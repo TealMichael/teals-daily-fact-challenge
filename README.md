@@ -16,7 +16,7 @@ Every signed-in student follows the same learning path:
 - The timer runs **quietly in the background**. Students do not watch a ticking stopwatch.
 - Accuracy ranks first; time breaks ties.
 - No right/wrong feedback is shown until the Daily 10 is complete.
-- Students see only their own class **Top 10**. Lower exact ranks stay private.
+- Students see only their own class **Top 10**, with **rank + nickname only**. Classmates' accuracy and times stay teacher-only, and lower exact ranks stay private.
 
 ### 2. Fix Your Misses
 
@@ -83,7 +83,7 @@ The private Teacher Dashboard supports roughly 90 students across multiple class
 
 ### Today
 
-Teachers can see Daily completion, full learning-routine completion, accuracy/time, private streak and star information, each student's current routine step, visible classroom PINs, and the student-visible class Top 10.
+Teachers can see Daily completion, full learning-routine completion, accuracy/time, private streak and star information, each student's current routine step, visible classroom PINs, and the student-visible class Top 10. The teacher view keeps full accuracy/time data even though students see rank + nickname only.
 
 ### Mastery & Focus
 
@@ -103,7 +103,7 @@ Teachers can see each student's classroom PIN beside the nickname, rename nickna
 
 ## Daily fact generator
 
-The shared Daily generator remains versioned as `TDFC-DAILY-v1`, so the previously audited Daily sequence does not change in v2.2.2.
+The shared Daily generator remains versioned as `TDFC-DAILY-v1`, so the previously audited Daily sequence does not change in v2.2.5.
 
 Each Daily contains 10 unique underlying multiplication facts. Commutative mirrors cannot both appear. Normal core days contain 3 easier, 4 medium, and 3 harder facts. On selected extension days, one harder slot becomes one 11/12 fact.
 
@@ -128,9 +128,9 @@ TEACHER_PASSWORD = "CHOOSE-A-PRIVATE-TEACHER-PASSWORD"
 
 ## Updating an existing installation
 
-**Current live v2.2 installation:** v2.2.3 is a code-only fast roster-delete hotfix. **No Supabase SQL is required.** Upload every file/folder in `UPLOAD_TO_GITHUB` to the existing GitHub repo and let Streamlit redeploy.
+**Current live v2.2 installation:** v2.2.5 is a code-only classroom-load reliability hotfix. **No Supabase SQL is required.** Upload every file/folder in `UPLOAD_TO_GITHUB` to the existing GitHub repo and let Streamlit redeploy.
 
-**If coming from v2.1:** run `RUN_THIS_ONCE_IN_SUPABASE_v2_2.sql` first, then upload the v2.2.3 app files.
+**If coming from v2.1:** run `RUN_THIS_ONCE_IN_SUPABASE_v2_2.sql` first, then upload the v2.2.5 app files.
 
 **If already on v2.0 but not v2.1:** run `RUN_THIS_ONCE_IN_SUPABASE_v2_1.sql`, then `RUN_THIS_ONCE_IN_SUPABASE_v2_2.sql`.
 
@@ -141,6 +141,25 @@ Do not rerun `SUPABASE_SCHEMA.sql` on an existing project. It is the full schema
 Make sure `daily_sprint_component/index.html` remains present in GitHub.
 
 ## Version notes
+
+### v2.2.5 — Classroom Load Reliability Hotfix
+
+- Adds automatic retry/backoff for transient Supabase/httpx read failures such as the classroom `httpx.ReadError` seen when many students finish together.
+- Batches the 10 Daily mastery updates into roughly **2 database requests instead of about 20 per student** while preserving the same mastery math.
+- Reuses one leaderboard snapshot on the completed-Daily screen instead of repeatedly loading the same class data in a single rerun.
+- If the database is briefly busy after a completed Daily, students now see a friendly **Try again** message rather than a giant Streamlit traceback; completed Daily work does not need to be repeated.
+- Keeps v2.2.4 student leaderboard privacy intact.
+- Teacher Tools UI is intentionally untouched; its cleanup remains deferred until after classroom feedback.
+- Code-only update: no database migration or new Streamlit secret.
+
+### v2.2.4 — Student Leaderboard Privacy Hotfix
+
+- Student Top 10 now shows **rank + nickname only**.
+- Classmates' accuracy and timed-sprint values are no longer visible to students.
+- Student result summary no longer displays the timed sprint or a numeric accuracy score; it keeps Top 10 status and the instructional **Facts to Fix** count.
+- Accuracy and timing remain fully available in the Teacher Dashboard and still determine ranking privately: accuracy first, time as the tiebreaker.
+- Teacher UI layout is intentionally unchanged in this hotfix; the planned Teacher Tools cleanup remains deferred until after classroom feedback.
+- Code-only update: no database migration or new Streamlit secret.
 
 ### v2.2.3 — Fast Roster Delete Hotfix
 

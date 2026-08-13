@@ -611,14 +611,25 @@ def ensure_today(store: SupabaseFactStore):
     return day, list(challenge.facts), challenge
 
 
-def render_leaderboard(store: SupabaseFactStore, challenge, *, highlight_student_id: str | None = None) -> None:
+def load_leaderboard_context(store: SupabaseFactStore, challenge) -> dict:
+    """Load the student-facing leaderboard in two database reads for this rerun."""
     class_id = st.session_state.student_class_id
     roster = store.list_students(class_id)
-    rows = store.leaderboard(class_id, challenge.challenge_id, limit=10)
-    finished = len(store.completed_attempts_for_class(class_id, challenge.challenge_id))
+    completed = store.completed_attempts_for_class(class_id, challenge.challenge_id, students=roster)
+    rows = [dict(row, rank=index) for index, row in enumerate(completed[:10], start=1)]
+    return {"rows": rows, "finished": len(completed), "roster_count": len(roster)}
+
+
+def render_leaderboard(
+    store: SupabaseFactStore, challenge, *, highlight_student_id: str | None = None, context: dict | None = None
+) -> None:
+    context = context or load_leaderboard_context(store, challenge)
+    rows = list(context["rows"])
+    finished = int(context["finished"])
+    roster_count = int(context["roster_count"])
 
     st.markdown("### 🏆 Today's Top 10")
-    st.caption(f"Accuracy first · time breaks ties · {finished} of {len(roster)} finished")
+    st.caption(f"{finished} of {roster_count} finished · rank is based on accuracy first, with time used privately as the tiebreaker")
     if not rows:
         st.info("No one has finished yet. The first completed challenge will start the board!")
         return
@@ -630,11 +641,9 @@ def render_leaderboard(store: SupabaseFactStore, challenge, *, highlight_student
         name = html.escape(str(row["nickname"]))
         own = row["student_id"] == highlight_student_id
         suffix = " · you" if own else ""
-        score = f'{int(row["correct_count"])}/10 · {format_seconds(row["timed_seconds"])}'
         html_rows.append(
             f'<div class="leader-row"><div class="leader-rank">{marker}</div>'
-            f'<div class="leader-name">{name}{suffix}</div>'
-            f'<div class="leader-score">{score}</div></div>'
+            f'<div class="leader-name">{name}{suffix}</div></div>'
         )
     st.markdown('<div class="soft-card">' + "".join(html_rows) + "</div>", unsafe_allow_html=True)
     if highlight_student_id and not any(row["student_id"] == highlight_student_id for row in rows):
@@ -666,18 +675,17 @@ def render_learning_path(progress, missed_count: int) -> None:
     )
 
 
-def render_daily_result_summary(store: SupabaseFactStore, day, challenge, attempt) -> None:
-    leaderboard = store.leaderboard(st.session_state.student_class_id, challenge.challenge_id, limit=10)
+def render_daily_result_summary(store: SupabaseFactStore, day, challenge, attempt, *, leaderboard_context: dict | None = None) -> None:
+    leaderboard = list((leaderboard_context or load_leaderboard_context(store, challenge))["rows"])
     own_top = next((row for row in leaderboard if row["student_id"] == st.session_state.student_id), None)
     st.markdown(f"## Daily 10 complete · {day.strftime('%B %d').replace(' 0', ' ')}")
     st.markdown(
         f"""
         <div class="hero-card">
             <div class="result-grid">
-                <div class="result-box"><div class="result-label">Accuracy</div><div class="result-value">{attempt.correct_count}/10</div></div>
-                <div class="result-box"><div class="result-label">Timed Sprint</div><div class="result-value">{format_seconds(attempt.timed_seconds)}</div></div>
+                <div class="result-box"><div class="result-label">Daily 10</div><div class="result-value">Complete ✓</div></div>
                 <div class="result-box"><div class="result-label">Top 10</div><div class="result-value">{('#' + str(own_top['rank'])) if own_top else '—'}</div></div>
-                <div class="result-box"><div class="result-label">Misses</div><div class="result-value">{10 - int(attempt.correct_count or 0)}</div></div>
+                <div class="result-box"><div class="result-label">Facts to Fix</div><div class="result-value">{10 - int(attempt.correct_count or 0)}</div></div>
             </div>
         </div>
         """,
@@ -923,39 +931,72 @@ def render_day_complete(store: SupabaseFactStore, day, facts: list[Fact], challe
     st.caption("Come back on the next Challenge day. Your personal fact map will pick up exactly where it left off.")
 
 
+def render_classroom_connection_retry(exc: Exception, *, key: str = "classroom_retry") -> None:
+    st.warning("The classroom connection is busy for a moment. Your completed Daily is still saved.")
+    st.caption("Wait a second and try again — you do not need to redo your 10 facts.")
+    if st.button("Try again", use_container_width=True, type="primary", key=key):
+        st.rerun()
+    if str(st.query_params.get("dbcheck", "0")) == "1":
+        st.exception(exc)
+
+
 def render_completed_daily(store: SupabaseFactStore, day, facts: list[Fact], challenge, attempt) -> None:
-    answers = store.get_answers(attempt.attempt_id)
     try:
+        answers = store.get_answers(attempt.attempt_id)
         progress = store.get_or_create_learning_progress(st.session_state.student_id, challenge.challenge_id)
     except Exception as exc:
-        st.error("The v2 learning tables are not ready yet. Your teacher needs to run RUN_THIS_ONCE_IN_SUPABASE_v2.sql once.")
-        if str(st.query_params.get("dbcheck", "0")) == "1":
-            st.exception(exc)
+        render_classroom_connection_retry(exc, key="retry_completed_load")
         return
 
-    render_daily_result_summary(store, day, challenge, attempt)
+    # Load the leaderboard once per rerun. Before this hotfix the completed screen
+    # could independently fetch it several times, multiplying a whole-class traffic burst.
+    try:
+        leaderboard_context = load_leaderboard_context(store, challenge)
+    except Exception:
+        leaderboard_context = None
+
+    if leaderboard_context is not None:
+        render_daily_result_summary(store, day, challenge, attempt, leaderboard_context=leaderboard_context)
+    else:
+        st.markdown(f"## Daily 10 complete · {day.strftime('%B %d').replace(' 0', ' ')}")
+        st.success("Daily 10 saved ✓")
+        st.caption("The class Top 10 is updating. It will reappear when the classroom connection settles.")
+
     missed_count = sum(not answer.correct for answer in answers)
     render_learning_path(progress, missed_count)
 
     if progress.completed_at is not None:
-        render_day_complete(store, day, facts, challenge, attempt, answers)
+        try:
+            render_day_complete(store, day, facts, challenge, attempt, answers)
+        except Exception as exc:
+            render_classroom_connection_retry(exc, key="retry_day_complete")
         return
 
     with st.expander("🏆 Peek at today's Top 10", expanded=False):
-        render_leaderboard(store, challenge, highlight_student_id=st.session_state.student_id)
+        if leaderboard_context is None:
+            st.info("The Top 10 is updating. Try again in a moment.")
+        else:
+            render_leaderboard(
+                store, challenge, highlight_student_id=st.session_state.student_id, context=leaderboard_context
+            )
 
-    if progress.fix_completed_at is None:
-        if render_fix_misses(store, challenge, facts, answers):
-            st.rerun()
+    try:
+        if progress.fix_completed_at is None:
+            if render_fix_misses(store, challenge, facts, answers):
+                st.rerun()
+            return
+
+        if progress.focus_completed_at is None:
+            if render_focus_practice(store, day, challenge, answers):
+                st.rerun()
+            return
+
+        store.mark_focus_complete(st.session_state.student_id, challenge.challenge_id)
+        st.rerun()
+    except Exception as exc:
+        render_classroom_connection_retry(exc, key="retry_learning_step")
         return
 
-    if progress.focus_completed_at is None:
-        if render_focus_practice(store, day, challenge, answers):
-            st.rerun()
-        return
-
-    store.mark_focus_complete(st.session_state.student_id, challenge.challenge_id)
-    st.rerun()
 
 def render_daily(store: SupabaseFactStore | None) -> None:
     st.markdown("## Daily Challenge")
@@ -1253,10 +1294,11 @@ def render_teacher_today(store: SupabaseFactStore) -> None:
         st.dataframe(pd.DataFrame(table_rows), hide_index=True, use_container_width=True)
 
     st.markdown("#### Student-visible Top 10")
+    st.caption("Students see rank and nickname only. Accuracy and time stay teacher-only.")
     board = store.leaderboard(selected.class_id, challenge.challenge_id, limit=10)
     if board:
         board_frame = pd.DataFrame([
-            {"Rank": row["rank"], "Nickname": row["nickname"], "Correct": f"{row['correct_count']}/10", "Time": format_seconds(row["timed_seconds"])}
+            {"Rank": row["rank"], "Nickname": row["nickname"]}
             for row in board
         ])
         st.dataframe(board_frame, hide_index=True, use_container_width=True)

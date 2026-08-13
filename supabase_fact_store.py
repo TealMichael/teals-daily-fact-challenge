@@ -8,7 +8,11 @@ receive direct database credentials.
 """
 
 from datetime import date, datetime, timedelta, timezone
-from typing import Mapping, Sequence
+from typing import Callable, Mapping, Sequence, TypeVar
+import random
+import time
+
+import httpx
 
 try:
     from supabase import Client, create_client
@@ -97,6 +101,45 @@ def _error_text(exc: Exception) -> str:
 def _is_unique(exc: Exception) -> bool:
     text = _error_text(exc)
     return "23505" in text or "duplicate key" in text or "unique constraint" in text
+
+
+_T = TypeVar("_T")
+
+
+def _is_transient_http_error(exc: Exception) -> bool:
+    """Return True for short-lived network/transport failures worth retrying."""
+    transient_types = (
+        httpx.ReadError,
+        httpx.ConnectError,
+        httpx.RemoteProtocolError,
+        httpx.ReadTimeout,
+        httpx.ConnectTimeout,
+        httpx.PoolTimeout,
+    )
+    if isinstance(exc, transient_types):
+        return True
+    text = _error_text(exc)
+    return any(token in text for token in (
+        "readerror", "connection reset", "server disconnected",
+        "remoteprotocolerror", "read timeout", "connect timeout", "pool timeout",
+    ))
+
+
+def _retry_transient(operation: Callable[[], _T], *, attempts: int = 4) -> _T:
+    """Retry short-lived HTTP read/connection failures with tiny classroom-safe backoff."""
+    last_exc: Exception | None = None
+    for attempt in range(max(1, attempts)):
+        try:
+            return operation()
+        except Exception as exc:
+            last_exc = exc
+            if not _is_transient_http_error(exc) or attempt >= attempts - 1:
+                raise
+            # Keep retries short enough that a student sees a brief pause rather than an error page.
+            delay = (0.12 * (2 ** attempt)) + random.uniform(0.0, 0.06)
+            time.sleep(delay)
+    assert last_exc is not None
+    raise last_exc
 
 
 def _class(row: Mapping) -> ClassRecord:
@@ -339,7 +382,7 @@ class SupabaseFactStore:
             _, key = normalize_name(nickname, label="Nickname", max_length=28)
         except ValueError:
             return None
-        row = _first(
+        row = _first(_retry_transient(lambda: (
             self.client.table("students")
             .select("student_id,class_id,nickname,pin_hash,active,created_at")
             .eq("class_id", str(class_id))
@@ -347,7 +390,7 @@ class SupabaseFactStore:
             .eq("active", True)
             .limit(1)
             .execute()
-        )
+        )))
         if row is None or not verify_pin(pin, str(row.get("pin_hash") or "")):
             return None
         return _student(row)
@@ -356,16 +399,16 @@ class SupabaseFactStore:
         query = self.client.table("students").select("student_id,class_id,nickname,pin_code,active,created_at").eq("class_id", str(class_id))
         if not include_inactive:
             query = query.eq("active", True)
-        return [_student(row) for row in _rows(query.order("nickname").execute())]
+        return [_student(row) for row in _rows(_retry_transient(lambda: query.order("nickname").execute()))]
 
     def get_student(self, student_id: str) -> StudentRecord:
-        row = _first(
+        row = _first(_retry_transient(lambda: (
             self.client.table("students")
             .select("student_id,class_id,nickname,pin_code,active,created_at")
             .eq("student_id", str(student_id))
             .limit(1)
             .execute()
-        )
+        )))
         if row is None:
             raise NotFound("Student not found.")
         return _student(row)
@@ -468,13 +511,13 @@ class SupabaseFactStore:
     # ----- Challenge -----
     def get_challenge(self, challenge_date: date | str) -> ChallengeRecord | None:
         key = challenge_date.isoformat() if isinstance(challenge_date, date) else str(challenge_date)
-        row = _first(
+        row = _first(_retry_transient(lambda: (
             self.client.table("daily_challenges")
             .select("*")
             .eq("challenge_date", key)
             .limit(1)
             .execute()
-        )
+        )))
         return _challenge(row) if row else None
 
     def get_or_create_challenge(
@@ -521,37 +564,39 @@ class SupabaseFactStore:
         return _attempt(row)
 
     def get_attempt(self, attempt_id: str) -> AttemptRecord:
-        row = _first(
+        row = _first(_retry_transient(lambda: (
             self.client.table("daily_attempts")
             .select("*")
             .eq("attempt_id", str(attempt_id))
             .limit(1)
             .execute()
-        )
+        )))
         if row is None:
             raise NotFound("Attempt not found.")
         return _attempt(row)
 
     def get_attempt_for_student(self, student_id: str, challenge_id: str) -> AttemptRecord | None:
-        row = _first(
+        row = _first(_retry_transient(lambda: (
             self.client.table("daily_attempts")
             .select("*")
             .eq("student_id", str(student_id))
             .eq("challenge_id", str(challenge_id))
             .limit(1)
             .execute()
-        )
+        )))
         return _attempt(row) if row else None
 
     def get_answers(self, attempt_id: str) -> list[AnswerRecord]:
         return [
             _answer(row)
             for row in _rows(
-                self.client.table("daily_answers")
-                .select("*")
-                .eq("attempt_id", str(attempt_id))
-                .order("question_number")
-                .execute()
+                _retry_transient(lambda: (
+                    self.client.table("daily_answers")
+                    .select("*")
+                    .eq("attempt_id", str(attempt_id))
+                    .order("question_number")
+                    .execute()
+                ))
             )
         ]
 
@@ -622,9 +667,9 @@ class SupabaseFactStore:
             })
         # Upsert makes completion retry-safe if a network hiccup lands between
         # the answer write and the attempt summary update.
-        self.client.table("daily_answers").upsert(
+        _retry_transient(lambda: self.client.table("daily_answers").upsert(
             payloads, on_conflict="attempt_id,question_number"
-        ).execute()
+        ).execute())
         answers = self.get_answers(attempt_id)
         if len(answers) != 10:
             raise FactStoreError("Daily completion did not save all 10 answers.")
@@ -672,28 +717,29 @@ class SupabaseFactStore:
                 "submitted_at": when.isoformat(),
                 "response_seconds": None if latency is None else round(float(latency), 3),
             })
-        self.client.table("daily_answers").upsert(
+        _retry_transient(lambda: self.client.table("daily_answers").upsert(
             payloads, on_conflict="attempt_id,question_number"
-        ).execute()
+        ).execute())
         saved = self.get_answers(attempt_id)
         if len(saved) != 10:
             raise FactStoreError("Daily completion did not save all 10 answers.")
         correct_count = sum(answer.correct for answer in saved)
-        self.client.table("daily_attempts").update({
+        _retry_transient(lambda: self.client.table("daily_attempts").update({
             "timed_started_at": started.isoformat(),
             "completed_at": when.isoformat(),
             "correct_count": correct_count,
             "timed_seconds": round(seconds, 3),
-        }).eq("attempt_id", str(attempt_id)).execute()
+        }).eq("attempt_id", str(attempt_id)).execute())
         # Daily retrievals are the first source of evidence for the gradual
-        # mastery map. Fact 1 intentionally has no speed evidence.
-        for answer in saved:
-            fact = Fact(a=answer.a, b=answer.b, tier="core")
-            if max(fact.key) <= 10:
-                self.record_mastery_evidence(
-                    attempt.student_id, fact, answer.correct,
-                    response_seconds=answer.response_seconds, practiced_at=when,
-                )
+        # mastery map. Batch all ten facts so a class finishing together does not
+        # create ~20 mastery database calls per student.
+        self.record_mastery_evidence_batch(
+            attempt.student_id,
+            [
+                (Fact(a=answer.a, b=answer.b, tier="core"), answer.correct, answer.response_seconds, when)
+                for answer in saved
+            ],
+        )
         self.get_or_create_learning_progress(attempt.student_id, attempt.challenge_id)
         if correct_count == 10:
             self.mark_fix_complete(attempt.student_id, attempt.challenge_id)
@@ -765,20 +811,22 @@ class SupabaseFactStore:
         self.rebuild_mastery(student_id)
         return True
 
-    def completed_attempts_for_class(self, class_id: str, challenge_id: str) -> list[dict]:
-        students = self.list_students(class_id, include_inactive=True)
+    def completed_attempts_for_class(
+        self, class_id: str, challenge_id: str, *, students: Sequence[StudentRecord] | None = None
+    ) -> list[dict]:
+        students = list(students) if students is not None else self.list_students(class_id, include_inactive=True)
         if not students:
             return []
         student_map = {student.student_id: student for student in students}
         student_ids = list(student_map)
-        rows = _rows(
+        rows = _rows(_retry_transient(lambda: (
             self.client.table("daily_attempts")
             .select("attempt_id,student_id,correct_count,timed_seconds,completed_at")
             .eq("challenge_id", str(challenge_id))
             .in_("student_id", student_ids)
             .not_.is_("completed_at", "null")
             .execute()
-        )
+        )))
         result = []
         for row in rows:
             student = student_map.get(str(row["student_id"]))
@@ -863,24 +911,68 @@ class SupabaseFactStore:
         ).execute()
         return updated
 
-    def get_mastery(self, student_id: str) -> list[MasterySnapshot]:
-        rows = _rows(
+    def record_mastery_evidence_batch(
+        self, student_id: str, evidence: Sequence[tuple[Fact, bool, float | None, datetime]]
+    ) -> list[MasterySnapshot]:
+        """Update a Daily's mastery evidence in two requests instead of ~20.
+
+        This matters in a classroom because many students finish the Daily within
+        the same minute. The calculation is identical to record_mastery_evidence;
+        only the database round-trips are batched.
+        """
+        usable = [item for item in evidence if max(item[0].key) <= 10]
+        if not usable:
+            return []
+        existing_rows = _rows(_retry_transient(lambda: (
             self.client.table("student_fact_mastery").select("*")
             .eq("student_id", str(student_id)).execute()
+        )))
+        current = {(int(row["a"]), int(row["b"])): _mastery(row) for row in existing_rows}
+        changed: dict[tuple[int, int], MasterySnapshot] = {}
+        for fact, correct, response_seconds, practiced_at in usable:
+            a, b = canonical_pair(fact.a, fact.b)
+            old = changed.get((a, b)) or current.get((a, b))
+            updated = update_snapshot(
+                old, a=a, b=b, correct=bool(correct), response_seconds=response_seconds,
+                practiced_at=practiced_at,
+            )
+            changed[(a, b)] = updated
+        payloads = []
+        for (a, b), updated in changed.items():
+            payloads.append({
+                "student_id": str(student_id), "a": a, "b": b,
+                "evidence_count": updated.evidence_count,
+                "correct_count": updated.correct_count,
+                "ema_accuracy": updated.ema_accuracy,
+                "ema_seconds": updated.ema_seconds,
+                "correct_streak": updated.correct_streak,
+                "mastery_status": updated.status,
+                "last_practiced_at": updated.last_practiced_at.isoformat() if updated.last_practiced_at else None,
+                "updated_at": utc_now().isoformat(),
+            })
+        _retry_transient(lambda: self.client.table("student_fact_mastery").upsert(
+            payloads, on_conflict="student_id,a,b"
+        ).execute())
+        return list(changed.values())
+
+    def get_mastery(self, student_id: str) -> list[MasterySnapshot]:
+        rows = _rows(
+            _retry_transient(lambda: self.client.table("student_fact_mastery").select("*")
+            .eq("student_id", str(student_id)).execute())
         )
         if rows:
             return [_mastery(row) for row in rows]
         # Existing v1 Daily history can seed v2 automatically; there is still
         # no placement test and no invented evidence.
-        prior_daily = _first(
+        prior_daily = _first(_retry_transient(lambda: (
             self.client.table("daily_attempts").select("attempt_id")
             .eq("student_id", str(student_id)).not_.is_("completed_at", "null").limit(1).execute()
-        )
-        prior_focus = _first(
+        )))
+        prior_focus = _first(_retry_transient(lambda: (
             self.client.table("practice_answers").select("practice_answer_id")
             .eq("student_id", str(student_id)).eq("activity_type", "focus")
             .eq("is_retry", False).limit(1).execute()
-        )
+        )))
         if prior_daily or prior_focus:
             return self.rebuild_mastery(student_id)
         return []
@@ -909,16 +1001,25 @@ class SupabaseFactStore:
         return result
 
     def get_or_create_learning_progress(self, student_id: str, challenge_id: str) -> LearningProgressRecord:
-        row = _first(
+        row = _first(_retry_transient(lambda: (
             self.client.table("daily_learning_progress").select("*")
             .eq("student_id", str(student_id)).eq("challenge_id", str(challenge_id)).limit(1).execute()
-        )
+        )))
         if row is None:
-            row = _first(
-                self.client.table("daily_learning_progress").insert({
-                    "student_id": str(student_id), "challenge_id": str(challenge_id), "focus_plan": []
-                }).select("*").execute()
-            )
+            try:
+                row = _first(
+                    self.client.table("daily_learning_progress").insert({
+                        "student_id": str(student_id), "challenge_id": str(challenge_id), "focus_plan": []
+                    }).select("*").execute()
+                )
+            except Exception as exc:
+                # If the insert landed but its response was lost—or another rerun created it—re-read safely.
+                if not (_is_unique(exc) or _is_transient_http_error(exc)):
+                    raise
+                row = _first(_retry_transient(lambda: (
+                    self.client.table("daily_learning_progress").select("*")
+                    .eq("student_id", str(student_id)).eq("challenge_id", str(challenge_id)).limit(1).execute()
+                )))
         if row is None:
             raise FactStoreError("Could not create today's learning progress.")
         return _learning(row)
@@ -934,10 +1035,10 @@ class SupabaseFactStore:
             "focus_plan": [fact.as_dict() for fact in facts],
             "updated_at": utc_now().isoformat(),
         }
-        row = _first(
+        row = _first(_retry_transient(lambda: (
             self.client.table("daily_learning_progress").update(payload)
             .eq("student_id", str(student_id)).eq("challenge_id", str(challenge_id)).select("*").execute()
-        )
+        )))
         return _learning(row) if row else self.get_or_create_learning_progress(student_id, challenge_id)
 
     def mark_fix_complete(self, student_id: str, challenge_id: str) -> LearningProgressRecord:
@@ -972,12 +1073,12 @@ class SupabaseFactStore:
             student_id is not None and challenge_id is not None and activity_type == "focus"
             and activity_index is not None and not is_retry
         ):
-            existing = _first(
+            existing = _first(_retry_transient(lambda: (
                 self.client.table("practice_answers").select("*")
                 .eq("student_id", str(student_id)).eq("challenge_id", str(challenge_id))
                 .eq("activity_type", "focus").eq("activity_index", int(activity_index))
                 .eq("is_retry", False).limit(1).execute()
-            )
+            )))
             if existing is not None:
                 return _practice(existing)
         payload = {
@@ -1005,9 +1106,9 @@ class SupabaseFactStore:
 
     def learning_activity_rows(self, student_id: str, challenge_id: str, activity_type: str) -> list[PracticeRecord]:
         rows = _rows(
-            self.client.table("practice_answers").select("*")
+            _retry_transient(lambda: self.client.table("practice_answers").select("*")
             .eq("student_id", str(student_id)).eq("challenge_id", str(challenge_id))
-            .eq("activity_type", str(activity_type)).order("activity_index").order("created_at").execute()
+            .eq("activity_type", str(activity_type)).order("activity_index").order("created_at").execute())
         )
         return [_practice(row) for row in rows]
 
@@ -1044,21 +1145,21 @@ class SupabaseFactStore:
         self.client.table("students").update({"focus_override": value}).eq("student_id", str(student_id)).execute()
 
     def get_global_focus_override(self) -> int | None:
-        row = _first(self.client.table("app_settings").select("setting_value").eq("setting_key", "global_focus_override").limit(1).execute())
+        row = _first(_retry_transient(lambda: self.client.table("app_settings").select("setting_value").eq("setting_key", "global_focus_override").limit(1).execute()))
         if not row or row.get("setting_value") is None:
             return None
         return int(row["setting_value"])
 
     def get_class_focus_override(self, class_id: str) -> int | None:
-        row = _first(self.client.table("classes").select("focus_override").eq("class_id", str(class_id)).limit(1).execute())
+        row = _first(_retry_transient(lambda: self.client.table("classes").select("focus_override").eq("class_id", str(class_id)).limit(1).execute()))
         return None if not row or row.get("focus_override") is None else int(row["focus_override"])
 
     def get_student_focus_override(self, student_id: str) -> int | None:
-        row = _first(self.client.table("students").select("focus_override").eq("student_id", str(student_id)).limit(1).execute())
+        row = _first(_retry_transient(lambda: self.client.table("students").select("focus_override").eq("student_id", str(student_id)).limit(1).execute()))
         return None if not row or row.get("focus_override") is None else int(row["focus_override"])
 
     def get_effective_focus_override(self, student_id: str) -> int | None:
-        student_row = _first(self.client.table("students").select("class_id,focus_override").eq("student_id", str(student_id)).limit(1).execute())
+        student_row = _first(_retry_transient(lambda: self.client.table("students").select("class_id,focus_override").eq("student_id", str(student_id)).limit(1).execute()))
         if not student_row:
             return None
         if student_row.get("focus_override") is not None:
