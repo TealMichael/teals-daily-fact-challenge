@@ -11,9 +11,9 @@ STORE = (ROOT / "supabase_fact_store.py").read_text()
 ENGINE = (ROOT / "fact_engine.py").read_text()
 
 checks = {
-    "version bumped": 'APP_VERSION = "2.3.0"' in ENGINE,
+    "version bumped": 'APP_VERSION = "2.5.0"' in ENGINE,
     "leaderboard session cache": "def get_cached_leaderboard_context(" in APP,
-    "leaderboard not reloaded every Focus rerun": "Your Top 10 snapshot is saved while you finish the learning routine" in APP,
+    "leaderboard not reloaded every Focus rerun": "context=leaderboard_context" in APP and "def get_cached_leaderboard_context(" in APP,
     "focus rows session cache": "def get_cached_focus_rows(" in APP,
     "focus saved rows appended locally": "append_cached_focus_row(challenge, saved_row)" in APP,
     "existing progress reused for focus plan": "progress=progress" in APP,

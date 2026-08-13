@@ -136,6 +136,7 @@ class MysteryGuessRecord:
     correct: bool
     clue_count: int
     guessed_at: datetime
+    guess_day: int = 4
 
 
 @dataclass(frozen=True)
@@ -224,7 +225,7 @@ class InMemoryFactStore:
         self.global_focus_override: int | None = None
         self.weekly_mysteries: dict[str, WeeklyMysteryRecord] = {}
         self.mystery_unlocks: dict[tuple[str, str, int], MysteryUnlockRecord] = {}
-        self.mystery_guesses: dict[tuple[str, str], MysteryGuessRecord] = {}
+        self.mystery_guesses: dict[tuple[str, str, int], MysteryGuessRecord] = {}
 
     # ----- Classes -----
     def create_class(self, class_name: str, class_code: str | None = None) -> ClassRecord:
@@ -885,15 +886,32 @@ class InMemoryFactStore:
             key=lambda row: row.day_number,
         )
 
-    def get_mystery_guess(self, student_id: str, week_start: date | str) -> MysteryGuessRecord | None:
-        return self.mystery_guesses.get((student_id, _as_date_key(week_start)))
+    def get_mystery_guess(
+        self, student_id: str, week_start: date | str, *, guess_day: int | None = None
+    ) -> MysteryGuessRecord | None:
+        week_key = _as_date_key(week_start)
+        if guess_day is not None:
+            return self.mystery_guesses.get((student_id, week_key, int(guess_day)))
+        rows = self.list_mystery_guesses(student_id, week_key)
+        return rows[0] if rows else None
+
+    def list_mystery_guesses(self, student_id: str, week_start: date | str) -> list[MysteryGuessRecord]:
+        week_key = _as_date_key(week_start)
+        return sorted(
+            [row for row in self.mystery_guesses.values() if row.student_id == student_id and row.week_start == week_key],
+            key=lambda row: (row.guess_day, row.guessed_at),
+        )
 
     def submit_mystery_guess(
-        self, student_id: str, week_start: date | str, guess_text: str, *, correct: bool, clue_count: int
+        self, student_id: str, week_start: date | str, guess_text: str, *,
+        correct: bool, clue_count: int, guess_day: int = 4,
     ) -> MysteryGuessRecord:
         self.get_student(student_id)
         week_key = _as_date_key(week_start)
-        row_key = (student_id, week_key)
+        guess_day = int(guess_day)
+        if guess_day not in {4, 5}:
+            raise ValueError("Mystery guesses are only allowed on Thursday or Friday.")
+        row_key = (student_id, week_key, guess_day)
         existing = self.mystery_guesses.get(row_key)
         if existing is not None:
             return existing
@@ -903,18 +921,21 @@ class InMemoryFactStore:
         clue_count = int(clue_count)
         if clue_count not in {1, 2, 3, 4, 5}:
             raise ValueError("Clue count must be 1 through 5.")
-        record = MysteryGuessRecord(student_id, week_key, cleaned[:80], bool(correct), clue_count, utc_now())
+        record = MysteryGuessRecord(
+            student_id, week_key, cleaned[:80], bool(correct), clue_count, utc_now(), guess_day
+        )
         self.mystery_guesses[row_key] = record
         return record
 
     def mystery_student_stats(self, student_id: str) -> dict[str, int | None]:
         self.get_student(student_id)
         rows = [row for row in self.mystery_guesses.values() if row.student_id == student_id]
-        correct = [row for row in rows if row.correct]
+        correct_rows = [row for row in rows if row.correct]
+        solved_weeks = {row.week_start for row in correct_rows}
         return {
             "guesses": len(rows),
-            "solved": len(correct),
-            "earliest_solve": min((row.clue_count for row in correct), default=None),
+            "solved": len(solved_weeks),
+            "earliest_solve": min((row.clue_count for row in correct_rows), default=None),
         }
 
     def weekly_mystery_teacher_stats(self, week_start: date | str) -> dict[str, int]:
@@ -925,6 +946,5 @@ class InMemoryFactStore:
             "students_unlocked": len({row.student_id for row in unlocks}),
             "clues_unlocked": len(unlocks),
             "guesses": len(guesses),
-            "correct": sum(row.correct for row in guesses),
+            "correct": len({row.student_id for row in guesses if row.correct}),
         }
-

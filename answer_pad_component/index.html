@@ -1,0 +1,108 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<style>
+  :root { font-family: system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; color:#111827; }
+  * { box-sizing:border-box; }
+  body { margin:0; padding:2px 2px 8px; background:transparent; }
+  .wrap { max-width:430px; margin:0 auto; }
+  .display {
+    height:58px; display:flex; align-items:center; justify-content:center;
+    border:2px solid #99f6e4; border-radius:16px; background:#fff;
+    font-size:30px; font-weight:900; color:#111827; letter-spacing:.02em;
+    margin:2px 0 10px;
+  }
+  .display.empty { color:#9ca3af; font-size:18px; font-weight:750; }
+  .pad { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+  button {
+    min-height:58px; border:1px solid #d1d5db; border-radius:15px;
+    background:#fff; color:#111827; font-size:24px; font-weight:900;
+    cursor:pointer; touch-action:manipulation; -webkit-tap-highlight-color:transparent;
+  }
+  button:active { transform:translateY(1px); background:#f3f4f6; }
+  .back { color:#4b5563; background:#f9fafb; }
+  .submit { background:#0f766e; color:#fff; border-color:#0f766e; font-size:20px; }
+  .submit:active { background:#115e59; }
+  .error { min-height:20px; margin-top:6px; text-align:center; color:#b91c1c; font-size:13px; font-weight:750; }
+  .hint { margin-top:3px; text-align:center; color:#6b7280; font-size:12px; }
+</style>
+</head>
+<body>
+<div id="root" class="wrap"></div>
+<script>
+(() => {
+  let args = {};
+  let digits = '';
+  let startedAt = performance.now();
+  let submitted = false;
+
+  function post(type, extra={}) {
+    window.parent.postMessage(Object.assign({isStreamlitMessage:true, type}, extra), '*');
+  }
+  function ready() { post('streamlit:componentReady', {apiVersion:1}); }
+  function setHeight(height=310) { post('streamlit:setFrameHeight', {height}); }
+  function setValue(value) { post('streamlit:setComponentValue', {value, dataType:'json'}); }
+
+  function render() {
+    const display = digits || 'Tap your answer';
+    const cls = digits ? 'display' : 'display empty';
+    document.getElementById('root').innerHTML = `
+      <div id="display" class="${cls}" aria-live="polite">${display}</div>
+      <div class="pad" aria-label="Number pad">
+        <button type="button" data-digit="1">1</button><button type="button" data-digit="2">2</button><button type="button" data-digit="3">3</button>
+        <button type="button" data-digit="4">4</button><button type="button" data-digit="5">5</button><button type="button" data-digit="6">6</button>
+        <button type="button" data-digit="7">7</button><button type="button" data-digit="8">8</button><button type="button" data-digit="9">9</button>
+        <button type="button" id="back" class="back" aria-label="Delete last digit">⌫</button><button type="button" data-digit="0">0</button><button type="button" id="submit" class="submit">✓</button>
+      </div>
+      <div id="error" class="error"></div>
+      <div class="hint">Tap the numbers, then ✓. A physical keyboard still works too.</div>`;
+    setHeight(310);
+
+    document.querySelectorAll('[data-digit]').forEach(btn => btn.addEventListener('click', () => addDigit(btn.dataset.digit)));
+    document.getElementById('back').addEventListener('click', erase);
+    document.getElementById('submit').addEventListener('click', submit);
+  }
+
+  function addDigit(d) {
+    if (submitted || digits.length >= 3) return;
+    digits += d;
+    if (digits.length > 1) digits = digits.replace(/^0+/, '') || '0';
+    render();
+  }
+  function erase() {
+    if (submitted) return;
+    digits = digits.slice(0,-1);
+    render();
+  }
+  function submit() {
+    if (submitted) return;
+    const value = Number(digits);
+    if (!digits || !Number.isInteger(value) || value < 0 || value > 200) {
+      document.getElementById('error').textContent = 'Enter a whole-number answer.';
+      return;
+    }
+    submitted = true;
+    const seconds = Math.max(0, (performance.now() - startedAt) / 1000);
+    setValue({answer:value, response_seconds:Number(seconds.toFixed(3)), nonce:Date.now()});
+    document.getElementById('submit').textContent = '✓';
+  }
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key >= '0' && event.key <= '9') { event.preventDefault(); addDigit(event.key); }
+    else if (event.key === 'Backspace' || event.key === 'Delete') { event.preventDefault(); erase(); }
+    else if (event.key === 'Enter') { event.preventDefault(); submit(); }
+  });
+
+  window.addEventListener('message', (event) => {
+    if (!event.data || event.data.type !== 'streamlit:render') return;
+    args = event.data.args || {};
+    if (!document.getElementById('display')) render();
+  });
+  ready();
+  render();
+})();
+</script>
+</body>
+</html>

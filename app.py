@@ -34,6 +34,7 @@ from adaptive_engine import (
     status_for_display,
 )
 from supabase_fact_store import SupabaseFactStore
+from persistent_login import REMEMBER_DAYS, issue_student_token, peek_student_id, verify_student_token
 from weekly_mystery import (
     MYSTERIES,
     default_mystery_key_for_week,
@@ -58,6 +59,36 @@ DAILY_SPRINT_COMPONENT = components.declare_component(
     "tdfc_daily_sprint",
     path=str(Path(__file__).with_name("daily_sprint_component")),
 )
+
+PERSISTENT_LOGIN_COMPONENT = components.declare_component(
+    "tdfc_persistent_login",
+    path=str(Path(__file__).with_name("persistent_login_component")),
+)
+
+ANSWER_PAD_COMPONENT = components.declare_component(
+    "tdfc_answer_pad",
+    path=str(Path(__file__).with_name("answer_pad_component")),
+)
+
+def render_number_pad(*, key: str) -> tuple[int, float] | None:
+    """Browser-local touch keypad; digit taps never rerun Streamlit."""
+    result = ANSWER_PAD_COMPONENT(key=key, default=None)
+    if not isinstance(result, dict) or result.get("answer") is None:
+        return None
+    try:
+        value = int(result["answer"])
+        latency = max(0.0, float(result.get("response_seconds") or 0.0))
+    except (TypeError, ValueError):
+        return None
+    if value < 0 or value > 200:
+        return None
+    nonce = str(result.get("nonce") or f"{value}:{latency}")
+    processed_key = f"answer_pad_processed::{key}"
+    if st.session_state.get(processed_key) == nonce:
+        return None
+    st.session_state[processed_key] = nonce
+    return value, latency
+
 
 # ---------------------------------------------------------------------------
 # Styling
@@ -292,10 +323,15 @@ def init_state() -> None:
         "practice_focus_last": None,
         "bulk_created_credentials": None,
         "practice_retry_correct": False,
+        "practice_retry_count": 0,
+        "practice_question_serial": 0,
         "practice_started_at": None,
         "fix_feedback": None,
         "focus_feedback": None,
         "focus_started_at": None,
+        "persistent_login_pending_action": None,
+        "persistent_login_check_complete": False,
+        "persistent_login_reader_nonce": 0,
     }
     for key, value in defaults.items():
         if key not in st.session_state:
@@ -310,9 +346,92 @@ def switch_mode(mode: str) -> None:
 
 
 def sign_out() -> None:
+    st.session_state.persistent_login_pending_action = {"action": "clear"}
+    st.session_state.persistent_login_check_complete = False
     for key in ("student_id", "student_nickname", "student_class_id", "student_class_name"):
         st.session_state[key] = None
     st.session_state.practice_result = None
+
+
+def _persistent_login_secret() -> str:
+    try:
+        return str(st.secrets.get("SUPABASE_SECRET_KEY") or "")
+    except Exception:
+        return ""
+
+
+def _set_student_session(student, class_record) -> None:
+    st.session_state.student_id = student.student_id
+    st.session_state.student_nickname = student.nickname
+    st.session_state.student_class_id = student.class_id
+    st.session_state.student_class_name = class_record.class_name
+
+
+def handle_persistent_student_login(store: SupabaseFactStore | None) -> None:
+    """Read/write the optional 30-day browser login token.
+
+    The browser stores only a signed token, never the PIN itself. Every restore
+    re-checks the current student record so deleted/deactivated students stop
+    working, and a PIN reset invalidates the older token.
+    """
+    pending = st.session_state.get("persistent_login_pending_action")
+    if pending:
+        action = str(pending.get("action") or "")
+        token = str(pending.get("token") or "")
+        result = PERSISTENT_LOGIN_COMPONENT(
+            action=action,
+            token=token,
+            default={"ready": False},
+            key=f"persistent_login_{action}_{abs(hash(token)) if token else 'empty'}",
+        )
+        if isinstance(result, dict) and result.get("ready"):
+            st.session_state.persistent_login_pending_action = None
+            if action == "clear":
+                st.session_state.persistent_login_reader_nonce = int(st.session_state.get("persistent_login_reader_nonce", 0)) + 1
+                st.session_state.persistent_login_check_complete = True
+        return
+
+    if student_signed_in() or store is None:
+        st.session_state.persistent_login_check_complete = True
+        return
+
+    result = PERSISTENT_LOGIN_COMPONENT(
+        action="read",
+        token="",
+        default={"ready": False},
+        key=f"persistent_login_reader_{st.session_state.get('persistent_login_reader_nonce', 0)}",
+    )
+    if not isinstance(result, dict) or not result.get("ready"):
+        st.session_state.persistent_login_check_complete = False
+        return
+
+    st.session_state.persistent_login_check_complete = True
+    token = str(result.get("token") or "")
+    if not token:
+        return
+
+    try:
+        # The signed payload tells us which student to load; validation still
+        # requires the student's current visible PIN and active class/account.
+        student_id = peek_student_id(token)
+        if not student_id:
+            raise ValueError("Missing student id")
+        student = store.get_student(student_id)
+        if not student.active:
+            raise ValueError("Inactive student")
+        payload = verify_student_token(token, student.pin_code, _persistent_login_secret())
+        if payload is None:
+            raise ValueError("Expired or invalid remembered login")
+        classes = store.list_classes()
+        class_record = next((item for item in classes if item.class_id == student.class_id), None)
+        if class_record is None:
+            raise ValueError("Student class is not active")
+        _set_student_session(student, class_record)
+        st.rerun()
+    except Exception:
+        st.session_state.persistent_login_pending_action = {"action": "clear"}
+        st.session_state.persistent_login_check_complete = False
+        st.rerun()
 
 
 def student_signed_in() -> bool:
@@ -462,6 +581,9 @@ def render_db_setup_message() -> None:
 def render_student_sign_in(store: SupabaseFactStore | None) -> bool:
     if student_signed_in():
         return True
+    if store is not None and not st.session_state.get("persistent_login_check_complete", False):
+        st.caption("Checking this device for a saved sign-in…")
+        return False
     if store is None:
         render_db_setup_message()
         if st.button("Open Practice without signing in", use_container_width=True, on_click=switch_mode, args=("Practice",)):
@@ -487,6 +609,8 @@ def render_student_sign_in(store: SupabaseFactStore | None) -> bool:
         class_name = st.selectbox("Class", list(class_by_name))
         nickname = st.text_input("Nickname", max_chars=28)
         pin = st.text_input("4-digit PIN", type="password", max_chars=4)
+        remember_device = st.checkbox(f"Keep me signed in on this device for {REMEMBER_DAYS} days")
+        st.caption("Great for your assigned Chromebook or iPad. Leave this unchecked on a shared device.")
         submitted = st.form_submit_button("Sign in", use_container_width=True, type="primary")
     if submitted:
         selected = class_by_name[class_name]
@@ -497,12 +621,17 @@ def render_student_sign_in(store: SupabaseFactStore | None) -> bool:
         if student is None:
             st.error("That nickname/PIN combination did not match this class.")
             return False
-        st.session_state.student_id = student.student_id
-        st.session_state.student_nickname = student.nickname
-        st.session_state.student_class_id = selected.class_id
-        st.session_state.student_class_name = selected.class_name
+        _set_student_session(student, selected)
+        if remember_device:
+            token = issue_student_token(student.student_id, pin, _persistent_login_secret())
+            st.session_state.persistent_login_pending_action = {"action": "store", "token": token}
+        else:
+            # If this device previously remembered somebody else, a manual
+            # sign-in without the checkbox deliberately clears that old login.
+            st.session_state.persistent_login_pending_action = {"action": "clear"}
+        st.session_state.persistent_login_check_complete = True
         st.rerun()
-    st.markdown("<div class='private-note'>Nicknames are public inside the class leaderboard. PINs stay private and are never shown to classmates.</div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='private-note'>Nicknames are public inside the class leaderboard. PINs stay private and are never shown to classmates. Remembered sign-ins expire after {REMEMBER_DAYS} days or when you sign out.</div>", unsafe_allow_html=True)
     return False
 
 
@@ -547,13 +676,7 @@ def _render_mystery_stats(store: SupabaseFactStore) -> None:
 
 
 def render_weekly_mystery_reward(store: SupabaseFactStore, day, challenge) -> None:
-    """Render the curiosity reward only after the student's full learning routine.
-
-    Monday-Thursday each completed routine earns one clue.  A student who misses
-    a day simply has fewer clues; the clues they do earn are always shown in
-    order.  Friday completion gives one final guess (if unused) and then reveals
-    the answer.  The mystery never affects leaderboard, mastery, streaks, or Stars.
-    """
+    """Earn clues Monday-Thursday; guessing exists only Thursday and Friday."""
     try:
         week_start, _, mystery = ensure_weekly_mystery(store, day)
         day_number = school_day_number(day)
@@ -562,50 +685,54 @@ def render_weekly_mystery_reward(store: SupabaseFactStore, day, challenge) -> No
                 st.session_state.student_id, week_start, day_number, challenge.challenge_id
             )
         unlocks = store.list_mystery_unlocks(st.session_state.student_id, week_start)
-        guess = store.get_mystery_guess(st.session_state.student_id, week_start)
+        guesses = store.list_mystery_guesses(st.session_state.student_id, week_start)
     except Exception as exc:
-        st.info("🕵️ Weekly Mystery will appear after your teacher finishes the v2.2 database update.")
+        st.info("🕵️ Weekly Mystery will appear after your teacher finishes the v2.5 database update.")
         if str(st.query_params.get("dbcheck", "0")) == "1":
             st.exception(exc)
         return
 
-    clue_count = min(4, sum(1 for row in unlocks if int(row.day_number) <= 4))
-    friday_unlocked = any(int(row.day_number) == 5 for row in unlocks)
+    # Clues are earned only by completing Monday-Thursday. Friday never
+    # backfills clues a student skipped earlier in the week.
+    clue_count = min(4, sum(1 for row in unlocks if 1 <= int(row.day_number) <= 4))
+    completed_days = {int(row.day_number) for row in unlocks}
+    guess_by_day = {int(row.guess_day): row for row in guesses}
+    solved_guess = next((row for row in guesses if row.correct), None)
 
-    st.markdown("### This Week's Mystery")
-    st.caption("One guess for the whole week — use it now or save it for another clue. Guessing is optional.")
+    st.markdown("### 🕵️ This Week's Mystery")
+    st.caption("Earn one clue for each full routine Monday–Thursday. Guess #1 is Thursday; Guess #2 is Friday.")
+    _render_mystery_clues(mystery, clue_count)
 
     if day_number is None:
         st.info("The Weekly Mystery continues on school days.")
-        _render_mystery_clues(mystery, clue_count)
         _render_mystery_stats(store)
         return
 
-    if day_number <= 4:
-        st.success(f"🎁 You earned Clue #{clue_count}!" if clue_count else "🎁 You earned today's Mystery reward!")
-        _render_mystery_clues(mystery, clue_count)
-        if guess is not None:
-            if guess.correct:
-                st.success(
-                    f"{_mystery_solve_title(guess.clue_count)} — your guess **{guess.guess_text}** is correct! "
-                    "The mystery officially reveals Friday."
-                )
+    if day_number <= 3:
+        if clue_count:
+            st.success(f"🎁 Clue #{clue_count} earned! You're completely done for today.")
+        st.caption("No guessing yet — your first guess opens Thursday.")
+        _render_mystery_stats(store)
+        return
+
+    if day_number == 4:
+        st.success(f"🎁 You earned Clue #{clue_count}! Thursday Guess #1 is unlocked.")
+        existing = guess_by_day.get(4)
+        if existing is not None:
+            if existing.correct:
+                st.success(f"🕵️ You solved it on Thursday! Your guess was **{existing.guess_text}**. The official reveal is Friday.")
             else:
-                st.info(
-                    f"Your one guess was **{guess.guess_text}**. Not this week — keep unlocking clues and the answer will reveal Friday."
-                )
+                st.info(f"Thursday guess: **{existing.guess_text}** · Not quite. You get one final guess Friday.")
         else:
-            st.markdown("**🎯 Your one weekly guess is still available.**")
-            st.caption("You can guess now or save it. Either choice means you are completely done for today.")
-            if st.button("I'm waiting for another clue · Done for today ✓", use_container_width=True, key=f"mystery_wait_{week_start.isoformat()}_{day.isoformat()}"):
-                st.success("Guess saved for later ✓ · You're all done for today!")
-            with st.form(f"weekly_mystery_guess_{week_start.isoformat()}", clear_on_submit=True):
-                raw_guess = st.text_input("Your guess", max_chars=80, placeholder="What do you think the answer is?")
-                submit_guess = st.form_submit_button("Use my one guess", use_container_width=True, type="primary")
+            st.markdown("**🎯 Guess #1 of 2 — Thursday**")
+            st.caption("Use it now or skip it. Thursday's unused guess does not carry over to Friday.")
+            with st.form(f"weekly_mystery_thursday_guess_{week_start.isoformat()}", clear_on_submit=True):
+                raw_guess = st.text_input("Thursday guess", max_chars=80, placeholder="What do you think the answer is?")
+                submit_guess = st.form_submit_button("Submit Thursday guess", use_container_width=True, type="primary")
             if submit_guess:
                 cleaned = " ".join(str(raw_guess or "").strip().split())
                 if not cleaned:
-                    st.error("Type a guess first — or wait for another clue.")
+                    st.error("Type a guess first — or simply wait until Friday.")
                 else:
                     store.submit_mystery_guess(
                         st.session_state.student_id,
@@ -613,49 +740,63 @@ def render_weekly_mystery_reward(store: SupabaseFactStore, day, challenge) -> No
                         cleaned,
                         correct=is_correct_guess(mystery, cleaned),
                         clue_count=max(1, clue_count),
+                        guess_day=4,
                     )
                     st.rerun()
         _render_mystery_stats(store)
         return
 
-    # Friday: the student's full routine unlocks the reveal.  If the one weekly
-    # guess was saved all week, they get a final guess before seeing the answer.
-    if friday_unlocked and guess is None:
-        st.success("🎉 Friday reveal unlocked!")
-        # On Friday, every student who completes the full routine gets the full
-        # Monday-Thursday clue set before the final guess. Earlier completion
-        # was still valuable because it revealed those clues days sooner.
-        _render_mystery_clues(mystery, 4)
-        st.markdown("**Last chance — use your one weekly guess before the answer is revealed.**")
+    # Friday: completing Friday unlocks the second/final guess and the reveal,
+    # but it does not grant any missed Monday-Thursday clues.
+    if 5 not in completed_days:
+        st.caption("Complete Friday's full routine to unlock the final guess and reveal.")
+        return
+
+    thursday_guess = guess_by_day.get(4)
+    friday_guess = guess_by_day.get(5)
+    reveal_key = f"mystery_reveal_without_guess_{week_start.isoformat()}"
+
+    if solved_guess is not None:
+        when = "Thursday" if int(solved_guess.guess_day) == 4 else "Friday"
+        st.success(f"🏆 Mystery solved on {when}! Your guess was **{solved_guess.guess_text}**.")
+    elif friday_guess is None and not st.session_state.get(reveal_key):
+        if thursday_guess is not None:
+            st.caption(f"Thursday guess: {thursday_guess.guess_text}")
+        st.markdown("**🎯 Guess #2 of 2 — Friday**")
+        st.caption(f"Final guess using the {clue_count} clue{'s' if clue_count != 1 else ''} you actually earned this week.")
         with st.form(f"weekly_mystery_friday_guess_{week_start.isoformat()}", clear_on_submit=True):
-            raw_guess = st.text_input("Final guess", max_chars=80, placeholder="What is the mystery answer?")
-            submit_guess = st.form_submit_button("Submit final guess & reveal", use_container_width=True, type="primary")
+            raw_guess = st.text_input("Friday guess", max_chars=80, placeholder="What is your final guess?")
+            submit_guess = st.form_submit_button("Submit Friday guess & reveal", use_container_width=True, type="primary")
         if submit_guess:
             cleaned = " ".join(str(raw_guess or "").strip().split())
             if not cleaned:
-                st.error("Type your final guess before revealing the answer.")
+                st.error("Type your final guess first.")
             else:
                 store.submit_mystery_guess(
                     st.session_state.student_id,
                     week_start,
                     cleaned,
                     correct=is_correct_guess(mystery, cleaned),
-                    clue_count=5,
+                    clue_count=max(1, clue_count),
+                    guess_day=5,
                 )
                 st.rerun()
+        if st.button("Reveal without using my Friday guess", use_container_width=True, type="secondary", key=f"mystery_reveal_{week_start.isoformat()}"):
+            st.session_state[reveal_key] = True
+            st.rerun()
         return
 
-    _render_mystery_clues(mystery, 4)
-    if guess is not None and guess.correct:
-        st.success(f"{_mystery_solve_title(guess.clue_count)} — you got it!")
-    elif guess is not None:
-        st.caption(f"Your guess was: {guess.guess_text}")
     st.markdown(
         f"<div class='hero-card center'><div style='font-size:1rem;font-weight:850'>🎉 MYSTERY REVEALED</div>"
         f"<div style='font-size:2rem;font-weight:950;margin-top:.25rem'>{html.escape(mystery.answer)}</div>"
         f"<div style='margin-top:.45rem'>{html.escape(mystery.reveal_note)}</div></div>",
         unsafe_allow_html=True,
     )
+    if friday_guess is not None:
+        if friday_guess.correct:
+            st.success("✅ Your Friday guess was correct!")
+        else:
+            st.caption(f"Your Friday guess was: {friday_guess.guess_text}")
     _render_mystery_stats(store)
 
 
@@ -866,15 +1007,11 @@ def render_fix_misses(store: SupabaseFactStore, challenge, facts: list[Fact], an
         unsafe_allow_html=True,
     )
     st.markdown(f"### Now you try it again: {fact.label} = ?")
-    with st.form(f"fix_miss_{challenge.challenge_id}_{question_number}", clear_on_submit=True):
-        raw = st.text_input("Answer", placeholder="Type your answer", max_chars=3, key=f"fix_input_{question_number}")
-        submit = st.form_submit_button("Check & continue", use_container_width=True, type="primary")
-    if submit:
-        try:
-            value = parse_answer(raw)
-        except ValueError as exc:
-            st.error(str(exc))
-            return False
+    pad_result = render_number_pad(
+        key=f"fix_pad_{challenge.challenge_id}_{question_number}_{len(attempts_here)}"
+    )
+    if pad_result is not None:
+        value, _ = pad_result
         store.record_practice(
             st.session_state.student_id,
             "Fix Your Misses",
@@ -957,20 +1094,11 @@ def render_focus_practice(store: SupabaseFactStore, day, challenge, answers, pro
 
     if first is None:
         st.markdown(f'<div class="fact-big">{fact.a} × {fact.b}</div>', unsafe_allow_html=True)
-        clock_key = f"focus_clock_{challenge.challenge_id}_{index}"
-        if st.session_state.get(clock_key) is None:
-            st.session_state[clock_key] = datetime.now(timezone.utc).timestamp()
-        with st.form(f"focus_first_{challenge.challenge_id}_{index}", clear_on_submit=True):
-            raw = st.text_input("Answer", placeholder="Type your answer", max_chars=3, key=f"focus_first_input_{index}")
-            submit = st.form_submit_button("Check my answer", use_container_width=True, type="primary")
-        if submit:
-            try:
-                value = parse_answer(raw)
-            except ValueError as exc:
-                st.error(str(exc))
-                return False
-            started = float(st.session_state.get(clock_key) or datetime.now(timezone.utc).timestamp())
-            latency = max(0.0, datetime.now(timezone.utc).timestamp() - started)
+        pad_result = render_number_pad(
+            key=f"focus_first_pad_{challenge.challenge_id}_{index}"
+        )
+        if pad_result is not None:
+            value, latency = pad_result
             saved_row = store.record_practice(
                 st.session_state.student_id,
                 "My Focus Facts",
@@ -984,7 +1112,6 @@ def render_focus_practice(store: SupabaseFactStore, day, challenge, answers, pro
                 count_for_mastery=False,
             )
             append_cached_focus_row(challenge, saved_row)
-            st.session_state.pop(clock_key, None)
             st.rerun()
         return False
 
@@ -998,15 +1125,12 @@ def render_focus_practice(store: SupabaseFactStore, day, challenge, answers, pro
         unsafe_allow_html=True,
     )
     st.markdown(f"### Try it again: {fact.label} = ?")
-    with st.form(f"focus_retry_{challenge.challenge_id}_{index}", clear_on_submit=True):
-        raw = st.text_input("Answer", placeholder="Type your answer", max_chars=3, key=f"focus_retry_input_{index}")
-        retry = st.form_submit_button("Try again", use_container_width=True, type="primary")
-    if retry:
-        try:
-            value = parse_answer(raw)
-        except ValueError as exc:
-            st.error(str(exc))
-            return False
+    retry_count = sum(1 for row in rows if row.activity_index == index and row.is_retry)
+    pad_result = render_number_pad(
+        key=f"focus_retry_pad_{challenge.challenge_id}_{index}_{retry_count}"
+    )
+    if pad_result is not None:
+        value, _ = pad_result
         saved_row = store.record_practice(
             st.session_state.student_id,
             "My Focus Facts",
@@ -1042,35 +1166,36 @@ def render_day_complete(store: SupabaseFactStore, day, facts: list[Fact], challe
     render_routine_strip("mystery")
     st.markdown(
         "<div class='finish-banner'><div class='big'>✅ YOU'RE DONE FOR TODAY!</div>"
-        "<div class='sub'>Daily 10 ✓ &nbsp; · &nbsp; Fix Your Misses ✓ &nbsp; · &nbsp; Focus Practice ✓</div>"
-        "<div style='margin-top:.45rem'>Your learning work is finished. The Mystery below is your reward.</div></div>",
+        "<div class='sub'>Daily 10 ✓ &nbsp; · &nbsp; Fix Misses ✓ &nbsp; · &nbsp; Focus Practice ✓</div>"
+        "<div style='margin-top:.45rem'>Your learning work is finished for today.</div></div>",
         unsafe_allow_html=True,
     )
     if streak in {3, 5, 10, 20, 30, 50} or (streak > 0 and streak % 50 == 0):
-        st.success(f"🎉 {streak}-day Learning Streak! You finished the full routine {streak} assigned school days in a row.")
+        st.success(f"🎉 {streak}-day Learning Streak! · ⭐ {stars} total Daily Stars")
     elif streak:
         st.success(f"🔥 {streak}-day Learning Streak · ⭐ {stars} total Daily Stars")
     else:
         st.success(f"⭐ Daily Star earned · {stars} total")
 
-    focus_rows = get_cached_focus_rows(store, challenge)
-    first_tries = [row for row in focus_rows if not row.is_retry]
-    focus_correct = sum(row.correct for row in first_tries)
-    if first_tries:
-        st.caption(f"Focus Practice: {focus_correct}/{len(first_tries)} correct on the first try. Corrections never lower your Daily leaderboard result.")
-
     st.markdown("## 🕵️ You earned today's Mystery reward!")
-    st.caption("Read your clue, then either use your one weekly guess or save it. Your schoolwork is already complete either way.")
     render_weekly_mystery_reward(store, day, challenge)
 
-    st.markdown("---")
-    st.markdown("### ✅ All done. See you next Challenge day!")
-    st.caption("You can look at your growth or the class Top 10 below, but there is no more required work today.")
-    render_mastery_card(store)
-    render_leaderboard(store, challenge, highlight_student_id=st.session_state.student_id)
-    render_daily_review(facts, answers)
+    st.markdown("### ✅ That's it — see you next Challenge day! 👋")
+    st.caption("Everything below is optional. Your required work is complete.")
+    with st.expander("🌱 See My Growth", expanded=False):
+        render_mastery_card(store)
+    with st.expander("📝 Review My Daily 10", expanded=False):
+        for fact, answer in zip(facts, answers):
+            symbol = "✅" if answer.correct else "❌"
+            correct_text = "" if answer.correct else f" · correct answer {answer.correct_answer}"
+            st.markdown(
+                f'<div class="soft-card"><strong>{symbol} {answer.question_number}. {fact.label}</strong><br>'
+                f'You answered <strong>{answer.student_answer}</strong>{correct_text}</div>',
+                unsafe_allow_html=True,
+            )
     if st.button("Extra Practice (optional)", use_container_width=True, type="secondary", on_click=switch_mode, args=("Practice",)):
         pass
+
 
 def render_classroom_connection_retry(exc: Exception, *, key: str = "classroom_retry") -> None:
     st.warning("The classroom connection is busy for a moment. Your completed Daily is still saved.")
@@ -1106,6 +1231,15 @@ def render_completed_daily(store: SupabaseFactStore, day, facts: list[Fact], cha
         st.success("Daily 10 saved ✓")
         st.caption("The class Top 10 is updating. It will reappear when the classroom connection settles.")
 
+    leaderboard_seen_key = f"student_top10_seen_{st.session_state.student_id}_{challenge.challenge_id}"
+    if leaderboard_context is not None and not st.session_state.get(leaderboard_seen_key):
+        render_leaderboard(
+            store, challenge, highlight_student_id=st.session_state.student_id, context=leaderboard_context
+        )
+        # Show the board once immediately after the Daily. Later Fix/Focus reruns
+        # reuse the cached standings without making students scroll past it again.
+        st.session_state[leaderboard_seen_key] = True
+
     missed_count = sum(not answer.correct for answer in answers)
     render_learning_path(progress, missed_count)
 
@@ -1115,8 +1249,6 @@ def render_completed_daily(store: SupabaseFactStore, day, facts: list[Fact], cha
         except Exception as exc:
             render_classroom_connection_retry(exc, key="retry_day_complete")
         return
-
-    st.caption("🏆 Your Top 10 snapshot is saved while you finish the learning routine; it refreshes again at Day Complete.")
 
     try:
         if progress.fix_completed_at is None:
@@ -1210,6 +1342,8 @@ def reset_practice_question() -> None:
     st.session_state.practice_fact = None
     st.session_state.practice_result = None
     st.session_state.practice_retry_correct = False
+    st.session_state.practice_retry_count = 0
+    st.session_state.practice_question_serial = int(st.session_state.get("practice_question_serial", 0)) + 1
     st.session_state.practice_started_at = None
 
 
@@ -1217,6 +1351,8 @@ def next_practice_question() -> None:
     st.session_state.practice_fact = None
     st.session_state.practice_result = None
     st.session_state.practice_retry_correct = False
+    st.session_state.practice_retry_count = 0
+    st.session_state.practice_question_serial = int(st.session_state.get("practice_question_serial", 0)) + 1
     st.session_state.practice_started_at = None
 
 
@@ -1266,18 +1402,12 @@ def render_practice(store: SupabaseFactStore | None) -> None:
     st.markdown(f'<div class="fact-big">{fact.a} × {fact.b}</div>', unsafe_allow_html=True)
 
     if st.session_state.practice_result is None:
-        with st.form("practice_answer_form", clear_on_submit=True):
-            raw = st.text_input("Answer", placeholder="Type your answer", max_chars=3)
-            submit = st.form_submit_button("Check my answer", use_container_width=True, type="primary")
-        if submit:
-            try:
-                value = parse_answer(raw)
-            except ValueError as exc:
-                st.error(str(exc))
-                return
+        pad_result = render_number_pad(
+            key=f"practice_first_pad_{st.session_state.practice_question_serial}_{fact.a}_{fact.b}"
+        )
+        if pad_result is not None:
+            value, response_seconds = pad_result
             correct = value == fact.product
-            started = float(st.session_state.practice_started_at or datetime.now(timezone.utc).timestamp())
-            response_seconds = max(0.0, datetime.now(timezone.utc).timestamp() - started)
             st.session_state.practice_result = {
                 "answer": value,
                 "correct": correct,
@@ -1313,15 +1443,11 @@ def render_practice(store: SupabaseFactStore | None) -> None:
 
     if not result["correct"] and not st.session_state.practice_retry_correct:
         st.markdown(f"### Now try it again: {fact.label} = ?")
-        with st.form("practice_retry_form", clear_on_submit=True):
-            retry_raw = st.text_input("Answer", placeholder="Type your answer", max_chars=3, key="practice_retry_input")
-            retry = st.form_submit_button("Try again", use_container_width=True, type="primary")
-        if retry:
-            try:
-                retry_value = parse_answer(retry_raw)
-            except ValueError as exc:
-                st.error(str(exc))
-                return
+        pad_result = render_number_pad(
+            key=f"practice_retry_pad_{st.session_state.practice_question_serial}_{st.session_state.practice_retry_count}"
+        )
+        if pad_result is not None:
+            retry_value, _ = pad_result
             if store is not None and student_signed_in():
                 try:
                     store.record_practice(
@@ -1334,7 +1460,11 @@ def render_practice(store: SupabaseFactStore | None) -> None:
                 st.session_state.practice_retry_correct = True
                 st.rerun()
             else:
-                st.error("Not yet — look at the array and strategy, then try that same fact again.")
+                st.session_state.practice_retry_count = int(st.session_state.get("practice_retry_count", 0)) + 1
+                st.session_state.practice_retry_message = True
+                st.rerun()
+        if st.session_state.pop("practice_retry_message", False):
+            st.error("Not yet — look at the array and strategy, then try that same fact again.")
         return
 
     if not result["correct"] and st.session_state.practice_retry_correct:
@@ -1928,14 +2058,14 @@ def render_teacher_student_tools(store: SupabaseFactStore) -> None:
 
 def render_teacher_weekly_mystery(store: SupabaseFactStore) -> None:
     st.markdown("### 🕵️ Weekly Mystery")
-    st.caption("One shared just-for-fun mystery across all classes. Clues are earned only after the full Daily learning routine.")
+    st.caption("One shared just-for-fun mystery. Monday–Thursday routines earn clues; students may guess once Thursday and once Friday.")
     day = current_daily_date()
     try:
         week_start, record, mystery = ensure_weekly_mystery(store, day)
         locked = store.weekly_mystery_locked(week_start)
         stats = store.weekly_mystery_teacher_stats(week_start)
     except Exception as exc:
-        st.error("The Weekly Mystery tables are not ready. Run RUN_THIS_ONCE_IN_SUPABASE_v2_2.sql once.")
+        st.error("The Weekly Mystery tables are not ready. Run RUN_THIS_ONCE_IN_SUPABASE_v2_5.sql once.")
         if str(st.query_params.get("dbcheck", "0")) == "1":
             st.exception(exc)
         return
@@ -2027,6 +2157,7 @@ def maybe_render_db_diagnostic(store: SupabaseFactStore | None) -> None:
 
 
 store = get_store()
+handle_persistent_student_login(store)
 mode = render_header()
 maybe_render_db_diagnostic(store)
 

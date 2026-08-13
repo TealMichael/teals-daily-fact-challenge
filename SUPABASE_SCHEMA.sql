@@ -216,11 +216,13 @@ create table if not exists public.weekly_mystery_unlocks (
 create table if not exists public.weekly_mystery_guesses (
     student_id uuid not null references public.students(student_id) on delete cascade,
     week_start date not null references public.weekly_mysteries(week_start) on delete cascade,
+    guess_day smallint not null,
     guess_text text not null,
     correct boolean not null,
     clue_count smallint not null,
     guessed_at timestamptz not null default now(),
-    primary key (student_id, week_start),
+    primary key (student_id, week_start, guess_day),
+    constraint mystery_guess_day_range check (guess_day in (4, 5)),
     constraint mystery_guess_not_blank check (length(btrim(guess_text)) between 1 and 80),
     constraint mystery_guess_clue_count_range check (clue_count between 1 and 5)
 );
@@ -228,6 +230,7 @@ create table if not exists public.weekly_mystery_guesses (
 create index if not exists mystery_unlock_week_idx on public.weekly_mystery_unlocks(week_start, unlocked_at);
 create index if not exists mystery_guess_week_idx on public.weekly_mystery_guesses(week_start, correct, guessed_at);
 create index if not exists mystery_guess_student_idx on public.weekly_mystery_guesses(student_id, guessed_at desc);
+create index if not exists mystery_guess_student_day_idx on public.weekly_mystery_guesses(student_id, week_start, guess_day);
 
 alter table public.weekly_mysteries enable row level security;
 alter table public.weekly_mystery_unlocks enable row level security;

@@ -78,21 +78,25 @@ def run():
         pass
     checks += 4
 
-    # One guess really means one guess: later calls cannot replace the original.
-    guess1 = store.submit_mystery_guess(student.student_id, week, "first idea", correct=False, clue_count=1)
-    guess2 = store.submit_mystery_guess(student.student_id, week, "second idea", correct=True, clue_count=2)
-    assert guess2 == guess1
-    assert store.get_mystery_guess(student.student_id, week).guess_text == "first idea"
-    assert store.mystery_student_stats(student.student_id) == {"guesses": 1, "solved": 0, "earliest_solve": None}
+    # Thursday and Friday are separate guess slots; each slot is immutable.
+    thu1 = store.submit_mystery_guess(student.student_id, week, "first idea", correct=False, clue_count=1, guess_day=4)
+    thu2 = store.submit_mystery_guess(student.student_id, week, "replacement", correct=True, clue_count=2, guess_day=4)
+    assert thu2 == thu1
+    fri = store.submit_mystery_guess(student.student_id, week, "second idea", correct=True, clue_count=1, guess_day=5)
+    assert fri.guess_day == 5 and fri.correct
+    guesses = store.list_mystery_guesses(student.student_id, week)
+    assert [row.guess_day for row in guesses] == [4, 5]
+    assert store.get_mystery_guess(student.student_id, week, guess_day=4).guess_text == "first idea"
+    assert store.mystery_student_stats(student.student_id) == {"guesses": 2, "solved": 1, "earliest_solve": 1}
     stats = store.weekly_mystery_teacher_stats(week)
-    assert stats == {"students_unlocked": 1, "clues_unlocked": 1, "guesses": 1, "correct": 0}
-    checks += 4
+    assert stats == {"students_unlocked": 1, "clues_unlocked": 1, "guesses": 2, "correct": 1}
+    checks += 7
 
-    # A different student can solve and earns a private solve stat.
+    # A different student can solve Thursday and earns a private solve stat.
     student2 = store.create_student(cls.class_id, "Hawk", "1357")
     store.unlock_mystery_day(student2.student_id, week, 1, challenge.challenge_id)
-    solved = store.submit_mystery_guess(student2.student_id, week, "right", correct=True, clue_count=1)
-    assert solved.correct
+    solved = store.submit_mystery_guess(student2.student_id, week, "right", correct=True, clue_count=1, guess_day=4)
+    assert solved.correct and solved.guess_day == 4
     assert store.mystery_student_stats(student2.student_id)["earliest_solve"] == 1
     checks += 2
 
@@ -100,17 +104,19 @@ def run():
     schema = Path("SUPABASE_SCHEMA.sql").read_text(encoding="utf-8").lower()
     migration = Path("RUN_THIS_ONCE_IN_SUPABASE_v2_2.sql").read_text(encoding="utf-8").lower()
     backend = Path("supabase_fact_store.py").read_text(encoding="utf-8")
+    migration25 = Path("RUN_THIS_ONCE_IN_SUPABASE_v2_5.sql").read_text(encoding="utf-8").lower()
     assert "render_weekly_mystery_reward(store, day, challenge)" in app
-    assert "Use my one guess" in app and "Submit final guess & reveal" in app
-    assert "_render_mystery_clues(mystery, 4)" in app  # Friday catch-up shows the full clue set before reveal.
+    assert "Guess #1 of 2 — Thursday" in app and "Guess #2 of 2 — Friday" in app
+    assert "Friday never" in app and "backfill" in app
     assert "Weekly Mystery" in app and "Pick another mystery" in app
     assert "weekly_mysteries" in schema and "weekly_mystery_unlocks" in schema and "weekly_mystery_guesses" in schema
-    assert "alter table public.weekly_mystery_guesses enable row level security" in schema
+    assert "guess_day smallint not null" in schema and "primary key (student_id, week_start, guess_day)" in schema
     assert "create table if not exists public.weekly_mysteries" in migration
-    assert "def replace_weekly_mystery" in backend and "def submit_mystery_guess" in backend
-    checks += 8
+    assert "add column if not exists guess_day" in migration25 and "guess_day in (4, 5)" in migration25
+    assert "def replace_weekly_mystery" in backend and "def list_mystery_guesses" in backend and "guess_day" in backend
+    checks += 9
 
-    print(f"v2_2_weekly_mystery_tests: PASS ({checks}/34 Weekly Mystery checks)")
+    print(f"v2_2_weekly_mystery_tests: PASS ({checks} current Weekly Mystery checks)")
 
 
 if __name__ == "__main__":

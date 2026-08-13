@@ -1,0 +1,49 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Persistent login bridge</title></head>
+<body style="margin:0;padding:0;overflow:hidden;background:transparent;">
+<script>
+(() => {
+  const STORAGE_KEY = "tdfc_student_login_v1";
+  let lastArgs = null;
+
+  function post(type, extra={}) {
+    window.parent.postMessage(Object.assign({isStreamlitMessage:true, type}, extra), "*");
+  }
+  function ready() { post("streamlit:componentReady", {apiVersion:1}); }
+  function setHeight() { post("streamlit:setFrameHeight", {height:0}); }
+  function setValue(value) { post("streamlit:setComponentValue", {value, dataType:"json"}); }
+
+  function handle(args) {
+    const action = String((args && args.action) || "read");
+    if (action === "store") {
+      try {
+        localStorage.setItem(STORAGE_KEY, String(args.token || ""));
+        setValue({ready:true, stored:true});
+      } catch (_) {
+        setValue({ready:true, stored:false});
+      }
+      return;
+    }
+    if (action === "clear") {
+      try { localStorage.removeItem(STORAGE_KEY); } catch (_) {}
+      setValue({ready:true, cleared:true});
+      return;
+    }
+    let token = null;
+    try { token = localStorage.getItem(STORAGE_KEY); } catch (_) {}
+    setValue({ready:true, token:token || null});
+  }
+
+  window.addEventListener("message", (event) => {
+    if (!event.data || event.data.type !== "streamlit:render") return;
+    lastArgs = event.data.args || {};
+    handle(lastArgs);
+    setHeight();
+  });
+  ready();
+  setHeight();
+})();
+</script>
+</body>
+</html>

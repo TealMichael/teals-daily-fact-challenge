@@ -28,6 +28,12 @@ def run():
     mystery_migration = Path("RUN_THIS_ONCE_IN_SUPABASE_v2_2.sql").read_text(encoding="utf-8").lower()
     assert "weekly_mysteries" in mystery_migration and "weekly_mystery_unlocks" in mystery_migration and "weekly_mystery_guesses" in mystery_migration
 
+    mystery_v25 = Path("RUN_THIS_ONCE_IN_SUPABASE_v2_5.sql").read_text(encoding="utf-8").lower()
+    assert "add column if not exists guess_day" in mystery_v25
+    assert "primary key (student_id, week_start, guess_day)" in mystery_v25
+    assert "guess_day in (4, 5)" in mystery_v25
+    assert "primary key (student_id, week_start, guess_day)" in schema
+
     encoded = hash_pin("2468")
     assert "2468" not in encoded and encoded.startswith("scrypt$")
     assert "def normalize_supabase_url" in backend and '"/rest/v1"' in backend

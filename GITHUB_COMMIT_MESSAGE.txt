@@ -1,1 +1,1 @@
-v2.3 - make Daily completion obvious and simplify Teacher Mode
+v2.5 - improve student input, Mystery rules, Top 10, and finish screen

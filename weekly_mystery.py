@@ -4,8 +4,9 @@ from __future__ import annotations
 
 The mystery bank is intentionally local and curated so the classroom experience
 never depends on a live web request.  Every school week receives one shared
-mystery. Monday-Thursday completion unlocks one clue per day; Friday completion
-unlocks the final guess/reveal.
+mystery. Monday-Thursday completion unlocks one clue per completed day. Students may
+make Guess #1 on Thursday and Guess #2 on Friday; Friday then reveals the answer.
+Skipped clue days are never backfilled.
 """
 
 from dataclasses import dataclass

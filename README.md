@@ -16,11 +16,14 @@ Every signed-in student follows the same learning path:
 - The timer runs **quietly in the background**. Students do not watch a ticking stopwatch.
 - Accuracy ranks first; time breaks ties.
 - No right/wrong feedback is shown until the Daily 10 is complete.
-- Students see only their own class **Top 10**, with **rank + nickname only**. Classmates' accuracy and times stay teacher-only, and lower exact ranks stay private.
+- Students answer with a large **phone-style touch number pad**. Digit taps stay entirely in the browser; the physical keyboard remains an optional fallback.
+- The class **Top 10 appears immediately after the Daily 10** using the already-cached standings, then gets out of the way during Fix/Focus. It shows **rank + nickname only**. Classmates' accuracy and times stay teacher-only, and lower exact ranks stay private.
 
 ### 2. Fix Your Misses
 
 Every missed Daily fact is immediately taught with the correct equation, a multiplication array, repeated-addition meaning, a derived-fact strategy, and a required correct retry before moving on.
+
+Fix Your Misses uses the same large touch number pad, so students do not need to open a software keyboard.
 
 A correction retry is teaching—not a new mastery observation—so it does not artificially raise the student's profile.
 
@@ -36,22 +39,25 @@ For new/mostly-unknown profiles, exploration is **relationship-aware**: 2s, 5s, 
 
 If a Focus answer is missed, the student sees visual/strategy teaching and must retry correctly. The retry teaches the fact but does not count as independent retrieval evidence.
 
+Focus Practice also uses the browser-local touch number pad. Number taps do not rerun Streamlit or touch Supabase; only pressing ✓ submits the answer.
+
 ### 4. ⭐ Day Complete
 
-The finish screen now says **YOU'RE DONE FOR TODAY!** and checks off Daily 10, Fix Your Misses, and Focus Practice before presenting the Weekly Mystery as the earned reward. Completing the full learning routine earns one **Daily Star**, progress toward a private **Learning Streak**, and milestone celebrations at 3, 5, 10, 20, 30, 50 days and later 50-day milestones.
+The finish screen is intentionally short: **YOU'RE DONE FOR TODAY!**, the three learning steps checked off, the student's Star/streak, and then the earned Weekly Mystery. Growth and Daily review remain available in collapsed optional sections instead of crowding the finish.
 
-The reward is for **finishing the learning routine**, not for being fast or being on the leaderboard.
+Completing the full learning routine earns one **Daily Star**, progress toward a private **Learning Streak**, and milestone celebrations at 3, 5, 10, 20, 30, 50 days and later 50-day milestones. The reward is for **finishing the learning routine**, not for being fast or being on the leaderboard.
 
 ### 5. 🕵️ Weekly Mystery
 
 The Weekly Mystery is a curiosity reward that appears only after the full learning routine is complete.
 
 - One shared mystery is used across every class for the school week.
-- Monday-Thursday: each completed routine earns the **next clue in order**.
-- Students have **one guess for the entire week**. They can use it early or save it.
-- A missed school day simply means the student has fewer early clues; clue numbering never has holes.
-- Friday: completing the routine shows the full four-clue set, gives an unused guess one final chance, and then reveals the answer.
-- Correct early guesses earn a private solve title such as **One-Clue Wonder** or **Sharp Detective**.
+- **Monday-Thursday:** each completed routine earns the next clue in order.
+- Students **cannot guess Monday-Wednesday**.
+- **Thursday:** a completed routine unlocks **Guess #1 of 2**.
+- **Friday:** a completed routine unlocks **Guess #2 of 2**, then the answer is revealed.
+- Missed clue days are **never backfilled**. A student who completes only Monday and Thursday has only two clues on Thursday and still only those two clues for the Friday final guess.
+- Thursday and Friday guesses are separate; an unused Thursday guess does not roll into Friday.
 - Mystery solves are private and never affect Daily rank, mastery, Stars, or streaks.
 
 The built-in bank contains **80 curated mysteries** across Places, Animals, Foods, Sports, Science & Nature, History & People, Music & Entertainment, and Games/Toys/Objects. It is local to the app, so clue delivery never relies on a live web search.
@@ -70,6 +76,16 @@ Student-facing statuses are intentionally simple:
 Accuracy is primary. Response time is used only after accurate retrieval has been established; speed never rescues weak accuracy.
 
 The map is stored in Supabase and follows the student's nickname/PIN account across devices and future logins.
+
+## Optional 30-day remembered sign-in
+
+On an assigned Chromebook or iPad, a student can check **Keep me signed in on this device for 30 days** when entering the nickname + PIN. The browser stores a signed login token, **not the student's PIN**, and the app re-checks the current student record before restoring the account.
+
+- Remembered login expires after 30 days.
+- **Sign out** clears it immediately.
+- Resetting the student's PIN invalidates the older remembered login.
+- Deactivating or deleting the student also prevents restoration.
+- Students should leave the box unchecked on a shared device.
 
 ## Extra Practice
 
@@ -103,13 +119,14 @@ Every existing teacher function remains available, but the dashboard is reorgani
 
 ## Daily fact generator
 
-The shared Daily generator remains versioned as `TDFC-DAILY-v1`, so the previously audited Daily sequence does not change in v2.3.0.
+The shared Daily generator remains versioned as `TDFC-DAILY-v1`, so the previously audited Daily sequence does not change in v2.5.0.
 
 Each Daily contains 10 unique underlying multiplication facts. Commutative mirrors cannot both appear. Normal core days contain 3 easier, 4 medium, and 3 harder facts. On selected extension days, one harder slot becomes one 11/12 fact.
 
 ## Data and privacy
 
 - Student accounts use teacher-assigned nicknames and 4-digit classroom PINs.
+- Optional 30-day remembered sign-in stores only a server-signed browser token; the PIN itself is not stored in browser local storage.
 - Teacher-only views retain a readable copy of classroom PINs while authentication still verifies the salted scrypt hash.
 - Student-facing pages never show classmates' PINs.
 - No student email, school ID, or legal name is required.
@@ -128,19 +145,42 @@ TEACHER_PASSWORD = "CHOOSE-A-PRIVATE-TEACHER-PASSWORD"
 
 ## Updating an existing installation
 
-**Current live v2.2 installation:** v2.3.0 is a code-only classroom clarity update. **No Supabase SQL is required.** Upload every file/folder in `UPLOAD_TO_GITHUB` to the existing GitHub repo and let Streamlit redeploy.
+**Current live v2.4 installation:** run `RUN_THIS_ONCE_IN_SUPABASE_v2_5.sql` once in a **new Supabase SQL Editor query**, then upload every file/folder in `UPLOAD_TO_GITHUB` to the existing GitHub repo and let Streamlit redeploy.
 
-**If coming from v2.1:** run `RUN_THIS_ONCE_IN_SUPABASE_v2_2.sql` first, then upload the v2.3.0 app files.
+No new Streamlit Secret is required. Do **not** rerun v2, v2.1, v2.2, or `SUPABASE_SCHEMA.sql`.
 
-**If already on v2.0 but not v2.1:** run `RUN_THIS_ONCE_IN_SUPABASE_v2_1.sql`, then `RUN_THIS_ONCE_IN_SUPABASE_v2_2.sql`.
+Make sure all three browser-component folders are present in GitHub:
 
-**If still on v1:** the packaged `RUN_THIS_ONCE_IN_SUPABASE_v2.sql` is the combined migration and includes adaptive learning, teacher-visible PINs, and Weekly Mystery.
+- `daily_sprint_component/index.html`
+- `answer_pad_component/index.html`
+- `persistent_login_component/index.html`
 
-Do not rerun `SUPABASE_SCHEMA.sql` on an existing project. It is the full schema for a brand-new installation.
-
-Make sure `daily_sprint_component/index.html` remains present in GitHub.
+`SUPABASE_SCHEMA.sql` represents the current full schema for a brand-new installation.
 
 ## Version notes
+
+### v2.5.0 — Student Experience Pass
+
+- Replaces multiplication answer typing with a large phone-style touch number pad in Daily 10, Fix Your Misses, assigned Focus Practice, and optional Practice.
+- Number-pad digit taps are browser-local; they do not rerun Streamlit or call Supabase. Only ✓ submits an answer. Physical keyboard entry remains supported as a fallback.
+- Restores the class Top 10 immediately after the Daily 10 using the cached leaderboard snapshot; it appears once and does not reload during every Fix/Focus rerun.
+- Keeps student Top 10 privacy at **rank + nickname only**; scores/times remain teacher-only.
+- Simplifies Day Complete so the finish message + Mystery reward dominate, with Growth and Daily Review collapsed as optional detail.
+- Changes Weekly Mystery to the classroom rule: earned clues Monday-Thursday, no guessing Monday-Wednesday, Guess #1 Thursday, Guess #2 Friday, then reveal.
+- Skipped clue days are never backfilled on Thursday or Friday.
+- Adds the one-time `RUN_THIS_ONCE_IN_SUPABASE_v2_5.sql` migration so Thursday and Friday guesses have separate persistent database slots.
+- Preserves adaptive mastery, no-placement-test learning, classroom-load retries/batching, fast Focus Practice, teacher tools, 30-day login, Stars, and school-day streaks.
+
+### v2.4.0 — 30-Day Remembered Student Login
+
+- Adds an optional **Keep me signed in on this device for 30 days** checkbox to student login.
+- Uses a signed browser token rather than storing the 4-digit PIN itself.
+- Automatically restores the student's current nickname/class on the same device while the token is valid.
+- **Sign out** clears the remembered login immediately.
+- A teacher PIN reset invalidates the older remembered login; deleted/deactivated accounts also cannot restore.
+- Intended for assigned student devices; the login screen explicitly says to leave the box unchecked on shared devices.
+- Preserves v2.3 classroom clarity, v2.2.6 Focus speed improvements, and v2.2.5 classroom-load reliability work.
+- Code-only update: no database migration and no new Streamlit secret.
 
 ### v2.3.0 — Classroom Clarity Pass
 

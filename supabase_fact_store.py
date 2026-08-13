@@ -260,6 +260,7 @@ def _mystery_guess(row: Mapping) -> MysteryGuessRecord:
         correct=bool(row.get("correct")),
         clue_count=int(row.get("clue_count") or 0),
         guessed_at=_dt(row.get("guessed_at")) or utc_now(),
+        guess_day=int(row.get("guess_day") or 4),
     )
 
 
@@ -1340,18 +1341,35 @@ class SupabaseFactStore:
         )
         return [_mystery_unlock(row) for row in rows]
 
-    def get_mystery_guess(self, student_id: str, week_start: date | str) -> MysteryGuessRecord | None:
-        row = _first(
+    def get_mystery_guess(
+        self, student_id: str, week_start: date | str, *, guess_day: int | None = None
+    ) -> MysteryGuessRecord | None:
+        query = (
             self.client.table("weekly_mystery_guesses").select("*")
-            .eq("student_id", str(student_id)).eq("week_start", self._week_key(week_start)).limit(1).execute()
+            .eq("student_id", str(student_id)).eq("week_start", self._week_key(week_start))
         )
+        if guess_day is not None:
+            query = query.eq("guess_day", int(guess_day))
+        row = _first(query.order("guess_day").limit(1).execute())
         return None if row is None else _mystery_guess(row)
 
+    def list_mystery_guesses(self, student_id: str, week_start: date | str) -> list[MysteryGuessRecord]:
+        rows = _rows(
+            self.client.table("weekly_mystery_guesses").select("*")
+            .eq("student_id", str(student_id)).eq("week_start", self._week_key(week_start))
+            .order("guess_day").execute()
+        )
+        return [_mystery_guess(row) for row in rows]
+
     def submit_mystery_guess(
-        self, student_id: str, week_start: date | str, guess_text: str, *, correct: bool, clue_count: int
+        self, student_id: str, week_start: date | str, guess_text: str, *,
+        correct: bool, clue_count: int, guess_day: int = 4,
     ) -> MysteryGuessRecord:
         week_key = self._week_key(week_start)
-        existing = self.get_mystery_guess(student_id, week_key)
+        guess_day = int(guess_day)
+        if guess_day not in {4, 5}:
+            raise ValueError("Mystery guesses are only allowed on Thursday or Friday.")
+        existing = self.get_mystery_guess(student_id, week_key, guess_day=guess_day)
         if existing is not None:
             return existing
         cleaned = " ".join(str(guess_text or "").strip().split())
@@ -1363,6 +1381,7 @@ class SupabaseFactStore:
         payload = {
             "student_id": str(student_id),
             "week_start": week_key,
+            "guess_day": guess_day,
             "guess_text": cleaned[:80],
             "correct": bool(correct),
             "clue_count": clue_count,
@@ -1374,20 +1393,20 @@ class SupabaseFactStore:
             return _mystery_guess(row)
         except Exception as exc:
             if _is_unique(exc):
-                row = self.get_mystery_guess(student_id, week_key)
+                row = self.get_mystery_guess(student_id, week_key, guess_day=guess_day)
                 if row is not None:
                     return row
             raise
 
     def mystery_student_stats(self, student_id: str) -> dict[str, int | None]:
         rows = _rows(
-            self.client.table("weekly_mystery_guesses").select("correct,clue_count")
+            self.client.table("weekly_mystery_guesses").select("week_start,correct,clue_count")
             .eq("student_id", str(student_id)).range(0, 4999).execute()
         )
         correct_rows = [row for row in rows if bool(row.get("correct"))]
         return {
             "guesses": len(rows),
-            "solved": len(correct_rows),
+            "solved": len({str(row.get("week_start")) for row in correct_rows}),
             "earliest_solve": min((int(row["clue_count"]) for row in correct_rows), default=None),
         }
 
@@ -1405,6 +1424,5 @@ class SupabaseFactStore:
             "students_unlocked": len({str(row["student_id"]) for row in unlock_rows}),
             "clues_unlocked": len(unlock_rows),
             "guesses": len(guess_rows),
-            "correct": sum(bool(row.get("correct")) for row in guess_rows),
+            "correct": len({str(row["student_id"]) for row in guess_rows if bool(row.get("correct"))}),
         }
-
