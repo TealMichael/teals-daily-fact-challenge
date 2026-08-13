@@ -413,6 +413,40 @@ class SupabaseFactStore:
             raise NotFound("Student not found.")
         return _student(row)
 
+    def move_student(self, student_id: str, new_class_id: str) -> StudentRecord:
+        student = self.get_student(student_id)
+        if student.class_id == str(new_class_id):
+            return student
+        if not any(item.class_id == str(new_class_id) for item in self.list_classes(include_inactive=True)):
+            raise NotFound("Class not found.")
+        try:
+            row = _first(
+                self.client.table("students")
+                .update({"class_id": str(new_class_id)})
+                .eq("student_id", student.student_id)
+                .select("student_id,class_id,nickname,pin_code,active,created_at")
+                .execute()
+            )
+        except Exception as exc:
+            if _is_unique(exc):
+                raise NameTaken("That nickname is already used in the destination class.") from exc
+            raise
+        if row is None:
+            raise NotFound("Student not found.")
+        return _student(row)
+
+    def delete_student(self, student_id: str) -> None:
+        student = self.get_student(student_id)
+        response = (
+            self.client.table("students")
+            .delete()
+            .eq("student_id", student.student_id)
+            .execute()
+        )
+        # Supabase may return an empty payload depending on client/PostgREST settings;
+        # a successful request without an exception is sufficient here.
+        _ = response
+
     # ----- Challenge -----
     def get_challenge(self, challenge_date: date | str) -> ChallengeRecord | None:
         key = challenge_date.isoformat() if isinstance(challenge_date, date) else str(challenge_date)

@@ -1486,12 +1486,155 @@ def render_teacher_classes(store: SupabaseFactStore) -> None:
             use_container_width=True,
         )
 
+        st.markdown("### Roster Management")
+        st.caption("Select one student or several at once. Moving keeps the student's PIN, mastery, Stars, streak, Daily history, Focus work, and Mystery history. Delete is permanent.")
+        roster_labels = [
+            f"{student.nickname} · PIN {student.pin_code or 'reset once'}{' (inactive)' if not student.active else ''}"
+            for student in roster
+        ]
+        roster_by_label = {
+            f"{student.nickname} · PIN {student.pin_code or 'reset once'}{' (inactive)' if not student.active else ''}": student
+            for student in roster
+        }
+        selected_roster_labels = st.multiselect(
+            "Select student(s)",
+            roster_labels,
+            key=f"roster_manage_students_{selected.class_id}",
+            placeholder="Choose one or more students",
+        )
+
+        other_classes = [item for item in classes if item.class_id != selected.class_id and item.active]
+        move_col, delete_col = st.columns(2)
+        with move_col:
+            st.markdown("#### Move")
+            if other_classes:
+                destination_by_name = {item.class_name: item for item in other_classes}
+                destination_name = st.selectbox(
+                    "Move to",
+                    list(destination_by_name),
+                    key=f"roster_move_destination_{selected.class_id}",
+                )
+                if st.button(
+                    "Move selected student(s)",
+                    use_container_width=True,
+                    disabled=not selected_roster_labels,
+                    key=f"roster_bulk_move_{selected.class_id}",
+                ):
+                    destination = destination_by_name[destination_name]
+                    moved = 0
+                    errors = []
+                    for selected_label in selected_roster_labels:
+                        target = roster_by_label[selected_label]
+                        try:
+                            store.move_student(target.student_id, destination.class_id)
+                            moved += 1
+                        except Exception as exc:
+                            errors.append(f"{target.nickname}: {exc}")
+                    if errors:
+                        st.session_state["teacher_roster_flash"] = (
+                            "warning",
+                            f"Moved {moved} student(s). Could not move: " + " | ".join(errors[:8]),
+                        )
+                    else:
+                        st.session_state["teacher_roster_flash"] = (
+                            "success",
+                            f"Moved {moved} student(s) from {selected.class_name} to {destination.class_name}.",
+                        )
+                    st.rerun()
+            else:
+                st.info("Create another active class first, then you can move students into it.")
+
+        with delete_col:
+            st.markdown("#### Delete")
+            st.caption("Use this only for accidental or duplicate accounts. Student-linked history is removed too.")
+            confirm_bulk_delete = st.checkbox(
+                "I understand deletion is permanent.",
+                key=f"roster_bulk_delete_confirm_{selected.class_id}",
+            )
+            if st.button(
+                "Delete selected student(s)",
+                use_container_width=True,
+                disabled=not selected_roster_labels or not confirm_bulk_delete,
+                key=f"roster_bulk_delete_{selected.class_id}",
+            ):
+                deleted = 0
+                errors = []
+                for selected_label in selected_roster_labels:
+                    target = roster_by_label[selected_label]
+                    try:
+                        store.delete_student(target.student_id)
+                        deleted += 1
+                    except Exception as exc:
+                        errors.append(f"{target.nickname}: {exc}")
+                if errors:
+                    st.session_state["teacher_roster_flash"] = (
+                        "warning",
+                        f"Deleted {deleted} student(s). Could not delete: " + " | ".join(errors[:8]),
+                    )
+                else:
+                    st.session_state["teacher_roster_flash"] = (
+                        "success",
+                        f"Permanently deleted {deleted} student account{'s' if deleted != 1 else ''}.",
+                    )
+                st.rerun()
+
 
 def render_teacher_student_tools(store: SupabaseFactStore) -> None:
     classes = store.list_classes(include_inactive=True)
     if not classes:
         st.info("Create a class first.")
         return
+
+    flash = st.session_state.pop("teacher_roster_flash", None)
+    if flash:
+        kind, message = flash
+        getattr(st, kind)(message)
+
+    st.markdown("### Roster fixes")
+    st.caption("Move students between classes without re-entering them. Their PIN and individual learning history stay with the account.")
+
+    if len(classes) >= 2:
+        with st.expander("Move several students to another class", expanded=False):
+            source_by_name = {item.class_name: item for item in classes}
+            source_name = st.selectbox("From class", list(source_by_name), key="bulk_move_source_class")
+            source = source_by_name[source_name]
+            source_students = store.list_students(source.class_id, include_inactive=True)
+            destination_options = [item for item in classes if item.class_id != source.class_id]
+            destination_by_name = {item.class_name: item for item in destination_options}
+            destination_name = st.selectbox("To class", list(destination_by_name), key="bulk_move_destination_class")
+            selected_labels = st.multiselect(
+                "Students to move",
+                [f"{student.nickname} · PIN {student.pin_code or 'reset once'}" for student in source_students],
+                key="bulk_move_students",
+            )
+            source_by_label = {
+                f"{student.nickname} · PIN {student.pin_code or 'reset once'}": student
+                for student in source_students
+            }
+            if st.button("Move selected students", use_container_width=True, disabled=not selected_labels):
+                destination = destination_by_name[destination_name]
+                moved = 0
+                errors: list[str] = []
+                for selected_label in selected_labels:
+                    target = source_by_label[selected_label]
+                    try:
+                        store.move_student(target.student_id, destination.class_id)
+                        moved += 1
+                    except Exception as exc:
+                        errors.append(f"{target.nickname}: {exc}")
+                if errors:
+                    st.session_state["teacher_roster_flash"] = (
+                        "warning",
+                        f"Moved {moved} student(s). Could not move: " + " | ".join(errors),
+                    )
+                else:
+                    st.session_state["teacher_roster_flash"] = (
+                        "success",
+                        f"Moved {moved} student(s) from {source.class_name} to {destination.class_name}.",
+                    )
+                st.rerun()
+
+    st.markdown("---")
     class_by_name = {item.class_name: item for item in classes}
     class_name = st.selectbox("Class", list(class_by_name), key="teacher_tools_class")
     class_record = class_by_name[class_name]
@@ -1517,6 +1660,28 @@ def render_teacher_student_tools(store: SupabaseFactStore) -> None:
             st.rerun()
         except Exception as exc:
             st.error(str(exc))
+
+    if len(classes) >= 2:
+        st.markdown("#### Move to another class")
+        destination_options = [item for item in classes if item.class_id != student.class_id]
+        destination_by_name = {item.class_name: item for item in destination_options}
+        destination_name = st.selectbox(
+            "Destination class",
+            list(destination_by_name),
+            key=f"move_student_destination_{student.student_id}",
+        )
+        st.caption("The student's PIN, mastery, Stars, streak, and saved work stay with the account.")
+        if st.button("Move student", use_container_width=True, key=f"move_student_{student.student_id}"):
+            try:
+                destination = destination_by_name[destination_name]
+                store.move_student(student.student_id, destination.class_id)
+                st.session_state["teacher_roster_flash"] = (
+                    "success",
+                    f"Moved {student.nickname} to {destination.class_name}.",
+                )
+                st.rerun()
+            except Exception as exc:
+                st.error(str(exc))
 
     st.markdown("#### Student PIN")
     if student.pin_code:
@@ -1578,6 +1743,28 @@ def render_teacher_student_tools(store: SupabaseFactStore) -> None:
             store.reset_daily_attempt(student.student_id, challenge.challenge_id)
             st.success("Today's attempt was reset.")
             st.rerun()
+
+    st.markdown("#### Delete student")
+    st.warning("Permanent: this removes the student's account and student-linked Daily, mastery, reward, and mystery history. Use Move instead if the student simply belongs in another class.")
+    confirm_delete = st.checkbox(
+        f"I want to permanently delete {student.nickname}.",
+        key=f"confirm_delete_student_{student.student_id}",
+    )
+    if st.button(
+        "Delete student permanently",
+        use_container_width=True,
+        disabled=not confirm_delete,
+        key=f"delete_student_{student.student_id}",
+    ):
+        try:
+            store.delete_student(student.student_id)
+            reset_info = st.session_state.get("last_reset_pin")
+            if reset_info and reset_info.get("student_id") == student.student_id:
+                st.session_state.pop("last_reset_pin", None)
+            st.session_state["teacher_roster_flash"] = ("success", f"Deleted {student.nickname}.")
+            st.rerun()
+        except Exception as exc:
+            st.error(str(exc))
 
 
 def render_teacher_weekly_mystery(store: SupabaseFactStore) -> None:

@@ -325,6 +325,44 @@ class InMemoryFactStore:
         self.students[student_id]["record"] = updated
         return updated
 
+    def move_student(self, student_id: str, new_class_id: str) -> StudentRecord:
+        if student_id not in self.students:
+            raise NotFound("Student not found.")
+        if new_class_id not in self.classes:
+            raise NotFound("Class not found.")
+        record = self.students[student_id]["record"]
+        if record.class_id == new_class_id:
+            return record
+        nickname_key = self.students[student_id]["nickname_key"]
+        if any(
+            sid != student_id
+            and row["record"].class_id == new_class_id
+            and row["nickname_key"] == nickname_key
+            for sid, row in self.students.items()
+        ):
+            raise NameTaken("That nickname is already used in the destination class.")
+        updated = replace(record, class_id=new_class_id)
+        self.students[student_id]["record"] = updated
+        return updated
+
+    def delete_student(self, student_id: str) -> None:
+        if student_id not in self.students:
+            raise NotFound("Student not found.")
+        attempt_ids = [
+            attempt_id for attempt_id, attempt in self.attempts.items()
+            if attempt.student_id == student_id
+        ]
+        for attempt_id in attempt_ids:
+            self.answers.pop(attempt_id, None)
+            self.attempts.pop(attempt_id, None)
+        self.practice = [row for row in self.practice if row.student_id != student_id]
+        self.mastery = {key: row for key, row in self.mastery.items() if key[0] != student_id}
+        self.learning_progress = {key: row for key, row in self.learning_progress.items() if key[0] != student_id}
+        self.student_focus_overrides.pop(student_id, None)
+        self.mystery_unlocks = {key: row for key, row in self.mystery_unlocks.items() if key[0] != student_id}
+        self.mystery_guesses = {key: row for key, row in self.mystery_guesses.items() if key[0] != student_id}
+        self.students.pop(student_id, None)
+
     # ----- Daily challenge -----
     def get_or_create_challenge(
         self, challenge_date: date | str, challenge_version: str, facts: Sequence[Fact]

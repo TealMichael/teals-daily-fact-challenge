@@ -99,11 +99,11 @@ Teachers can preview the week's answer and all four clues, see unlock/guess/solv
 
 ### Student Tools
 
-Teachers can see each student's classroom PIN beside the nickname, rename nicknames, reset/change PINs, deactivate/reactivate accounts, reset today's Daily after a legitimate technology problem, and temporarily override one student's Focus family.
+Teachers can see each student's classroom PIN beside the nickname, rename nicknames, move one or many students between classes, permanently delete accidental/duplicate accounts with confirmation, reset/change PINs, deactivate/reactivate accounts, reset today's Daily after a legitimate technology problem, and temporarily override one student's Focus family.
 
 ## Daily fact generator
 
-The shared Daily generator remains versioned as `TDFC-DAILY-v1`, so the previously audited Daily sequence does not change in v2.2.
+The shared Daily generator remains versioned as `TDFC-DAILY-v1`, so the previously audited Daily sequence does not change in v2.2.2.
 
 Each Daily contains 10 unique underlying multiplication facts. Commutative mirrors cannot both appear. Normal core days contain 3 easier, 4 medium, and 3 harder facts. On selected extension days, one harder slot becomes one 11/12 fact.
 
@@ -128,7 +128,9 @@ TEACHER_PASSWORD = "CHOOSE-A-PRIVATE-TEACHER-PASSWORD"
 
 ## Updating an existing installation
 
-**Current live v2.1 installation:** run only `RUN_THIS_ONCE_IN_SUPABASE_v2_2.sql` in a **new Supabase SQL Editor query**, then upload every file/folder in `UPLOAD_TO_GITHUB`.
+**Current live v2.2 installation:** v2.2.2 is a code-only roster-management hotfix. **No Supabase SQL is required.** Upload every file/folder in `UPLOAD_TO_GITHUB` to the existing GitHub repo and let Streamlit redeploy.
+
+**If coming from v2.1:** run `RUN_THIS_ONCE_IN_SUPABASE_v2_2.sql` first, then upload the v2.2.2 app files.
 
 **If already on v2.0 but not v2.1:** run `RUN_THIS_ONCE_IN_SUPABASE_v2_1.sql`, then `RUN_THIS_ONCE_IN_SUPABASE_v2_2.sql`.
 
@@ -139,6 +141,15 @@ Do not rerun `SUPABASE_SCHEMA.sql` on an existing project. It is the full schema
 Make sure `daily_sprint_component/index.html` remains present in GitHub.
 
 ## Version notes
+
+### v2.2.2 — Visible Roster Management Hotfix
+
+- Adds an obvious **Roster Management** section directly under each class roster in **Classes & Students**.
+- Select one or many students at once.
+- **Move selected student(s)** preserves PIN, mastery, Stars, streak, Daily history, Focus work, and Mystery history.
+- **Delete selected student(s)** supports permanent bulk cleanup with an explicit confirmation checkbox.
+- Existing individual Student Tools remain available.
+- Code-only update: no database migration or new Streamlit secret.
 
 ### v2.2.0 — Weekly Mystery
 
