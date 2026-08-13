@@ -32,6 +32,9 @@ from fact_store import (
     NotFound,
     PracticeRecord,
     LearningProgressRecord,
+    WeeklyMysteryRecord,
+    MysteryUnlockRecord,
+    MysteryGuessRecord,
     StudentRecord,
     generate_class_code,
     hash_pin,
@@ -187,6 +190,36 @@ def _mastery(row: Mapping) -> MasterySnapshot:
     )
 
 
+def _weekly_mystery(row: Mapping) -> WeeklyMysteryRecord:
+    return WeeklyMysteryRecord(
+        week_start=str(row["week_start"]),
+        mystery_key=str(row["mystery_key"]),
+        created_at=_dt(row.get("created_at")) or utc_now(),
+        updated_at=_dt(row.get("updated_at")) or utc_now(),
+    )
+
+
+def _mystery_unlock(row: Mapping) -> MysteryUnlockRecord:
+    return MysteryUnlockRecord(
+        student_id=str(row["student_id"]),
+        week_start=str(row["week_start"]),
+        day_number=int(row["day_number"]),
+        challenge_id=str(row["challenge_id"]),
+        unlocked_at=_dt(row.get("unlocked_at")) or utc_now(),
+    )
+
+
+def _mystery_guess(row: Mapping) -> MysteryGuessRecord:
+    return MysteryGuessRecord(
+        student_id=str(row["student_id"]),
+        week_start=str(row["week_start"]),
+        guess_text=str(row.get("guess_text") or ""),
+        correct=bool(row.get("correct")),
+        clue_count=int(row.get("clue_count") or 0),
+        guessed_at=_dt(row.get("guessed_at")) or utc_now(),
+    )
+
+
 def _learning(row: Mapping) -> LearningProgressRecord:
     plan = tuple(Fact.from_dict(item) for item in (row.get("focus_plan") or []))
     return LearningProgressRecord(
@@ -218,6 +251,9 @@ class SupabaseFactStore:
         self.client.table("classes").select("class_id").limit(1).execute()
         self.client.table("student_fact_mastery").select("student_id").limit(1).execute()
         self.client.table("daily_learning_progress").select("student_id").limit(1).execute()
+        self.client.table("weekly_mysteries").select("week_start").limit(1).execute()
+        self.client.table("weekly_mystery_unlocks").select("student_id").limit(1).execute()
+        self.client.table("weekly_mystery_guesses").select("student_id").limit(1).execute()
         return True
 
     # ----- Classes -----
@@ -1036,4 +1072,172 @@ class SupabaseFactStore:
             .eq("challenge_id", str(challenge_id)).in_("student_id", ids).execute()
         )
         return {str(row["student_id"]): _learning(row) for row in rows}
+
+    # ----- Weekly Mystery -----
+    @staticmethod
+    def _week_key(value: date | str) -> str:
+        return value.isoformat() if isinstance(value, date) else str(value)
+
+    def get_weekly_mystery(self, week_start: date | str) -> WeeklyMysteryRecord | None:
+        row = _first(
+            self.client.table("weekly_mysteries").select("*")
+            .eq("week_start", self._week_key(week_start)).limit(1).execute()
+        )
+        return None if row is None else _weekly_mystery(row)
+
+    def get_or_create_weekly_mystery(self, week_start: date | str, mystery_key: str) -> WeeklyMysteryRecord:
+        week_key = self._week_key(week_start)
+        existing = self.get_weekly_mystery(week_key)
+        if existing is not None:
+            return existing
+        try:
+            row = _first(
+                self.client.table("weekly_mysteries").insert({
+                    "week_start": week_key,
+                    "mystery_key": str(mystery_key),
+                }).select("*").execute()
+            )
+            if row is None:
+                raise FactStoreError("Supabase did not return the weekly mystery.")
+            return _weekly_mystery(row)
+        except Exception as exc:
+            if _is_unique(exc):
+                concurrent = self.get_weekly_mystery(week_key)
+                if concurrent is not None:
+                    return concurrent
+            raise
+
+    def weekly_mystery_locked(self, week_start: date | str) -> bool:
+        row = _first(
+            self.client.table("weekly_mystery_unlocks").select("student_id")
+            .eq("week_start", self._week_key(week_start)).limit(1).execute()
+        )
+        return row is not None
+
+    def replace_weekly_mystery(self, week_start: date | str, mystery_key: str) -> WeeklyMysteryRecord:
+        week_key = self._week_key(week_start)
+        if self.weekly_mystery_locked(week_key):
+            raise FactStoreError("This week's mystery is locked because a student has already unlocked a clue.")
+        now = utc_now().isoformat()
+        response = self.client.table("weekly_mysteries").upsert({
+            "week_start": week_key,
+            "mystery_key": str(mystery_key),
+            "updated_at": now,
+        }, on_conflict="week_start").select("*").execute()
+        row = _first(response)
+        if row is None:
+            raise FactStoreError("Supabase did not return the replaced weekly mystery.")
+        return _weekly_mystery(row)
+
+    def unlock_mystery_day(
+        self, student_id: str, week_start: date | str, day_number: int, challenge_id: str
+    ) -> MysteryUnlockRecord:
+        day_number = int(day_number)
+        if day_number not in {1, 2, 3, 4, 5}:
+            raise ValueError("Mystery day number must be 1 through 5.")
+        week_key = self._week_key(week_start)
+        existing = _first(
+            self.client.table("weekly_mystery_unlocks").select("*")
+            .eq("student_id", str(student_id)).eq("week_start", week_key)
+            .eq("day_number", day_number).limit(1).execute()
+        )
+        if existing is not None:
+            return _mystery_unlock(existing)
+        payload = {
+            "student_id": str(student_id),
+            "week_start": week_key,
+            "day_number": day_number,
+            "challenge_id": str(challenge_id),
+        }
+        try:
+            row = _first(self.client.table("weekly_mystery_unlocks").insert(payload).select("*").execute())
+            if row is None:
+                raise FactStoreError("Supabase did not return the mystery unlock.")
+            return _mystery_unlock(row)
+        except Exception as exc:
+            if _is_unique(exc):
+                row = _first(
+                    self.client.table("weekly_mystery_unlocks").select("*")
+                    .eq("student_id", str(student_id)).eq("week_start", week_key)
+                    .eq("day_number", day_number).limit(1).execute()
+                )
+                if row is not None:
+                    return _mystery_unlock(row)
+            raise
+
+    def list_mystery_unlocks(self, student_id: str, week_start: date | str) -> list[MysteryUnlockRecord]:
+        rows = _rows(
+            self.client.table("weekly_mystery_unlocks").select("*")
+            .eq("student_id", str(student_id)).eq("week_start", self._week_key(week_start))
+            .order("day_number").execute()
+        )
+        return [_mystery_unlock(row) for row in rows]
+
+    def get_mystery_guess(self, student_id: str, week_start: date | str) -> MysteryGuessRecord | None:
+        row = _first(
+            self.client.table("weekly_mystery_guesses").select("*")
+            .eq("student_id", str(student_id)).eq("week_start", self._week_key(week_start)).limit(1).execute()
+        )
+        return None if row is None else _mystery_guess(row)
+
+    def submit_mystery_guess(
+        self, student_id: str, week_start: date | str, guess_text: str, *, correct: bool, clue_count: int
+    ) -> MysteryGuessRecord:
+        week_key = self._week_key(week_start)
+        existing = self.get_mystery_guess(student_id, week_key)
+        if existing is not None:
+            return existing
+        cleaned = " ".join(str(guess_text or "").strip().split())
+        if not cleaned:
+            raise ValueError("Type a guess before submitting.")
+        clue_count = int(clue_count)
+        if clue_count not in {1, 2, 3, 4, 5}:
+            raise ValueError("Clue count must be 1 through 5.")
+        payload = {
+            "student_id": str(student_id),
+            "week_start": week_key,
+            "guess_text": cleaned[:80],
+            "correct": bool(correct),
+            "clue_count": clue_count,
+        }
+        try:
+            row = _first(self.client.table("weekly_mystery_guesses").insert(payload).select("*").execute())
+            if row is None:
+                raise FactStoreError("Supabase did not return the mystery guess.")
+            return _mystery_guess(row)
+        except Exception as exc:
+            if _is_unique(exc):
+                row = self.get_mystery_guess(student_id, week_key)
+                if row is not None:
+                    return row
+            raise
+
+    def mystery_student_stats(self, student_id: str) -> dict[str, int | None]:
+        rows = _rows(
+            self.client.table("weekly_mystery_guesses").select("correct,clue_count")
+            .eq("student_id", str(student_id)).range(0, 4999).execute()
+        )
+        correct_rows = [row for row in rows if bool(row.get("correct"))]
+        return {
+            "guesses": len(rows),
+            "solved": len(correct_rows),
+            "earliest_solve": min((int(row["clue_count"]) for row in correct_rows), default=None),
+        }
+
+    def weekly_mystery_teacher_stats(self, week_start: date | str) -> dict[str, int]:
+        week_key = self._week_key(week_start)
+        unlock_rows = _rows(
+            self.client.table("weekly_mystery_unlocks").select("student_id")
+            .eq("week_start", week_key).range(0, 9999).execute()
+        )
+        guess_rows = _rows(
+            self.client.table("weekly_mystery_guesses").select("student_id,correct")
+            .eq("week_start", week_key).range(0, 9999).execute()
+        )
+        return {
+            "students_unlocked": len({str(row["student_id"]) for row in unlock_rows}),
+            "clues_unlocked": len(unlock_rows),
+            "guesses": len(guess_rows),
+            "correct": sum(bool(row.get("correct")) for row in guess_rows),
+        }
 

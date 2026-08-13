@@ -112,6 +112,33 @@ class PracticeRecord:
 
 
 @dataclass(frozen=True)
+class WeeklyMysteryRecord:
+    week_start: str
+    mystery_key: str
+    created_at: datetime
+    updated_at: datetime
+
+
+@dataclass(frozen=True)
+class MysteryUnlockRecord:
+    student_id: str
+    week_start: str
+    day_number: int
+    challenge_id: str
+    unlocked_at: datetime
+
+
+@dataclass(frozen=True)
+class MysteryGuessRecord:
+    student_id: str
+    week_start: str
+    guess_text: str
+    correct: bool
+    clue_count: int
+    guessed_at: datetime
+
+
+@dataclass(frozen=True)
 class LearningProgressRecord:
     student_id: str
     challenge_id: str
@@ -195,6 +222,9 @@ class InMemoryFactStore:
         self.class_focus_overrides: dict[str, int | None] = {}
         self.student_focus_overrides: dict[str, int | None] = {}
         self.global_focus_override: int | None = None
+        self.weekly_mysteries: dict[str, WeeklyMysteryRecord] = {}
+        self.mystery_unlocks: dict[tuple[str, str, int], MysteryUnlockRecord] = {}
+        self.mystery_guesses: dict[tuple[str, str], MysteryGuessRecord] = {}
 
     # ----- Classes -----
     def create_class(self, class_name: str, class_code: str | None = None) -> ClassRecord:
@@ -745,3 +775,100 @@ class InMemoryFactStore:
             sid: row for (sid, cid), row in self.learning_progress.items()
             if cid == challenge_id and sid in ids
         }
+
+    # ----- Weekly Mystery -----
+    def get_weekly_mystery(self, week_start: date | str) -> WeeklyMysteryRecord | None:
+        return self.weekly_mysteries.get(_as_date_key(week_start))
+
+    def get_or_create_weekly_mystery(self, week_start: date | str, mystery_key: str) -> WeeklyMysteryRecord:
+        key = _as_date_key(week_start)
+        existing = self.weekly_mysteries.get(key)
+        if existing is not None:
+            return existing
+        now = utc_now()
+        record = WeeklyMysteryRecord(key, str(mystery_key), now, now)
+        self.weekly_mysteries[key] = record
+        return record
+
+    def weekly_mystery_locked(self, week_start: date | str) -> bool:
+        key = _as_date_key(week_start)
+        return any(row.week_start == key for row in self.mystery_unlocks.values())
+
+    def replace_weekly_mystery(self, week_start: date | str, mystery_key: str) -> WeeklyMysteryRecord:
+        key = _as_date_key(week_start)
+        if self.weekly_mystery_locked(key):
+            raise FactStoreError("This week's mystery is locked because a student has already unlocked a clue.")
+        existing = self.weekly_mysteries.get(key)
+        now = utc_now()
+        record = WeeklyMysteryRecord(key, str(mystery_key), existing.created_at if existing else now, now)
+        self.weekly_mysteries[key] = record
+        return record
+
+    def unlock_mystery_day(
+        self, student_id: str, week_start: date | str, day_number: int, challenge_id: str
+    ) -> MysteryUnlockRecord:
+        self.get_student(student_id)
+        if challenge_id not in {ch.challenge_id for ch in self.challenges.values()}:
+            raise NotFound("Challenge not found.")
+        day_number = int(day_number)
+        if day_number not in {1, 2, 3, 4, 5}:
+            raise ValueError("Mystery day number must be 1 through 5.")
+        week_key = _as_date_key(week_start)
+        row_key = (student_id, week_key, day_number)
+        existing = self.mystery_unlocks.get(row_key)
+        if existing is not None:
+            return existing
+        record = MysteryUnlockRecord(student_id, week_key, day_number, challenge_id, utc_now())
+        self.mystery_unlocks[row_key] = record
+        return record
+
+    def list_mystery_unlocks(self, student_id: str, week_start: date | str) -> list[MysteryUnlockRecord]:
+        week_key = _as_date_key(week_start)
+        return sorted(
+            [row for row in self.mystery_unlocks.values() if row.student_id == student_id and row.week_start == week_key],
+            key=lambda row: row.day_number,
+        )
+
+    def get_mystery_guess(self, student_id: str, week_start: date | str) -> MysteryGuessRecord | None:
+        return self.mystery_guesses.get((student_id, _as_date_key(week_start)))
+
+    def submit_mystery_guess(
+        self, student_id: str, week_start: date | str, guess_text: str, *, correct: bool, clue_count: int
+    ) -> MysteryGuessRecord:
+        self.get_student(student_id)
+        week_key = _as_date_key(week_start)
+        row_key = (student_id, week_key)
+        existing = self.mystery_guesses.get(row_key)
+        if existing is not None:
+            return existing
+        cleaned = re.sub(r"\s+", " ", str(guess_text or "").strip())
+        if not cleaned:
+            raise ValueError("Type a guess before submitting.")
+        clue_count = int(clue_count)
+        if clue_count not in {1, 2, 3, 4, 5}:
+            raise ValueError("Clue count must be 1 through 5.")
+        record = MysteryGuessRecord(student_id, week_key, cleaned[:80], bool(correct), clue_count, utc_now())
+        self.mystery_guesses[row_key] = record
+        return record
+
+    def mystery_student_stats(self, student_id: str) -> dict[str, int | None]:
+        self.get_student(student_id)
+        rows = [row for row in self.mystery_guesses.values() if row.student_id == student_id]
+        correct = [row for row in rows if row.correct]
+        return {
+            "guesses": len(rows),
+            "solved": len(correct),
+            "earliest_solve": min((row.clue_count for row in correct), default=None),
+        }
+
+    def weekly_mystery_teacher_stats(self, week_start: date | str) -> dict[str, int]:
+        week_key = _as_date_key(week_start)
+        unlocks = [row for row in self.mystery_unlocks.values() if row.week_start == week_key]
+        guesses = [row for row in self.mystery_guesses.values() if row.week_start == week_key]
+        return {
+            "students_unlocked": len({row.student_id for row in unlocks}),
+            "clues_unlocked": len(unlocks),
+            "guesses": len(guesses),
+            "correct": sum(row.correct for row in guesses),
+        }
+

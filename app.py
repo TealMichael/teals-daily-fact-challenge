@@ -34,6 +34,15 @@ from adaptive_engine import (
     status_for_display,
 )
 from supabase_fact_store import SupabaseFactStore
+from weekly_mystery import (
+    MYSTERIES,
+    default_mystery_key_for_week,
+    is_correct_guess,
+    mystery_for_key,
+    next_mystery_key,
+    school_day_number,
+    week_start_for,
+)
 
 
 st.set_page_config(
@@ -441,6 +450,157 @@ def render_student_sign_in(store: SupabaseFactStore | None) -> bool:
 
 
 # ---------------------------------------------------------------------------
+# Weekly Mystery reward
+# ---------------------------------------------------------------------------
+def ensure_weekly_mystery(store: SupabaseFactStore, day):
+    week_start = week_start_for(day)
+    record = store.get_or_create_weekly_mystery(week_start, default_mystery_key_for_week(week_start))
+    return week_start, record, mystery_for_key(record.mystery_key)
+
+
+def _mystery_solve_title(clue_count: int) -> str:
+    clue_count = int(clue_count)
+    if clue_count <= 1:
+        return "🔮 One-Clue Wonder"
+    if clue_count == 2:
+        return "🕵️ Sharp Detective"
+    if clue_count <= 4:
+        return "🔍 Mystery Solver"
+    return "🎯 Friday Solver"
+
+
+def _render_mystery_clues(mystery, clue_count: int) -> None:
+    if clue_count <= 0:
+        st.caption("No clues unlocked yet this week.")
+        return
+    for index, clue in enumerate(mystery.clues[:clue_count], start=1):
+        st.markdown(
+            f"<div class='soft-card'><strong>Clue #{index}</strong><br>{html.escape(clue)}</div>",
+            unsafe_allow_html=True,
+        )
+
+
+def _render_mystery_stats(store: SupabaseFactStore) -> None:
+    stats = store.mystery_student_stats(st.session_state.student_id)
+    solved = int(stats.get("solved") or 0)
+    earliest = stats.get("earliest_solve")
+    if solved:
+        earliest_text = "Friday" if int(earliest or 5) >= 5 else f"{int(earliest)} clue{'s' if int(earliest) != 1 else ''}"
+        st.caption(f"Mysteries solved: {solved} · Earliest solve: {earliest_text}")
+
+
+def render_weekly_mystery_reward(store: SupabaseFactStore, day, challenge) -> None:
+    """Render the curiosity reward only after the student's full learning routine.
+
+    Monday-Thursday each completed routine earns one clue.  A student who misses
+    a day simply has fewer clues; the clues they do earn are always shown in
+    order.  Friday completion gives one final guess (if unused) and then reveals
+    the answer.  The mystery never affects leaderboard, mastery, streaks, or Stars.
+    """
+    try:
+        week_start, _, mystery = ensure_weekly_mystery(store, day)
+        day_number = school_day_number(day)
+        if day_number is not None:
+            store.unlock_mystery_day(
+                st.session_state.student_id, week_start, day_number, challenge.challenge_id
+            )
+        unlocks = store.list_mystery_unlocks(st.session_state.student_id, week_start)
+        guess = store.get_mystery_guess(st.session_state.student_id, week_start)
+    except Exception as exc:
+        st.info("🕵️ Weekly Mystery will appear after your teacher finishes the v2.2 database update.")
+        if str(st.query_params.get("dbcheck", "0")) == "1":
+            st.exception(exc)
+        return
+
+    clue_count = min(4, sum(1 for row in unlocks if int(row.day_number) <= 4))
+    friday_unlocked = any(int(row.day_number) == 5 for row in unlocks)
+
+    st.markdown("### 🕵️ Weekly Mystery")
+    st.caption("A just-for-fun mystery reward. One guess for the whole week — use it early or wait for more clues.")
+
+    if day_number is None:
+        st.info("The Weekly Mystery continues on school days.")
+        _render_mystery_clues(mystery, clue_count)
+        _render_mystery_stats(store)
+        return
+
+    if day_number <= 4:
+        st.success(f"🔎 Clue #{clue_count} unlocked!" if clue_count else "🔎 Mystery unlocked!")
+        _render_mystery_clues(mystery, clue_count)
+        if guess is not None:
+            if guess.correct:
+                st.success(
+                    f"{_mystery_solve_title(guess.clue_count)} — your guess **{guess.guess_text}** is correct! "
+                    "The mystery officially reveals Friday."
+                )
+            else:
+                st.info(
+                    f"Your one guess was **{guess.guess_text}**. Not this week — keep unlocking clues and the answer will reveal Friday."
+                )
+        else:
+            st.markdown("**🎯 Your one weekly guess is still available.**")
+            st.caption("Not sure yet? Do nothing and come back after your next completed routine.")
+            with st.form(f"weekly_mystery_guess_{week_start.isoformat()}", clear_on_submit=True):
+                raw_guess = st.text_input("Your guess", max_chars=80, placeholder="What do you think the answer is?")
+                submit_guess = st.form_submit_button("Use my one guess", use_container_width=True, type="primary")
+            if submit_guess:
+                cleaned = " ".join(str(raw_guess or "").strip().split())
+                if not cleaned:
+                    st.error("Type a guess first — or wait for another clue.")
+                else:
+                    store.submit_mystery_guess(
+                        st.session_state.student_id,
+                        week_start,
+                        cleaned,
+                        correct=is_correct_guess(mystery, cleaned),
+                        clue_count=max(1, clue_count),
+                    )
+                    st.rerun()
+        _render_mystery_stats(store)
+        return
+
+    # Friday: the student's full routine unlocks the reveal.  If the one weekly
+    # guess was saved all week, they get a final guess before seeing the answer.
+    if friday_unlocked and guess is None:
+        st.success("🎉 Friday reveal unlocked!")
+        # On Friday, every student who completes the full routine gets the full
+        # Monday-Thursday clue set before the final guess. Earlier completion
+        # was still valuable because it revealed those clues days sooner.
+        _render_mystery_clues(mystery, 4)
+        st.markdown("**Last chance — use your one weekly guess before the answer is revealed.**")
+        with st.form(f"weekly_mystery_friday_guess_{week_start.isoformat()}", clear_on_submit=True):
+            raw_guess = st.text_input("Final guess", max_chars=80, placeholder="What is the mystery answer?")
+            submit_guess = st.form_submit_button("Submit final guess & reveal", use_container_width=True, type="primary")
+        if submit_guess:
+            cleaned = " ".join(str(raw_guess or "").strip().split())
+            if not cleaned:
+                st.error("Type your final guess before revealing the answer.")
+            else:
+                store.submit_mystery_guess(
+                    st.session_state.student_id,
+                    week_start,
+                    cleaned,
+                    correct=is_correct_guess(mystery, cleaned),
+                    clue_count=5,
+                )
+                st.rerun()
+        return
+
+    _render_mystery_clues(mystery, 4)
+    if guess is not None and guess.correct:
+        st.success(f"{_mystery_solve_title(guess.clue_count)} — you got it!")
+    elif guess is not None:
+        st.caption(f"Your guess was: {guess.guess_text}")
+    st.markdown(
+        f"<div class='hero-card center'><div style='font-size:1rem;font-weight:850'>🎉 MYSTERY REVEALED</div>"
+        f"<div style='font-size:2rem;font-weight:950;margin-top:.25rem'>{html.escape(mystery.answer)}</div>"
+        f"<div style='margin-top:.45rem'>{html.escape(mystery.reveal_note)}</div></div>",
+        unsafe_allow_html=True,
+    )
+    _render_mystery_stats(store)
+
+
+# ---------------------------------------------------------------------------
 # Daily Challenge
 # ---------------------------------------------------------------------------
 def ensure_today(store: SupabaseFactStore):
@@ -754,6 +914,7 @@ def render_day_complete(store: SupabaseFactStore, day, facts: list[Fact], challe
     if first_tries:
         st.caption(f"Focus Practice: {focus_correct}/{len(first_tries)} correct on the first try. Corrections never lower your Daily leaderboard result.")
 
+    render_weekly_mystery_reward(store, day, challenge)
     render_mastery_card(store)
     render_leaderboard(store, challenge, highlight_student_id=st.session_state.student_id)
     render_daily_review(facts, answers)
@@ -1419,6 +1580,51 @@ def render_teacher_student_tools(store: SupabaseFactStore) -> None:
             st.rerun()
 
 
+def render_teacher_weekly_mystery(store: SupabaseFactStore) -> None:
+    st.markdown("### 🕵️ Weekly Mystery")
+    st.caption("One shared just-for-fun mystery across all classes. Clues are earned only after the full Daily learning routine.")
+    day = current_daily_date()
+    try:
+        week_start, record, mystery = ensure_weekly_mystery(store, day)
+        locked = store.weekly_mystery_locked(week_start)
+        stats = store.weekly_mystery_teacher_stats(week_start)
+    except Exception as exc:
+        st.error("The Weekly Mystery tables are not ready. Run RUN_THIS_ONCE_IN_SUPABASE_v2_2.sql once.")
+        if str(st.query_params.get("dbcheck", "0")) == "1":
+            st.exception(exc)
+        return
+
+    st.markdown(f"**Week of {week_start.strftime('%B %d, %Y').replace(' 0', ' ')}**")
+    st.markdown(
+        f"<div class='hero-card'><div class='section-label'>Teacher preview · {html.escape(mystery.category)}</div>"
+        f"<div style='font-size:1.65rem;font-weight:950'>{html.escape(mystery.answer)}</div>"
+        f"<div style='margin-top:.35rem'>{html.escape(mystery.reveal_note)}</div></div>",
+        unsafe_allow_html=True,
+    )
+    for index, clue in enumerate(mystery.clues, start=1):
+        st.write(f"**Clue #{index}:** {clue}")
+
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Students unlocked", int(stats.get("students_unlocked", 0)))
+    c2.metric("Guesses used", int(stats.get("guesses", 0)))
+    c3.metric("Solved", int(stats.get("correct", 0)))
+
+    if locked:
+        st.info("🔒 This week's mystery is locked because at least one student has already earned a clue.")
+    else:
+        st.success("You can still swap this mystery. It locks automatically when the first student earns a clue.")
+        if st.button("🔄 Pick another mystery", use_container_width=True):
+            try:
+                store.replace_weekly_mystery(week_start, next_mystery_key(record.mystery_key))
+                st.rerun()
+            except Exception as exc:
+                st.error(str(exc))
+
+    with st.expander(f"Mystery bank · {len(MYSTERIES)} curated mysteries", expanded=False):
+        st.caption("Places · animals · foods · sports · science/nature · history/people · music/entertainment · games/toys/objects")
+        st.write("The bank is stored inside the app, so clue delivery never depends on a live internet search.")
+
+
 def render_teacher(store: SupabaseFactStore | None) -> None:
     if store is None:
         st.markdown("## Teacher Dashboard")
@@ -1436,11 +1642,13 @@ def render_teacher(store: SupabaseFactStore | None) -> None:
             st.session_state.teacher_authed = False
             st.rerun()
 
-    today_tab, mastery_tab, class_tab, tools_tab = st.tabs(["Today", "Mastery & Focus", "Classes & Students", "Student Tools"])
+    today_tab, mastery_tab, mystery_tab, class_tab, tools_tab = st.tabs(["Today", "Mastery & Focus", "Weekly Mystery", "Classes & Students", "Student Tools"])
     with today_tab:
         render_teacher_today(store)
     with mastery_tab:
         render_teacher_mastery_focus(store)
+    with mystery_tab:
+        render_teacher_weekly_mystery(store)
     with class_tab:
         render_teacher_classes(store)
     with tools_tab:

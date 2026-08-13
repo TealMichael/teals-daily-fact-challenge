@@ -10,6 +10,7 @@ def run():
     tables = [
         "classes", "students", "daily_challenges", "daily_attempts", "daily_answers", "practice_answers",
         "student_fact_mastery", "daily_learning_progress", "app_settings",
+        "weekly_mysteries", "weekly_mystery_unlocks", "weekly_mystery_guesses",
     ]
     for table in tables:
         assert f"alter table public.{table} enable row level security" in schema
@@ -24,13 +25,15 @@ def run():
     assert "activity_type" in migration and "is_retry" in migration
     assert "pin_code text" in schema and "pin_code_shape" in schema
     assert "pin_code" in migration
+    mystery_migration = Path("RUN_THIS_ONCE_IN_SUPABASE_v2_2.sql").read_text(encoding="utf-8").lower()
+    assert "weekly_mysteries" in mystery_migration and "weekly_mystery_unlocks" in mystery_migration and "weekly_mystery_guesses" in mystery_migration
 
     encoded = hash_pin("2468")
     assert "2468" not in encoded and encoded.startswith("scrypt$")
     assert "def normalize_supabase_url" in backend and '"/rest/v1"' in backend
     assert "SUPABASE_SECRET_KEY" in backend
 
-    print(f"security_schema_tests: PASS ({len(tables) + 14} security/data-integrity checks)")
+    print(f"security_schema_tests: PASS ({len(tables) + 15} security/data-integrity checks)")
 
 
 if __name__ == "__main__":

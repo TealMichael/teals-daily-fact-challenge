@@ -1,68 +1,62 @@
-TEAL'S DAILY FACT CHALLENGE v2.1.0
-UPDATE STEPS FOR THE EXISTING LIVE APP
+TEAL'S DAILY FACT CHALLENGE v2.2.0
+WEEKLY MYSTERY UPDATE — EXISTING LIVE APP
 
 IMPORTANT: Use the SAME GitHub repo, Streamlit app, and Supabase project you already created.
 Do NOT create a second database.
 
-STEP 1 — RUN THE CORRECT ONE-TIME SUPABASE UPDATE
-
-IF YOUR LIVE DATABASE IS STILL v1 (you have NOT run the adaptive v2 migration yet):
+YOUR CURRENT PATH (already on v2.1)
 1. Open the existing Fact Challenge Supabase project.
 2. Open SQL Editor -> New query.
-3. Open RUN_THIS_ONCE_IN_SUPABASE_v2.sql from this package.
-4. Copy the ENTIRE file into Supabase and click Run.
-5. This single file now includes both the v2 adaptive-learning upgrade and the v2.1 visible-PIN field.
+3. Open RUN_THIS_ONCE_IN_SUPABASE_v2_2.sql from this package.
+4. Copy the ENTIRE file into the new query and click Run.
+5. Do NOT overwrite or rerun your old v2/v2.1 query.
+6. Do NOT rerun SUPABASE_SCHEMA.sql on the existing project.
 
-IF YOU ALREADY RAN RUN_THIS_ONCE_IN_SUPABASE_v2.sql from the earlier v2.0 package:
-1. Open SQL Editor -> New query.
-2. Run only RUN_THIS_ONCE_IN_SUPABASE_v2_1.sql from this package.
-
-Do NOT rerun SUPABASE_SCHEMA.sql on an existing project.
-
-STEP 2 — IMPORTANT NOTE ABOUT EXISTING STUDENT PINs
-Older student accounts stored only one-way PIN hashes. Those original PINs cannot be recovered.
-After this update, Teacher -> Classes & Students will show "Reset once" for any such older account and offer:
-   Generate visible PINs for older accounts
-This creates replacement PINs, updates student login, and keeps the new PIN visible in teacher-only views from then on.
-
-New students created after v2.1 automatically have a visible classroom PIN.
-
-STEP 3 — UPLOAD THE FULL APP TO GITHUB
-1. Open: TealMichael/teals-daily-fact-challenge
-2. Upload EVERY file/folder inside this package's UPLOAD_TO_GITHUB folder to the repo root.
-3. Replace matching files.
-4. Confirm this folder exists after the commit:
+Then upload EVERY file/folder inside this package's UPLOAD_TO_GITHUB folder to the existing GitHub repo root.
+Replace matching files and confirm this folder is still present:
 
    daily_sprint_component/
        index.html
 
 Suggested commit:
-   v2.1 - align adaptive fact learning and show teacher PINs
+   v2.2 - add Weekly Mystery completion reward
 
-STEP 4 — WAIT FOR STREAMLIT TO REDEPLOY
-No new Streamlit Secrets are needed.
+No new Streamlit Secrets are needed. Streamlit should redeploy automatically after the GitHub commit.
 
-STEP 5 — QUICK CLASSROOM PILOT CHECK
-With one test student, complete:
+OTHER UPGRADE PATHS
+- If an installation is still on v1, RUN_THIS_ONCE_IN_SUPABASE_v2.sql in this package is the combined migration and includes adaptive learning, visible PINs, and Weekly Mystery.
+- If an installation ran v2.0 but not v2.1, run v2_1 first, then v2_2.
+- If an installation already ran v2.1 (your live app), run only v2_2.
 
-   Daily 10
-       -> Fix Your Misses (if any)
-       -> Your Focus Practice (8 retrievals)
-       -> ⭐ Day Complete
+WEEKLY MYSTERY BEHAVIOR
+- The reward appears only after: Daily 10 -> Fix Your Misses -> Focus Practice -> Day Complete.
+- Monday-Thursday: each completed routine earns the next clue in order.
+- Students get exactly ONE guess for the entire week.
+- They can use it early or save it.
+- Friday: completing the routine shows the full four-clue set, gives a saved guess one final chance, then reveals the answer.
+- The mystery is the same across every class.
+- It does NOT affect Daily rank, mastery, Stars, or Learning Streaks.
+- Students see only their own guess/solve status.
 
-Confirm:
-- no placement test appears;
-- the Daily timer runs quietly rather than displaying elapsed seconds;
-- accuracy ranks before time;
-- a missed fact is taught with an array + relationship strategy and must be retried correctly;
-- early Focus Practice for an unknown profile leans on 2s/5s/10s anchor relationships;
-- Focus Practice stays short and spaced rather than drilling one fact repeatedly;
-- student mastery grows only from independent retrieval evidence;
-- the teacher-only roster/progress views show PINs beside nicknames;
-- student-visible Top 10 does NOT show PINs.
+TEACHER DASHBOARD
+A new Weekly Mystery tab shows:
+- this week's answer and all four clues;
+- how many students have unlocked a clue;
+- how many guesses have been used;
+- how many students solved it;
+- a Pick Another Mystery button before the first student earns a clue.
 
-RESEARCH-INFORMED DESIGN IN v2.1
-The app uses one-at-a-time active retrieval, conceptual arrays/derived-fact strategies after errors, corrective retry, spaced mixed practice, short daily sessions, and quiet timing. The adaptive profile grows gradually from Daily + Focus evidence instead of a beginning placement test.
+The mystery locks automatically after the first clue is earned, preventing midweek answer changes.
+The built-in bank contains 80 curated mysteries across eight categories and does not require live internet access.
+
+QUICK PILOT CHECK
+With one test student:
+1. Complete the full Daily learning routine.
+2. Confirm Weekly Mystery appears only after Day Complete.
+3. Confirm a clue appears Monday-Thursday, or the Friday final-guess/reveal flow appears on Friday.
+4. Confirm using a guess removes the ability to guess again that week.
+5. Open Teacher -> Weekly Mystery and confirm the same answer/clues appear there.
+6. Confirm Pick Another Mystery is disabled/locked once a student has earned a clue.
 
 NO SHARE FEATURE
 This remains an in-class app.
