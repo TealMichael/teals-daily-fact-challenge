@@ -119,7 +119,7 @@ Every existing teacher function remains available, but the dashboard is reorgani
 
 ## Daily fact generator
 
-The shared Daily generator remains versioned as `TDFC-DAILY-v1`, so the previously audited Daily sequence does not change in v2.5.1.
+The shared Daily generator remains versioned as `TDFC-DAILY-v1`, so the previously audited Daily sequence does not change in v2.5.1.1.
 
 Each Daily contains 10 unique underlying multiplication facts. Commutative mirrors cannot both appear. Normal core days contain 3 easier, 4 medium, and 3 harder facts. On selected extension days, one harder slot becomes one 11/12 fact.
 
@@ -159,6 +159,13 @@ Make sure all three browser-component folders are present in GitHub:
 
 ## Version notes
 
+
+### v2.5.1.1 — Student PIN Tap Hotfix
+
+- Fixes a student-login regression where the custom classroom PIN keypad rendered but number taps did not reliably update the four PIN dots.
+- The PIN component now renders its buttons once and uses one permanent delegated click handler instead of rebuilding the keypad DOM after every digit.
+- Keeps the iPad-friendly design: no browser password field, no strong-password suggestion, masked PIN dots, physical-keyboard fallback, and no Supabase/Streamlit work while individual digits are tapped.
+- No Supabase migration or new Streamlit secret is required.
 
 ### v2.5.1 — Classroom iPad Hotfix
 - The shared answer keypad now measures its real browser height and resizes automatically, preventing the bottom row from being clipped on iPads, Chromebooks, and desktop browsers.

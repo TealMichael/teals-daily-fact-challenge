@@ -1,8 +1,8 @@
-TEAL'S DAILY FACT CHALLENGE v2.5.1
+TEAL'S DAILY FACT CHALLENGE v2.5.1.1
 
-CURRENT UPDATE FROM v2.5.0
+CURRENT UPDATE FROM v2.5.1
 --------------------------
-1. No Supabase SQL is required for v2.5.1.
+1. No Supabase SQL is required for v2.5.1.1.
 2. Upload/replace every file and folder inside UPLOAD_TO_GITHUB in the existing GitHub repository.
 3. Confirm these component folders are present in GitHub:
    - daily_sprint_component/index.html
@@ -19,4 +19,4 @@ IMPORTANT
 
 SUGGESTED COMMIT
 ----------------
-v2.5.1 - fix iPad keypad, student PIN login, and Mystery celebration
+v2.5.1.1 - fix student PIN keypad taps

@@ -22,17 +22,36 @@
   }
   button:active { transform:translateY(1px); background:#f3f4f6; }
   .back { color:#4b5563; background:#f9fafb; }
-  .ready { background:#0f766e; color:#fff; border-color:#0f766e; cursor:default; }
+  .status { background:#0f766e; color:#fff; border-color:#0f766e; cursor:default; }
+  .status[disabled] { opacity:1; }
   .hint { margin-top:6px; text-align:center; color:#6b7280; font-size:12px; }
 </style>
 </head>
 <body>
-<div id="root" class="wrap"></div>
+<div class="wrap">
+  <div class="slots" aria-label="Four digit PIN" aria-live="polite">
+    <div class="slot" data-slot="0"></div>
+    <div class="slot" data-slot="1"></div>
+    <div class="slot" data-slot="2"></div>
+    <div class="slot" data-slot="3"></div>
+  </div>
+  <div id="pad" class="pad" aria-label="PIN number pad">
+    <button type="button" data-digit="1">1</button><button type="button" data-digit="2">2</button><button type="button" data-digit="3">3</button>
+    <button type="button" data-digit="4">4</button><button type="button" data-digit="5">5</button><button type="button" data-digit="6">6</button>
+    <button type="button" data-digit="7">7</button><button type="button" data-digit="8">8</button><button type="button" data-digit="9">9</button>
+    <button type="button" data-action="back" class="back" aria-label="Delete last PIN digit">⌫</button><button type="button" data-digit="0">0</button><button type="button" id="status" class="status" disabled aria-label="PIN status">••••</button>
+  </div>
+  <div class="hint">Tap your 4-digit classroom PIN. Nothing is saved on this screen.</div>
+</div>
 <script>
 (() => {
   let digits = '';
   let lastSent = null;
   let lastHeight = 0;
+
+  const slots = Array.from(document.querySelectorAll('[data-slot]'));
+  const pad = document.getElementById('pad');
+  const status = document.getElementById('status');
 
   function post(type, extra={}) {
     window.parent.postMessage(Object.assign({isStreamlitMessage:true, type}, extra), '*');
@@ -42,28 +61,21 @@
   function resize() {
     requestAnimationFrame(() => {
       const height = Math.ceil(document.documentElement.scrollHeight + 4);
-      if (height !== lastHeight) { lastHeight = height; post('streamlit:setFrameHeight', {height}); }
+      if (height !== lastHeight) {
+        lastHeight = height;
+        post('streamlit:setFrameHeight', {height});
+      }
     });
   }
 
-  function render() {
-    const slots = Array.from({length:4}, (_, index) =>
-      `<div class="slot ${index < digits.length ? 'filled' : ''}">${index < digits.length ? '●' : ''}</div>`
-    ).join('');
-    const readyCell = digits.length === 4
-      ? '<button type="button" class="ready" aria-label="PIN ready">✓</button>'
-      : '<button type="button" class="ready" aria-label="Enter four digits" disabled>••••</button>';
-    document.getElementById('root').innerHTML = `
-      <div class="slots" aria-label="Four digit PIN">${slots}</div>
-      <div class="pad" aria-label="PIN number pad">
-        <button type="button" data-digit="1">1</button><button type="button" data-digit="2">2</button><button type="button" data-digit="3">3</button>
-        <button type="button" data-digit="4">4</button><button type="button" data-digit="5">5</button><button type="button" data-digit="6">6</button>
-        <button type="button" data-digit="7">7</button><button type="button" data-digit="8">8</button><button type="button" data-digit="9">9</button>
-        <button type="button" id="back" class="back" aria-label="Delete last PIN digit">⌫</button><button type="button" data-digit="0">0</button>${readyCell}
-      </div>
-      <div class="hint">Tap your 4-digit classroom PIN. Nothing is saved on this screen.</div>`;
-    document.querySelectorAll('[data-digit]').forEach(btn => btn.addEventListener('click', () => addDigit(btn.dataset.digit)));
-    document.getElementById('back').addEventListener('click', erase);
+  function paint() {
+    slots.forEach((slot, index) => {
+      const filled = index < digits.length;
+      slot.textContent = filled ? '●' : '';
+      slot.classList.toggle('filled', filled);
+    });
+    status.textContent = digits.length === 4 ? '✓' : '••••';
+    status.setAttribute('aria-label', digits.length === 4 ? 'PIN ready' : `${digits.length} of 4 PIN digits entered`);
     resize();
   }
 
@@ -72,44 +84,65 @@
     lastSent = digits;
     setValue(digits);
   }
-  function addDigit(d) {
-    if (digits.length >= 4) return;
-    digits += d;
-    render();
+
+  function addDigit(digit) {
+    if (!/^\d$/.test(digit) || digits.length >= 4) return;
+    digits += digit;
+    paint();
     sendIfComplete();
   }
+
   function erase() {
     if (!digits.length) return;
     const wasComplete = digits.length === 4;
     digits = digits.slice(0, -1);
-    render();
     if (wasComplete) {
       lastSent = null;
       setValue('');
     }
+    paint();
   }
 
+  // One permanent delegated click handler. The keypad DOM is never rebuilt
+  // while a student is entering a PIN, which makes touch behavior reliable
+  // across Safari/iPadOS, ChromeOS, and desktop browsers.
+  pad.addEventListener('click', (event) => {
+    const button = event.target.closest('button');
+    if (!button || !pad.contains(button)) return;
+    const digit = button.getAttribute('data-digit');
+    if (digit !== null) addDigit(digit);
+    else if (button.getAttribute('data-action') === 'back') erase();
+  });
+
   document.addEventListener('keydown', (event) => {
-    if (event.key >= '0' && event.key <= '9') { event.preventDefault(); addDigit(event.key); }
-    else if (event.key === 'Backspace' || event.key === 'Delete') { event.preventDefault(); erase(); }
+    if (event.key >= '0' && event.key <= '9') {
+      event.preventDefault();
+      addDigit(event.key);
+    } else if (event.key === 'Backspace' || event.key === 'Delete') {
+      event.preventDefault();
+      erase();
+    }
   });
 
   window.addEventListener('message', (event) => {
     if (!event.data || event.data.type !== 'streamlit:render') return;
     const args = event.data.args || {};
-    const incoming = String(args.value || '').replace(/\D/g, '').slice(0,4);
-    if (incoming && incoming !== digits) {
+    const incoming = String(args.value || '').replace(/\D/g, '').slice(0, 4);
+    if (incoming !== digits) {
       digits = incoming;
       lastSent = incoming.length === 4 ? incoming : null;
+      paint();
+    } else {
+      resize();
     }
-    render();
   });
 
   if (window.ResizeObserver) {
     new ResizeObserver(resize).observe(document.documentElement);
   }
+
   ready();
-  render();
+  paint();
 })();
 </script>
 </body>
