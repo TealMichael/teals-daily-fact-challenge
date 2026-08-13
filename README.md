@@ -128,9 +128,9 @@ TEACHER_PASSWORD = "CHOOSE-A-PRIVATE-TEACHER-PASSWORD"
 
 ## Updating an existing installation
 
-**Current live v2.2 installation:** v2.2.5 is a code-only classroom-load reliability hotfix. **No Supabase SQL is required.** Upload every file/folder in `UPLOAD_TO_GITHUB` to the existing GitHub repo and let Streamlit redeploy.
+**Current live v2.2 installation:** v2.2.6 is a code-only Focus Practice speed hotfix. **No Supabase SQL is required.** Upload every file/folder in `UPLOAD_TO_GITHUB` to the existing GitHub repo and let Streamlit redeploy.
 
-**If coming from v2.1:** run `RUN_THIS_ONCE_IN_SUPABASE_v2_2.sql` first, then upload the v2.2.5 app files.
+**If coming from v2.1:** run `RUN_THIS_ONCE_IN_SUPABASE_v2_2.sql` first, then upload the v2.2.6 app files.
 
 **If already on v2.0 but not v2.1:** run `RUN_THIS_ONCE_IN_SUPABASE_v2_1.sql`, then `RUN_THIS_ONCE_IN_SUPABASE_v2_2.sql`.
 
@@ -141,6 +141,16 @@ Do not rerun `SUPABASE_SCHEMA.sql` on an existing project. It is the full schema
 Make sure `daily_sprint_component/index.html` remains present in GitHub.
 
 ## Version notes
+
+### v2.2.6 — Focus Practice Speed Hotfix
+
+- Confirms the classroom slowdown was partly caused by the Top 10 being reloaded on every Streamlit rerun during Focus Practice. The leaderboard snapshot is now loaded once and reused until Day Complete.
+- Focus Practice activity rows and teacher-focus settings are cached for the current student session instead of being re-read after every answer.
+- Reuses the already-loaded learning-progress record when building the Focus plan.
+- First-try Focus answers now save with one normal insert instead of a pre-read plus insert; duplicate submissions still fall back safely to the existing stored answer.
+- Focus mastery evidence is accumulated from the eight stored first attempts and applied in one idempotent batch at the end of Focus Practice instead of two mastery requests after every answer.
+- The learning model, 8-item Focus plan, correction behavior, Daily ranking, Weekly Mystery, and Teacher Tools are unchanged.
+- Code-only update: no database migration or new Streamlit secret.
 
 ### v2.2.5 — Classroom Load Reliability Hotfix
 

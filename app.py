@@ -620,6 +620,51 @@ def load_leaderboard_context(store: SupabaseFactStore, challenge) -> dict:
     return {"rows": rows, "finished": len(completed), "roster_count": len(roster)}
 
 
+def _leaderboard_cache_key(challenge) -> str:
+    return f"leaderboard_context_{st.session_state.student_id}_{challenge.challenge_id}"
+
+
+def get_cached_leaderboard_context(store: SupabaseFactStore, challenge, *, refresh: bool = False) -> dict:
+    """Reuse one leaderboard snapshot during Fix/Focus reruns.
+
+    Streamlit reruns the entire script after every Focus answer. Reloading the
+    class roster + completed attempts each time created avoidable whole-class
+    traffic. Refresh only when the Daily is first completed or the whole
+    learning routine is done.
+    """
+    key = _leaderboard_cache_key(challenge)
+    if refresh or key not in st.session_state:
+        st.session_state[key] = load_leaderboard_context(store, challenge)
+    return st.session_state[key]
+
+
+def _focus_rows_cache_key(challenge) -> str:
+    return f"focus_rows_{st.session_state.student_id}_{challenge.challenge_id}"
+
+
+def get_cached_focus_rows(store: SupabaseFactStore, challenge) -> list:
+    key = _focus_rows_cache_key(challenge)
+    if key not in st.session_state:
+        st.session_state[key] = store.learning_activity_rows(
+            st.session_state.student_id, challenge.challenge_id, "focus"
+        )
+    return list(st.session_state[key])
+
+
+def append_cached_focus_row(challenge, row) -> None:
+    key = _focus_rows_cache_key(challenge)
+    rows = list(st.session_state.get(key, []))
+    rows.append(row)
+    st.session_state[key] = rows
+
+
+def get_cached_focus_override(store: SupabaseFactStore, challenge) -> int | None:
+    key = f"focus_override_{st.session_state.student_id}_{challenge.challenge_id}"
+    if key not in st.session_state:
+        st.session_state[key] = store.get_effective_focus_override(st.session_state.student_id)
+    return st.session_state[key]
+
+
 def render_leaderboard(
     store: SupabaseFactStore, challenge, *, highlight_student_id: str | None = None, context: dict | None = None
 ) -> None:
@@ -776,13 +821,13 @@ def _focus_index_state(rows, index: int) -> tuple[object | None, bool]:
     return first, corrected
 
 
-def ensure_focus_plan(store: SupabaseFactStore, day, challenge, answers):
-    progress = store.get_learning_progress(st.session_state.student_id, challenge.challenge_id)
+def ensure_focus_plan(store: SupabaseFactStore, day, challenge, answers, progress=None):
+    progress = progress or store.get_learning_progress(st.session_state.student_id, challenge.challenge_id)
     if progress.focus_plan:
         return progress
     mastery = store.get_mastery(st.session_state.student_id)
     misses = [(answer.a, answer.b) for answer in answers if not answer.correct and max(answer.a, answer.b) <= 10]
-    override = store.get_effective_focus_override(st.session_state.student_id)
+    override = get_cached_focus_override(store, challenge)
     plan = build_focus_plan(
         mastery,
         student_id=st.session_state.student_id,
@@ -793,27 +838,35 @@ def ensure_focus_plan(store: SupabaseFactStore, day, challenge, answers):
     return store.set_focus_plan(st.session_state.student_id, challenge.challenge_id, plan)
 
 
-def render_focus_practice(store: SupabaseFactStore, day, challenge, answers) -> bool:
-    progress = ensure_focus_plan(store, day, challenge, answers)
+def render_focus_practice(store: SupabaseFactStore, day, challenge, answers, progress=None) -> bool:
+    progress = ensure_focus_plan(store, day, challenge, answers, progress=progress)
     plan = list(progress.focus_plan)
     if len(plan) != FOCUS_SESSION_LENGTH:
         st.error("Your Focus Practice plan could not be prepared. Ask your teacher to refresh the app.")
         return False
 
-    rows = store.learning_activity_rows(st.session_state.student_id, challenge.challenge_id, "focus")
+    rows = get_cached_focus_rows(store, challenge)
     done_indices = []
     for index in range(FOCUS_SESSION_LENGTH):
         _, done = _focus_index_state(rows, index)
         if done:
             done_indices.append(index)
     if len(done_indices) == FOCUS_SESSION_LENGTH:
+        first_tries = [row for row in rows if not row.is_retry and row.activity_index is not None]
+        evidence = []
+        for row in first_tries:
+            idx = int(row.activity_index)
+            if 0 <= idx < len(plan):
+                evidence.append((plan[idx], bool(row.correct), row.response_seconds, row.created_at))
+        if evidence:
+            store.record_mastery_evidence_batch(st.session_state.student_id, evidence)
         store.mark_focus_complete(st.session_state.student_id, challenge.challenge_id)
         return True
 
     index = next(i for i in range(FOCUS_SESSION_LENGTH) if i not in done_indices)
     fact = plan[index]
     first, _ = _focus_index_state(rows, index)
-    override = store.get_effective_focus_override(st.session_state.student_id)
+    override = get_cached_focus_override(store, challenge)
 
     st.markdown("## Step 3 of 3 · 🎯 Your Focus Practice")
     if override:
@@ -838,7 +891,7 @@ def render_focus_practice(store: SupabaseFactStore, day, challenge, answers) -> 
                 return False
             started = float(st.session_state.get(clock_key) or datetime.now(timezone.utc).timestamp())
             latency = max(0.0, datetime.now(timezone.utc).timestamp() - started)
-            store.record_practice(
+            saved_row = store.record_practice(
                 st.session_state.student_id,
                 "My Focus Facts",
                 fact,
@@ -848,8 +901,9 @@ def render_focus_practice(store: SupabaseFactStore, day, challenge, answers) -> 
                 activity_type="focus",
                 activity_index=index,
                 is_retry=False,
-                count_for_mastery=True,
+                count_for_mastery=False,
             )
+            append_cached_focus_row(challenge, saved_row)
             st.session_state.pop(clock_key, None)
             st.rerun()
         return False
@@ -873,7 +927,7 @@ def render_focus_practice(store: SupabaseFactStore, day, challenge, answers) -> 
         except ValueError as exc:
             st.error(str(exc))
             return False
-        store.record_practice(
+        saved_row = store.record_practice(
             st.session_state.student_id,
             "My Focus Facts",
             fact,
@@ -884,6 +938,7 @@ def render_focus_practice(store: SupabaseFactStore, day, challenge, answers) -> 
             is_retry=True,
             count_for_mastery=False,
         )
+        append_cached_focus_row(challenge, saved_row)
         st.rerun()
     return False
 
@@ -948,12 +1003,15 @@ def render_completed_daily(store: SupabaseFactStore, day, facts: list[Fact], cha
         render_classroom_connection_retry(exc, key="retry_completed_load")
         return
 
-    # Load the leaderboard once per rerun. Before this hotfix the completed screen
-    # could independently fetch it several times, multiplying a whole-class traffic burst.
+    # Keep one leaderboard snapshot through Fix Your Misses + Focus Practice.
+    # Every submitted Focus answer reruns Streamlit, so reloading roster + standings
+    # here was making the Top 10 compete with the student's personalized practice.
     try:
-        leaderboard_context = load_leaderboard_context(store, challenge)
+        leaderboard_context = get_cached_leaderboard_context(
+            store, challenge, refresh=bool(progress.completed_at)
+        )
     except Exception:
-        leaderboard_context = None
+        leaderboard_context = st.session_state.get(_leaderboard_cache_key(challenge))
 
     if leaderboard_context is not None:
         render_daily_result_summary(store, day, challenge, attempt, leaderboard_context=leaderboard_context)
@@ -972,13 +1030,7 @@ def render_completed_daily(store: SupabaseFactStore, day, facts: list[Fact], cha
             render_classroom_connection_retry(exc, key="retry_day_complete")
         return
 
-    with st.expander("🏆 Peek at today's Top 10", expanded=False):
-        if leaderboard_context is None:
-            st.info("The Top 10 is updating. Try again in a moment.")
-        else:
-            render_leaderboard(
-                store, challenge, highlight_student_id=st.session_state.student_id, context=leaderboard_context
-            )
+    st.caption("🏆 Your Top 10 snapshot is saved while you finish the learning routine; it refreshes again at Day Complete.")
 
     try:
         if progress.fix_completed_at is None:
@@ -987,7 +1039,7 @@ def render_completed_daily(store: SupabaseFactStore, day, facts: list[Fact], cha
             return
 
         if progress.focus_completed_at is None:
-            if render_focus_practice(store, day, challenge, answers):
+            if render_focus_practice(store, day, challenge, answers, progress=progress):
                 st.rerun()
             return
 

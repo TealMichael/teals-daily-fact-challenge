@@ -932,11 +932,18 @@ class SupabaseFactStore:
         for fact, correct, response_seconds, practiced_at in usable:
             a, b = canonical_pair(fact.a, fact.b)
             old = changed.get((a, b)) or current.get((a, b))
+            # Focus mastery is applied as one batch when the 8-item session ends.
+            # If the completion response is interrupted and Streamlit retries, do
+            # not count the same stored Practice evidence twice.
+            if old is not None and old.last_practiced_at is not None and practiced_at <= old.last_practiced_at:
+                continue
             updated = update_snapshot(
                 old, a=a, b=b, correct=bool(correct), response_seconds=response_seconds,
                 practiced_at=practiced_at,
             )
             changed[(a, b)] = updated
+        if not changed:
+            return []
         payloads = []
         for (a, b), updated in changed.items():
             payloads.append({
@@ -1069,18 +1076,10 @@ class SupabaseFactStore:
         activity_type: str = "free_practice", activity_index: int | None = None,
         is_retry: bool = False, count_for_mastery: bool = False,
     ) -> PracticeRecord:
-        if (
+        focus_first_try = bool(
             student_id is not None and challenge_id is not None and activity_type == "focus"
             and activity_index is not None and not is_retry
-        ):
-            existing = _first(_retry_transient(lambda: (
-                self.client.table("practice_answers").select("*")
-                .eq("student_id", str(student_id)).eq("challenge_id", str(challenge_id))
-                .eq("activity_type", "focus").eq("activity_index", int(activity_index))
-                .eq("is_retry", False).limit(1).execute()
-            )))
-            if existing is not None:
-                return _practice(existing)
+        )
         payload = {
             "student_id": str(student_id) if student_id else None,
             "focus": str(focus),
@@ -1094,7 +1093,22 @@ class SupabaseFactStore:
             "activity_index": activity_index,
             "is_retry": bool(is_retry),
         }
-        row = _first(self.client.table("practice_answers").insert(payload).select("*").execute())
+        try:
+            row = _first(self.client.table("practice_answers").insert(payload).select("*").execute())
+        except Exception as exc:
+            # v2 created a unique index for first-try Focus slots. Normal submissions
+            # therefore need only one INSERT; a duplicate browser submission falls
+            # back to a read instead of pre-reading every answer.
+            if not (focus_first_try and (_is_unique(exc) or _is_transient_http_error(exc))):
+                raise
+            row = _first(_retry_transient(lambda: (
+                self.client.table("practice_answers").select("*")
+                .eq("student_id", str(student_id)).eq("challenge_id", str(challenge_id))
+                .eq("activity_type", "focus").eq("activity_index", int(activity_index))
+                .eq("is_retry", False).limit(1).execute()
+            )))
+            if row is None:
+                raise
         if row is None:
             raise FactStoreError("Could not save Practice answer.")
         record = _practice(row)

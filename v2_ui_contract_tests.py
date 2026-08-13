@@ -21,7 +21,7 @@ def run():
         "Personal Focus override",
         "runs quietly in the background",
         "count_for_mastery=False",
-        "count_for_mastery=True",
+        "record_mastery_evidence_batch",
     ]
     for phrase in required_app:
         assert phrase in app, phrase
