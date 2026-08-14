@@ -5,6 +5,12 @@ alter table public.daily_answers
     add column if not exists response_seconds numeric(8,3);
 
 alter table public.practice_answers
+    add column if not exists client_event_id text;
+
+create unique index if not exists practice_client_event_id_unique
+    on public.practice_answers(client_event_id);
+
+alter table public.practice_answers
     add column if not exists response_seconds numeric(8,3),
     add column if not exists challenge_id uuid references public.daily_challenges(challenge_id) on delete cascade,
     add column if not exists activity_type text not null default 'free_practice',

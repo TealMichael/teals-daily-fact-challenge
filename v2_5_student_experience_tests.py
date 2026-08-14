@@ -15,7 +15,7 @@ SCHEMA = (ROOT / "SUPABASE_SCHEMA.sql").read_text(encoding="utf-8").lower()
 
 def run():
     checks = {}
-    checks["version 2.5.1.3"] = APP_VERSION == "2.5.1.3"
+    checks["version 2.6"] = APP_VERSION == "2.6"
 
     # Touch keypad: digit taps are local browser state; Streamlit receives one
     # component value only when ✓ is submitted.
@@ -27,9 +27,9 @@ def run():
     checks["shared pad avoids mobile keyboard"] = "<input" not in PAD.lower()
     checks["shared pad submits once"] = "submitted = true" in PAD and "setValue({answer:value" in PAD
     checks["shared pad returns local latency"] = "response_seconds" in PAD and "performance.now()" in PAD
-    checks["fix uses pad"] = 'key=f"fix_pad_' in APP
-    checks["focus first uses pad"] = 'key=f"focus_first_pad_' in APP
-    checks["focus retry uses pad"] = 'key=f"focus_retry_pad_' in APP
+    checks["fix uses guided touch session"] = 'mode="fix"' in APP and 'guided_fix_' in APP
+    checks["focus uses guided touch session"] = 'mode="focus"' in APP and 'guided_focus_' in APP
+    checks["guided session preserves touch input"] = 'GUIDED_PRACTICE_COMPONENT' in APP
     checks["optional practice uses pad"] = 'key=f"practice_first_pad_' in APP and 'key=f"practice_retry_pad_' in APP
     checks["answer forms removed"] = 'text_input("Answer"' not in APP and 'placeholder="Type your answer"' not in APP
 

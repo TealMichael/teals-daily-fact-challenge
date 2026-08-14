@@ -218,6 +218,7 @@ class InMemoryFactStore:
         self.attempts: dict[str, AttemptRecord] = {}
         self.answers: dict[str, list[AnswerRecord]] = {}
         self.practice: list[PracticeRecord] = []
+        self.practice_event_ids: set[str] = set()
         self.mastery: dict[tuple[str, int, int], MasterySnapshot] = {}
         self.learning_progress: dict[tuple[str, str], LearningProgressRecord] = {}
         self.class_focus_overrides: dict[str, int | None] = {}
@@ -757,6 +758,27 @@ class InMemoryFactStore:
                 student_id, fact, record.correct, response_seconds=response_seconds, practiced_at=record.created_at
             )
         return record
+
+    def record_practice_batch(
+        self, student_id: str, focus: str, challenge_id: str, activity_type: str, events: Sequence[Mapping]
+    ) -> list[PracticeRecord]:
+        records = []
+        seen_ids: set[str] = set()
+        for event in events:
+            event_id = str(event.get("client_event_id") or "").strip()
+            if not event_id or event_id in seen_ids or event_id in self.practice_event_ids:
+                continue
+            seen_ids.add(event_id)
+            self.practice_event_ids.add(event_id)
+            fact = Fact(int(event["a"]), int(event["b"]), "guided")
+            records.append(self.record_practice(
+                student_id, focus, fact, int(event["student_answer"]),
+                response_seconds=float(event.get("response_seconds") or 0.0),
+                challenge_id=challenge_id, activity_type=activity_type,
+                activity_index=int(event["activity_index"]),
+                is_retry=bool(event.get("is_retry")), count_for_mastery=False,
+            ))
+        return records
 
     def learning_activity_rows(self, student_id: str, challenge_id: str, activity_type: str) -> list[PracticeRecord]:
         return sorted(

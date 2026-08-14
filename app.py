@@ -71,6 +71,11 @@ ANSWER_PAD_COMPONENT = components.declare_component(
     path=str(Path(__file__).with_name("answer_pad_component")),
 )
 
+GUIDED_PRACTICE_COMPONENT = components.declare_component(
+    "tdfc_guided_practice",
+    path=str(Path(__file__).with_name("guided_practice_component")),
+)
+
 PIN_ENTRY_COMPONENT = components.declare_component(
     "tdfc_student_pin",
     path=str(Path(__file__).with_name("pin_entry_component")),
@@ -107,6 +112,58 @@ def render_number_pad(*, key: str) -> tuple[int, float] | None:
         return None
     st.session_state[processed_key] = nonce
     return value, latency
+
+
+def render_guided_practice(*, key: str, mode: str, session_key: str, items: list[dict], step_label: str, done_title: str) -> list[dict] | None:
+    """Run a whole Fix/Focus mini-session in the browser and return one evidence batch.
+
+    Digit taps, feedback, arrays, retries, and question-to-question navigation stay
+    browser-local. Streamlit receives one payload only when the whole step ends.
+    """
+    result = GUIDED_PRACTICE_COMPONENT(
+        mode=mode,
+        session_key=session_key,
+        items=items,
+        step_label=step_label,
+        done_title=done_title,
+        key=key,
+        default=None,
+    )
+    if not isinstance(result, dict) or not result.get("submitted"):
+        return None
+    events = result.get("events")
+    if not isinstance(events, list):
+        return None
+    nonce = str(result.get("nonce") or "")
+    processed_key = f"guided_practice_processed::{session_key}"
+    if nonce and st.session_state.get(processed_key) == nonce:
+        return None
+    if nonce:
+        st.session_state[processed_key] = nonce
+    cleaned: list[dict] = []
+    for raw in events:
+        if not isinstance(raw, dict):
+            continue
+        try:
+            activity_index = int(raw["activity_index"])
+            a = int(raw["a"]); b = int(raw["b"]); answer = int(raw["student_answer"])
+            latency = max(0.0, float(raw.get("response_seconds") or 0.0))
+        except (KeyError, TypeError, ValueError):
+            continue
+        if not (2 <= a <= 12 and 2 <= b <= 12 and 0 <= answer <= 200):
+            continue
+        event_id = str(raw.get("client_event_id") or "").strip()
+        if not event_id:
+            continue
+        cleaned.append({
+            "client_event_id": event_id[:180],
+            "activity_index": activity_index,
+            "a": a, "b": b,
+            "student_answer": answer,
+            "response_seconds": latency,
+            "is_retry": bool(raw.get("is_retry")),
+        })
+    return cleaned
 
 
 # ---------------------------------------------------------------------------
@@ -1044,6 +1101,18 @@ def _missed_daily_items(facts: list[Fact], answers) -> list[tuple[int, Fact, obj
     return result
 
 
+def _guided_item(fact: Fact, *, activity_index: int, start_state: str, original_answer: int | None = None, first_already_recorded: bool = False) -> dict:
+    return {
+        "activity_index": int(activity_index),
+        "a": fact.a, "b": fact.b, "product": fact.product,
+        "strategy": strategy_tip(fact),
+        "repeated_addition": repeated_addition_text(fact),
+        "start_state": start_state,
+        "original_answer": original_answer,
+        "first_already_recorded": bool(first_already_recorded),
+    }
+
+
 def render_fix_misses(store: SupabaseFactStore, challenge, facts: list[Fact], answers) -> bool:
     missed = _missed_daily_items(facts, answers)
     if not missed:
@@ -1056,45 +1125,51 @@ def render_fix_misses(store: SupabaseFactStore, challenge, facts: list[Fact], an
         store.mark_fix_complete(st.session_state.student_id, challenge.challenge_id)
         return True
 
-    current_position, (question_number, fact, daily_answer) = next(
-        (idx, item) for idx, item in enumerate(missed) if item[0] not in corrected
-    )
+    remaining = [(q, fact, ans) for q, fact, ans in missed if q not in corrected]
+    item_by_index = {q: fact for q, fact, _ in remaining}
+    items = [
+        _guided_item(
+            fact, activity_index=q, start_state="teach",
+            original_answer=int(ans.student_answer), first_already_recorded=True,
+        )
+        for q, fact, ans in remaining
+    ]
+
     st.markdown("## Learning Step 2 of 3 · Fix Your Misses")
     st.caption("A miss is useful information. Learn it, answer it correctly, then move on.")
-    progress_bar(len(corrected), total=len(missed), current=current_position + 1)
+    events = render_guided_practice(
+        key=f"guided_fix_{challenge.challenge_id}",
+        mode="fix",
+        session_key=f"{st.session_state.student_id}:{challenge.challenge_id}:fix",
+        items=items,
+        step_label="Step 2 · Fix Your Misses",
+        done_title="Fix Your Misses complete!",
+    )
+    if events is None:
+        return False
 
-    attempts_here = [row for row in rows if row.activity_index == question_number]
-    if attempts_here and not attempts_here[-1].correct:
-        st.error("Not yet — use the model, then try the same fact again.")
+    valid: list[dict] = []
+    correct_indices: set[int] = set()
+    for event in events:
+        fact = item_by_index.get(int(event["activity_index"]))
+        if fact is None or (event["a"], event["b"]) != (fact.a, fact.b) or not event["is_retry"]:
+            continue
+        valid.append(event)
+        if int(event["student_answer"]) == fact.product:
+            correct_indices.add(int(event["activity_index"]))
+    if set(item_by_index) - correct_indices:
+        st.error("That correction session did not finish cleanly. Please try the remaining fact again.")
+        return False
 
-    st.markdown(
-        f"<div class='soft-card'><strong>Daily miss:</strong> You answered {daily_answer.student_answer}.<br>"
-        f"<strong>{fact.label} = {fact.product}</strong></div>",
-        unsafe_allow_html=True,
-    )
-    render_array(fact)
-    st.markdown(
-        f"<div class='soft-card'><strong>💡 A way to think about it:</strong><br>{html.escape(strategy_tip(fact))}</div>",
-        unsafe_allow_html=True,
-    )
-    st.markdown(f"### Now you try it again: {fact.label} = ?")
-    pad_result = render_number_pad(
-        key=f"fix_pad_{challenge.challenge_id}_{question_number}_{len(attempts_here)}"
-    )
-    if pad_result is not None:
-        value, _ = pad_result
-        store.record_practice(
+    if valid:
+        store.record_practice_batch(
             st.session_state.student_id,
             "Fix Your Misses",
-            fact,
-            value,
-            challenge_id=challenge.challenge_id,
-            activity_type="fix_miss",
-            activity_index=question_number,
-            is_retry=True,
-            count_for_mastery=False,
+            challenge.challenge_id,
+            "fix_miss",
+            valid,
         )
-        st.rerun()
+    st.rerun()
     return False
 
 
@@ -1135,98 +1210,97 @@ def render_focus_practice(store: SupabaseFactStore, day, challenge, answers, pro
 
     rows = get_cached_focus_rows(store, challenge)
     done_indices = []
+    state_by_index: dict[int, tuple[object | None, bool]] = {}
     for index in range(FOCUS_SESSION_LENGTH):
-        _, done = _focus_index_state(rows, index)
-        if done:
+        state = _focus_index_state(rows, index)
+        state_by_index[index] = state
+        if state[1]:
             done_indices.append(index)
     if len(done_indices) == FOCUS_SESSION_LENGTH:
         first_tries = [row for row in rows if not row.is_retry and row.activity_index is not None]
         evidence = []
+        seen_indices: set[int] = set()
         for row in first_tries:
             idx = int(row.activity_index)
-            if 0 <= idx < len(plan):
-                evidence.append((plan[idx], bool(row.correct), row.response_seconds, row.created_at))
+            if idx in seen_indices or not (0 <= idx < len(plan)):
+                continue
+            seen_indices.add(idx)
+            evidence.append((plan[idx], bool(row.correct), row.response_seconds, row.created_at))
         if evidence:
             store.record_mastery_evidence_batch(st.session_state.student_id, evidence)
         store.mark_focus_complete(st.session_state.student_id, challenge.challenge_id)
         return True
 
-    index = next(i for i in range(FOCUS_SESSION_LENGTH) if i not in done_indices)
-    fact = plan[index]
-    first, _ = _focus_index_state(rows, index)
-    override = get_cached_focus_override(store, challenge)
+    remaining_indices = [i for i in range(FOCUS_SESSION_LENGTH) if i not in done_indices]
+    items = []
+    for index in remaining_indices:
+        fact = plan[index]
+        first, _ = state_by_index[index]
+        items.append(_guided_item(
+            fact, activity_index=index,
+            start_state="teach" if first is not None and not first.correct else "question",
+            first_already_recorded=first is not None,
+        ))
 
+    override = get_cached_focus_override(store, challenge)
     st.markdown("## Learning Step 3 of 3 · 🎯 Your Focus Practice")
     if override:
         st.caption(f"8 short retrievals · your teacher has temporarily focused this practice on the {override}s")
     else:
         st.caption("8 short retrievals picked from what the app is gradually learning about you — no placement test.")
-    progress_bar(len(done_indices), total=FOCUS_SESSION_LENGTH, current=index + 1)
+    st.caption("Answer all 8. If one is tricky, the app will teach it and let you try again.")
 
-    if first is None:
-        st.markdown(f'<div class="fact-big">{fact.a} × {fact.b}</div>', unsafe_allow_html=True)
-        pad_result = render_number_pad(
-            key=f"focus_first_pad_{challenge.challenge_id}_{index}"
-        )
-        if pad_result is not None:
-            value, latency = pad_result
-            saved_row = store.record_practice(
-                st.session_state.student_id,
-                "My Focus Facts",
-                fact,
-                value,
-                response_seconds=latency,
-                challenge_id=challenge.challenge_id,
-                activity_type="focus",
-                activity_index=index,
-                is_retry=False,
-                count_for_mastery=False,
-            )
-            append_cached_focus_row(challenge, saved_row)
-            st.rerun()
+    events = render_guided_practice(
+        key=f"guided_focus_{challenge.challenge_id}",
+        mode="focus",
+        session_key=f"{st.session_state.student_id}:{challenge.challenge_id}:focus",
+        items=items,
+        step_label="Step 3 · Your Focus Practice",
+        done_title="Focus Practice complete!",
+    )
+    if events is None:
         return False
 
-    # A miss gets explicit instruction, then must be retrieved correctly before
-    # the plan advances. The correction itself is not counted as new mastery evidence.
-    st.error(f"Not yet — {fact.a} × {fact.b} = {fact.product}.")
-    st.markdown("### See the multiplication")
-    render_array(fact)
-    st.markdown(
-        f"<div class='soft-card'><strong>💡 A way to think about it:</strong><br>{html.escape(strategy_tip(fact))}</div>",
-        unsafe_allow_html=True,
-    )
-    st.markdown(f"### Try it again: {fact.label} = ?")
-    retry_count = sum(1 for row in rows if row.activity_index == index and row.is_retry)
-    pad_result = render_number_pad(
-        key=f"focus_retry_pad_{challenge.challenge_id}_{index}_{retry_count}"
-    )
-    if pad_result is not None:
-        value, _ = pad_result
-        saved_row = store.record_practice(
+    allowed = {i: plan[i] for i in remaining_indices}
+    existing_first = {i for i in remaining_indices if state_by_index[i][0] is not None}
+    by_index: dict[int, list[dict]] = {i: [] for i in remaining_indices}
+    valid: list[dict] = []
+    for event in events:
+        idx = int(event["activity_index"])
+        fact = allowed.get(idx)
+        if fact is None or (event["a"], event["b"]) != (fact.a, fact.b):
+            continue
+        by_index[idx].append(event)
+        valid.append(event)
+
+    for idx in remaining_indices:
+        fact = allowed[idx]
+        item_events = by_index[idx]
+        if not item_events:
+            st.error("That Focus session did not finish cleanly. Please try the remaining fact again.")
+            return False
+        if idx not in existing_first and item_events[0]["is_retry"]:
+            st.error("That Focus session could not verify the first attempt. Please try again.")
+            return False
+        if idx in existing_first and any(not event["is_retry"] for event in item_events):
+            st.error("That Focus session duplicated a first attempt. Please try again.")
+            return False
+        if not any(int(event["student_answer"]) == fact.product for event in item_events):
+            st.error("Finish the correction before moving on.")
+            return False
+
+    if valid:
+        saved = store.record_practice_batch(
             st.session_state.student_id,
             "My Focus Facts",
-            fact,
-            value,
-            challenge_id=challenge.challenge_id,
-            activity_type="focus",
-            activity_index=index,
-            is_retry=True,
-            count_for_mastery=False,
+            challenge.challenge_id,
+            "focus",
+            valid,
         )
-        append_cached_focus_row(challenge, saved_row)
-        st.rerun()
+        for row in saved:
+            append_cached_focus_row(challenge, row)
+    st.rerun()
     return False
-
-
-def render_mastery_card(store: SupabaseFactStore) -> None:
-    summary = store.mastery_summary(st.session_state.student_id)
-    st.markdown("### 🌱 My Growth")
-    st.caption("Your fact map grows from normal Daily and Focus work. It starts blank — there is no placement test.")
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("🟢 Fluent", summary.get(STATUS_FLUENT, 0))
-    c2.metric("🟡 Building", summary.get(STATUS_BUILDING, 0))
-    c3.metric("🔴 Focus", summary.get(STATUS_FOCUS, 0))
-    c4.metric("⚪ Learning", summary.get(STATUS_UNKNOWN, 0))
 
 
 def render_day_complete(store: SupabaseFactStore, day, facts: list[Fact], challenge, attempt, answers) -> None:

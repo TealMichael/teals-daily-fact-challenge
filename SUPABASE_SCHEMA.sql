@@ -85,6 +85,7 @@ create table if not exists public.practice_answers (
     student_answer integer not null,
     correct_answer integer not null,
     correct boolean not null,
+    client_event_id text,
     created_at timestamptz not null default now(),
     constraint practice_factor_a_range check (a between 2 and 12),
     constraint practice_factor_b_range check (b between 2 and 12),
@@ -97,6 +98,7 @@ create index if not exists attempts_challenge_idx on public.daily_attempts(chall
 create index if not exists attempts_student_idx on public.daily_attempts(student_id, challenge_id);
 create index if not exists answers_attempt_idx on public.daily_answers(attempt_id, question_number);
 create index if not exists practice_student_idx on public.practice_answers(student_id, created_at desc);
+create unique index if not exists practice_client_event_id_unique on public.practice_answers(client_event_id);
 
 -- Lock all tables behind RLS. The supplied app uses the server-side secret key,
 -- which bypasses RLS. No anon/authenticated browser policy is created.

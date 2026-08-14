@@ -6,7 +6,7 @@ APP = (ROOT / "app.py").read_text()
 ENGINE = (ROOT / "fact_engine.py").read_text()
 
 checks = {
-    "version bumped": 'APP_VERSION = "2.5.1.3"' in ENGINE,
+    "version bumped": 'APP_VERSION = "2.6"' in ENGINE,
     "pin component remains custom": 'PIN_ENTRY_COMPONENT = components.declare_component' in APP,
     "no html input": '<input' not in HTML.lower(),
     "no password field": 'type="password"' not in HTML.lower(),
@@ -27,4 +27,4 @@ checks = {
 failed=[name for name, ok in checks.items() if not ok]
 if failed:
     raise AssertionError(f"Failed checks: {failed}")
-print(f"v2.5.1.3 PIN submit/login regression: {len(checks)}/{len(checks)} checks passed")
+print(f"v2.6 PIN submit/login regression: {len(checks)}/{len(checks)} checks passed")

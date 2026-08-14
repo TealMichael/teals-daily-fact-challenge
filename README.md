@@ -23,9 +23,9 @@ Every signed-in student follows the same learning path:
 
 Every missed Daily fact is immediately taught with the correct equation, a multiplication array, repeated-addition meaning, a derived-fact strategy, and a required correct retry before moving on.
 
-Fix Your Misses uses the same large touch number pad, so students do not need to open a software keyboard.
+Fix Your Misses now runs as one **browser-local guided session**. Arrays, strategy teaching, retry attempts, and movement from one missed fact to the next happen on the student's device with no Streamlit page rebuild between questions. When the step is complete, the full item-level evidence is saved to Supabase in one idempotent batch.
 
-A correction retry is teaching—not a new mastery observation—so it does not artificially raise the student's profile.
+A correction retry is teaching—not a new mastery observation—so it does not artificially raise the student's profile. Teacher evidence still preserves each retry and whether it was correct.
 
 ### 3. Your Focus Practice
 
@@ -39,7 +39,7 @@ For new/mostly-unknown profiles, exploration is **relationship-aware**: 2s, 5s, 
 
 If a Focus answer is missed, the student sees visual/strategy teaching and must retry correctly. The retry teaches the fact but does not count as independent retrieval evidence.
 
-Focus Practice also uses the browser-local touch number pad. Number taps do not rerun Streamlit or touch Supabase; only pressing ✓ submits the answer.
+Focus Practice now runs the entire 8-retrieval session **browser-locally**. Question-to-question movement, touch-keypad input, immediate teaching after a miss, arrays, strategies, and required retries happen without Streamlit reruns. The app sends one detailed evidence batch only after the whole Focus step is complete, preserving first-try accuracy, response time, retries, and teacher/mastery data.
 
 ### 4. ⭐ Day Complete
 
@@ -119,7 +119,7 @@ Every existing teacher function remains available, but the dashboard is reorgani
 
 ## Daily fact generator
 
-The shared Daily generator remains versioned as `TDFC-DAILY-v1`, so the previously audited Daily sequence does not change in v2.5.1.3.
+The shared Daily generator remains versioned as `TDFC-DAILY-v1`, so the previously audited Daily sequence does not change in v2.6.
 
 Each Daily contains 10 unique underlying multiplication facts. Commutative mirrors cannot both appear. Normal core days contain 3 easier, 4 medium, and 3 harder facts. On selected extension days, one harder slot becomes one 11/12 fact.
 
@@ -145,15 +145,16 @@ TEACHER_PASSWORD = "CHOOSE-A-PRIVATE-TEACHER-PASSWORD"
 
 ## Updating an existing installation
 
-**Updating from v2.5.0 or any v2.5.1.x build:** no Supabase SQL is required. Upload every file/folder in `UPLOAD_TO_GITHUB` to the existing GitHub repo and let Streamlit redeploy.
+**Updating from v2.5.x:** run `RUN_THIS_ONCE_IN_SUPABASE_v2_6.sql` once in a **new Supabase SQL Editor query**, then upload every file/folder in `UPLOAD_TO_GITHUB` and let Streamlit redeploy.
 
-**Updating from v2.4 or earlier:** run `RUN_THIS_ONCE_IN_SUPABASE_v2_5.sql` once in a **new Supabase SQL Editor query** first, then upload the app.
+**Updating from v2.4 or earlier:** first apply any earlier migration your installation has not yet run (including `RUN_THIS_ONCE_IN_SUPABASE_v2_5.sql` when needed), then run `RUN_THIS_ONCE_IN_SUPABASE_v2_6.sql`, then upload the app.
 
-No new Streamlit Secret is required. Do **not** rerun v2, v2.1, v2.2, or `SUPABASE_SCHEMA.sql`.
+No new Streamlit Secret is required. Do **not** rerun migrations you already completed.
 
-Make sure all four browser-component folders are present in GitHub:
+Make sure all five browser-component folders are present in GitHub:
 
 - `daily_sprint_component/index.html`
+- `guided_practice_component/index.html`
 - `answer_pad_component/index.html`
 - `persistent_login_component/index.html`
 - `pin_entry_component/index.html`
@@ -161,6 +162,18 @@ Make sure all four browser-component folders are present in GitHub:
 `SUPABASE_SCHEMA.sql` represents the current full schema for a brand-new installation.
 
 ## Version notes
+
+### v2.6 — Guided Practice Performance Pass
+
+- Rebuilds **Step 2: Fix Your Misses** and **Step 3: Your Focus Practice** as one browser-local guided-practice engine.
+- Removes the Streamlit rerun/page-jump between every Step 2/3 answer; students stay in one smooth session just like the Daily 10.
+- Keeps the research-aligned learning loop intact: retrieval first, immediate correction after a miss, array/meaning, derived-fact strategy, and required correct retry.
+- Preserves teacher evidence for each fact: first answer, correctness, response time, retry/correction rows, and persistent mastery inputs.
+- Saves the completed guided session as one idempotent Supabase batch instead of one network trip per question.
+- Uses browser session storage to preserve an in-progress guided session through an iframe refresh and deterministic event IDs to make network retries safe.
+- Adds `RUN_THIS_ONCE_IN_SUPABASE_v2_6.sql`, which adds the private event-id field used for idempotent batch saving.
+- Replaces Abraham Lincoln's Mystery learning paragraph with the teacher-approved kid-friendly version about his log-cabin birth, limited formal schooling, love of reading, and “Honest Abe” nickname.
+- Does not change Daily 10 generation, adaptive Focus selection, mastery thresholds, leaderboard rules, Teacher Tools, Stars, streaks, or Mystery clue/guess rules.
 
 ### v2.5.1.3 — PIN Check/Login Hotfix
 
@@ -192,7 +205,7 @@ Make sure all four browser-component folders are present in GitHub:
 - Student PIN entry is now a custom four-digit masked touch pad with no HTML password/input field, preventing iPad strong-password suggestions while keeping the teacher password protected.
 - Correct Weekly Mystery guesses now trigger a one-time celebration with balloons, a large solve banner, a solve title, and a short learning section.
 - Every one of the 80 curated mysteries now includes a kid-friendly learning paragraph plus its existing fun fact.
-- Abraham Lincoln's reveal teaches that he was the 16th president, led during the Civil War, issued the Emancipation Proclamation, and delivered the Gettysburg Address.
+- Abraham Lincoln's reveal received a dedicated learning paragraph (later revised in v2.6 to the teacher-approved kid-friendly wording).
 - No database migration is required when updating from v2.5.0.
 
 ### v2.5.0 — Student Experience Pass

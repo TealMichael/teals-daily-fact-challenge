@@ -11,14 +11,14 @@ STORE = (ROOT / "supabase_fact_store.py").read_text()
 ENGINE = (ROOT / "fact_engine.py").read_text()
 
 checks = {
-    "version bumped": 'APP_VERSION = "2.5.1.3"' in ENGINE,
+    "version bumped": 'APP_VERSION = "2.6"' in ENGINE,
     "leaderboard session cache": "def get_cached_leaderboard_context(" in APP,
     "leaderboard not reloaded every Focus rerun": "context=leaderboard_context" in APP and "def get_cached_leaderboard_context(" in APP,
     "focus rows session cache": "def get_cached_focus_rows(" in APP,
-    "focus saved rows appended locally": "append_cached_focus_row(challenge, saved_row)" in APP,
+    "focus saved rows appended locally": "append_cached_focus_row(challenge, row)" in APP,
     "existing progress reused for focus plan": "progress=progress" in APP,
     "teacher override cached": "def get_cached_focus_override(" in APP,
-    "focus first try no immediate mastery write": "count_for_mastery=False" in APP,
+    "focus answers batch before mastery": "store.record_practice_batch(" in APP,
     "focus mastery batched at completion": "store.record_mastery_evidence_batch(st.session_state.student_id, evidence)" in APP,
     "focus insert-first optimization": "focus_first_try = bool(" in STORE,
     "duplicate focus falls back to read": "a duplicate browser submission falls" in STORE,

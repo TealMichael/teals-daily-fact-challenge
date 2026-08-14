@@ -1119,6 +1119,46 @@ class SupabaseFactStore:
             )
         return record
 
+    def record_practice_batch(
+        self, student_id: str, focus: str, challenge_id: str, activity_type: str, events: Sequence[Mapping]
+    ) -> list[PracticeRecord]:
+        """Save one browser-local guided session in a single idempotent request.
+
+        Each browser event carries a deterministic client_event_id. The unique
+        database key lets a retried network request safely upsert the same batch
+        without duplicating teacher evidence or mastery inputs.
+        """
+        payloads = []
+        for event in events:
+            fact = Fact(int(event["a"]), int(event["b"]), "guided")
+            answer = int(event["student_answer"])
+            event_id = str(event.get("client_event_id") or "").strip()
+            if not event_id:
+                raise ValueError("Guided Practice event is missing its client event ID.")
+            payloads.append({
+                "student_id": str(student_id),
+                "focus": str(focus),
+                "a": fact.a, "b": fact.b,
+                "student_answer": answer,
+                "correct_answer": fact.product,
+                "correct": answer == fact.product,
+                "response_seconds": round(max(0.0, float(event.get("response_seconds") or 0.0)), 3),
+                "challenge_id": str(challenge_id),
+                "activity_type": str(activity_type),
+                "activity_index": int(event["activity_index"]),
+                "is_retry": bool(event.get("is_retry")),
+                "client_event_id": event_id[:180],
+            })
+        if not payloads:
+            return []
+        response = _retry_transient(lambda: (
+            self.client.table("practice_answers")
+            .upsert(payloads, on_conflict="client_event_id")
+            .select("*")
+            .execute()
+        ))
+        return [_practice(row) for row in _rows(response)]
+
     def learning_activity_rows(self, student_id: str, challenge_id: str, activity_type: str) -> list[PracticeRecord]:
         rows = _rows(
             _retry_transient(lambda: self.client.table("practice_answers").select("*")

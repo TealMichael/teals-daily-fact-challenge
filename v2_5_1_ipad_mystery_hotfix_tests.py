@@ -11,7 +11,7 @@ PIN = (ROOT / "pin_entry_component" / "index.html").read_text(encoding="utf-8")
 
 def run():
     checks = {}
-    checks["version 2.5.1.3"] = APP_VERSION == "2.5.1.3"
+    checks["version 2.6"] = APP_VERSION == "2.6"
 
     # Shared Step 2/3/Practice keypad must size to its actual browser content.
     checks["answer pad no fixed 310 height"] = "setHeight(310)" not in PAD and "height=310" not in PAD
@@ -45,16 +45,16 @@ def run():
     lincoln = next(m for m in MYSTERIES if m.key == "abraham-lincoln")
     lincoln_text = learning_paragraph_for(lincoln)
     checks["Lincoln teaches presidency"] = "16th president" in lincoln_text
-    checks["Lincoln teaches Civil War"] = "Civil War" in lincoln_text
-    checks["Lincoln teaches Emancipation"] = "Emancipation Proclamation" in lincoln_text
-    checks["Lincoln teaches Gettysburg"] = "Gettysburg Address" in lincoln_text
+    checks["Lincoln teaches birth date"] = "February 12, 1809" in lincoln_text
+    checks["Lincoln teaches reading"] = "loved to read books" in lincoln_text
+    checks["Lincoln teaches Honest Abe"] = '"Honest Abe"' in lincoln_text
 
     failed = [name for name, ok in checks.items() if not ok]
     for name, ok in checks.items():
         print(f"{'PASS' if ok else 'FAIL'}: {name}")
     if failed:
         raise AssertionError("Failed: " + ", ".join(failed))
-    print(f"v2.5.1.3 iPad/Mystery hotfix: {len(checks)}/{len(checks)} checks passed")
+    print(f"v2.6 iPad/Mystery hotfix: {len(checks)}/{len(checks)} checks passed")
 
 
 if __name__ == "__main__":

@@ -1,1 +1,1 @@
-v2.5.1.3 - make PIN check button sign students in
+v2.6 - make Fix Misses and Focus Practice browser-fast

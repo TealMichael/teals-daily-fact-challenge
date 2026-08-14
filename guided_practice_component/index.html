@@ -1,0 +1,261 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<style>
+  :root { font-family: system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; color:#111827; }
+  * { box-sizing:border-box; }
+  body { margin:0; padding:2px 2px 10px; background:transparent; }
+  .wrap { max-width:520px; margin:0 auto; }
+  .topline { display:flex; justify-content:space-between; align-items:center; gap:10px; margin:2px 2px 8px; color:#4b5563; font-size:13px; font-weight:750; }
+  .track { height:8px; border-radius:999px; overflow:hidden; background:#e5e7eb; margin:0 2px 12px; }
+  .fill { height:100%; background:#0f766e; transition:width .2s ease; }
+  .fact { text-align:center; font-size:40px; font-weight:950; letter-spacing:-.03em; margin:7px 0 10px; }
+  .context { border:1px solid #d1fae5; background:#f0fdfa; border-radius:14px; padding:10px 12px; margin:5px 0 10px; font-size:14px; line-height:1.35; }
+  .feedback { border-radius:14px; padding:10px 12px; margin:7px 0; font-size:15px; font-weight:800; }
+  .feedback.bad { background:#fef2f2; border:1px solid #fecaca; color:#991b1b; }
+  .array-shell { display:flex; justify-content:center; overflow:hidden; margin:8px 0 4px; }
+  .array-grid { display:grid; gap:5px; justify-content:center; align-items:center; max-width:100%; }
+  .dot { width:12px; height:12px; border-radius:50%; background:#0f766e; }
+  .teach { text-align:center; font-size:14px; font-weight:800; margin:5px 0 2px; }
+  .teach-sub { text-align:center; color:#6b7280; font-size:13px; margin:0 0 7px; }
+  .strategy { border:1px solid #d1d5db; background:#fff; border-radius:14px; padding:10px 12px; margin:7px 0 12px; font-size:14px; line-height:1.35; }
+  .prompt { text-align:center; font-size:16px; font-weight:850; margin:9px 0 5px; }
+  .display { height:56px; display:flex; align-items:center; justify-content:center; border:2px solid #99f6e4; border-radius:16px; background:#fff; font-size:29px; font-weight:950; color:#111827; margin:4px 0 9px; }
+  .display.empty { color:#9ca3af; font-size:17px; font-weight:750; }
+  .pad { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+  button { min-height:54px; border:1px solid #d1d5db; border-radius:15px; background:#fff; color:#111827; font-size:23px; font-weight:900; cursor:pointer; touch-action:manipulation; -webkit-tap-highlight-color:transparent; }
+  button:active { background:#f3f4f6; transform:translateY(1px); }
+  .back { color:#4b5563; background:#f9fafb; }
+  .submit { background:#0f766e; color:#fff; border-color:#0f766e; }
+  .submit:active { background:#115e59; }
+  .error { min-height:18px; margin-top:5px; text-align:center; color:#b91c1c; font-size:13px; font-weight:750; }
+  .hint { margin-top:2px; text-align:center; color:#6b7280; font-size:12px; }
+  .done { text-align:center; border:1px solid #99f6e4; background:#f0fdfa; border-radius:18px; padding:20px 14px; margin-top:8px; }
+  .done .big { font-size:25px; font-weight:950; }
+  .done .small { color:#4b5563; margin-top:4px; font-size:14px; }
+  @media (max-width:420px) {
+    .fact { font-size:36px; }
+    button { min-height:51px; }
+    .dot { width:10px; height:10px; }
+  }
+</style>
+</head>
+<body>
+<div id="root" class="wrap"></div>
+<script>
+(() => {
+  let args = {};
+  let initialized = false;
+  let items = [];
+  let mode = 'focus';
+  let sessionKey = '';
+  let index = 0;
+  let phase = 'question';
+  let digits = '';
+  let events = [];
+  let itemStartedAt = Date.now();
+  let submitted = false;
+  let lastHeight = 0;
+
+  function post(type, extra={}) {
+    window.parent.postMessage(Object.assign({isStreamlitMessage:true, type}, extra), '*');
+  }
+  function ready() { post('streamlit:componentReady', {apiVersion:1}); }
+  function setHeight() {
+    requestAnimationFrame(() => {
+      const height = Math.ceil(document.documentElement.scrollHeight + 6);
+      if (height !== lastHeight) { lastHeight = height; post('streamlit:setFrameHeight', {height}); }
+    });
+  }
+  function setValue(value) { post('streamlit:setComponentValue', {value, dataType:'json'}); }
+  function storageId() { return 'tdfc-guided:' + sessionKey; }
+  function saveLocal() {
+    if (!sessionKey) return;
+    try {
+      sessionStorage.setItem(storageId(), JSON.stringify({index, phase, digits, events, itemStartedAt, submitted}));
+    } catch (_) {}
+  }
+  function loadLocal() {
+    if (!sessionKey) return false;
+    try {
+      const raw = sessionStorage.getItem(storageId());
+      if (!raw) return false;
+      const data = JSON.parse(raw);
+      index = Number.isInteger(data.index) ? data.index : 0;
+      phase = typeof data.phase === 'string' ? data.phase : 'question';
+      digits = typeof data.digits === 'string' ? data.digits : '';
+      events = Array.isArray(data.events) ? data.events : [];
+      itemStartedAt = Number(data.itemStartedAt) || Date.now();
+      submitted = !!data.submitted;
+      return true;
+    } catch (_) { return false; }
+  }
+  function clearLocal() {
+    try { sessionStorage.removeItem(storageId()); } catch (_) {}
+  }
+  function escapeHtml(v) {
+    return String(v == null ? '' : v).replace(/[&<>'"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[ch]));
+  }
+  function currentItem() { return items[index] || null; }
+  function elapsedSeconds() { return Math.max(0, (Date.now() - itemStartedAt) / 1000); }
+  function eventId(item, attemptNumber) {
+    return `${sessionKey}:${item.activity_index}:${attemptNumber}`;
+  }
+  function attemptsFor(item) { return events.filter(e => Number(e.activity_index) === Number(item.activity_index)); }
+
+  function arrayMarkup(item) {
+    const count = Number(item.a) * Number(item.b);
+    const cols = Number(item.b);
+    let dots = '';
+    for (let i=0; i<count; i++) dots += '<span class="dot"></span>';
+    return `<div class="array-shell"><div class="array-grid" style="grid-template-columns:repeat(${cols},12px)">${dots}</div></div>
+      <div class="teach">${item.a} rows of ${item.b} = ${item.product}</div>
+      <div class="teach-sub">${escapeHtml(item.repeated_addition || '')}</div>`;
+  }
+
+  function progressMarkup() {
+    const total = items.length || 1;
+    const complete = Math.min(index, total);
+    const pct = Math.round((complete / total) * 100);
+    return `<div class="topline"><span>${escapeHtml(args.step_label || '')}</span><span>${Math.min(index+1,total)} of ${total}</span></div>
+      <div class="track"><div class="fill" style="width:${pct}%"></div></div>`;
+  }
+
+  function keypadMarkup() {
+    const display = digits || 'Tap your answer';
+    return `<div class="display ${digits ? '' : 'empty'}" aria-live="polite">${escapeHtml(display)}</div>
+      <div class="pad" aria-label="Number pad">
+        <button type="button" data-digit="1">1</button><button type="button" data-digit="2">2</button><button type="button" data-digit="3">3</button>
+        <button type="button" data-digit="4">4</button><button type="button" data-digit="5">5</button><button type="button" data-digit="6">6</button>
+        <button type="button" data-digit="7">7</button><button type="button" data-digit="8">8</button><button type="button" data-digit="9">9</button>
+        <button type="button" id="back" class="back" aria-label="Delete last digit">⌫</button><button type="button" data-digit="0">0</button><button type="button" id="submit" class="submit">✓</button>
+      </div><div id="error" class="error"></div><div class="hint">Tap the numbers, then ✓. A physical keyboard works too.</div>`;
+  }
+
+  function render() {
+    const root = document.getElementById('root');
+    const item = currentItem();
+    if (!item) {
+      root.innerHTML = `<div class="done"><div class="big">✓ ${escapeHtml(args.done_title || 'Step complete!')}</div><div class="small">Saving your work…</div></div>`;
+      setHeight();
+      submitSession();
+      return;
+    }
+    let body = progressMarkup();
+    if (mode === 'fix') {
+      body += `<div class="context"><strong>Daily miss:</strong> You answered ${escapeHtml(item.original_answer)}.<br><strong>${item.a} × ${item.b} = ${item.product}</strong></div>`;
+    }
+    if (phase === 'teach') {
+      if (mode === 'focus') body += `<div class="feedback bad">Not yet — ${item.a} × ${item.b} = ${item.product}.</div>`;
+      body += arrayMarkup(item);
+      body += `<div class="strategy"><strong>💡 A way to think about it:</strong><br>${escapeHtml(item.strategy || '')}</div>`;
+      body += `<div class="prompt">${mode === 'fix' ? 'Now you try it again' : 'Try it again'}: ${item.a} × ${item.b} = ?</div>`;
+    } else {
+      body += `<div class="fact">${item.a} × ${item.b}</div>`;
+    }
+    body += keypadMarkup();
+    root.innerHTML = body;
+    bindControls();
+    setHeight();
+  }
+
+  function bindControls() {
+    document.querySelectorAll('[data-digit]').forEach(btn => btn.addEventListener('click', () => addDigit(btn.dataset.digit)));
+    const back = document.getElementById('back'); if (back) back.addEventListener('click', erase);
+    const submit = document.getElementById('submit'); if (submit) submit.addEventListener('click', submitAnswer);
+  }
+  function addDigit(d) {
+    if (submitted || digits.length >= 3) return;
+    digits += d;
+    if (digits.length > 1) digits = digits.replace(/^0+/, '') || '0';
+    saveLocal(); render();
+  }
+  function erase() {
+    if (submitted) return;
+    digits = digits.slice(0,-1); saveLocal(); render();
+  }
+  function submitAnswer() {
+    if (submitted) return;
+    const value = Number(digits);
+    const error = document.getElementById('error');
+    if (!digits || !Number.isInteger(value) || value < 0 || value > 200) {
+      if (error) error.textContent = 'Enter a whole-number answer.';
+      return;
+    }
+    const item = currentItem();
+    const prior = attemptsFor(item).length;
+    const isRetry = mode === 'fix' || phase === 'teach' || !!item.first_already_recorded;
+    events.push({
+      client_event_id: eventId(item, prior + 1),
+      activity_index: Number(item.activity_index),
+      a: Number(item.a), b: Number(item.b),
+      student_answer: value,
+      response_seconds: Number(elapsedSeconds().toFixed(3)),
+      is_retry: isRetry
+    });
+    digits = '';
+    const correct = value === Number(item.product);
+    if (correct) {
+      index += 1;
+      const next = currentItem();
+      phase = next ? (next.start_state || (mode === 'fix' ? 'teach' : 'question')) : 'done';
+      itemStartedAt = Date.now();
+    } else {
+      phase = 'teach';
+      itemStartedAt = Date.now();
+    }
+    saveLocal(); render();
+  }
+
+  function submitSession() {
+    if (submitted) return;
+    submitted = true; saveLocal();
+    const nonce = `${sessionKey}:${Date.now()}:${events.length}`;
+    setValue({submitted:true, mode, session_key:sessionKey, nonce, events});
+  }
+
+  function initialize(newArgs) {
+    args = newArgs || {};
+    mode = args.mode === 'fix' ? 'fix' : 'focus';
+    sessionKey = String(args.session_key || 'session');
+    items = Array.isArray(args.items) ? args.items : [];
+    if (!loadLocal()) {
+      index = 0;
+      phase = items[0] ? (items[0].start_state || (mode === 'fix' ? 'teach' : 'question')) : 'done';
+      digits = '';
+      events = [];
+      itemStartedAt = Date.now();
+      submitted = false;
+      saveLocal();
+    }
+    initialized = true;
+    render();
+    if (submitted && events.length) {
+      // If Streamlit rerendered before acknowledging a saved batch, replay the
+      // same deterministic event IDs. The database upsert makes this idempotent.
+      setTimeout(() => setValue({submitted:true, mode, session_key:sessionKey, nonce:`${sessionKey}:replay:${Date.now()}`, events}), 40);
+    }
+  }
+
+  document.addEventListener('keydown', (event) => {
+    if (!initialized || submitted) return;
+    if (event.key >= '0' && event.key <= '9') { event.preventDefault(); addDigit(event.key); }
+    else if (event.key === 'Backspace' || event.key === 'Delete') { event.preventDefault(); erase(); }
+    else if (event.key === 'Enter') { event.preventDefault(); submitAnswer(); }
+  });
+
+  window.addEventListener('message', (event) => {
+    if (!event.data || event.data.type !== 'streamlit:render') return;
+    const newArgs = event.data.args || {};
+    const newKey = String(newArgs.session_key || 'session');
+    if (!initialized || newKey !== sessionKey) initialize(newArgs);
+    else { args = newArgs; setHeight(); }
+  });
+  if (window.ResizeObserver) new ResizeObserver(setHeight).observe(document.documentElement);
+  ready();
+})();
+</script>
+</body>
+</html>
