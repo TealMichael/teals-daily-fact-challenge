@@ -145,7 +145,9 @@ TEACHER_PASSWORD = "CHOOSE-A-PRIVATE-TEACHER-PASSWORD"
 
 ## Updating an existing installation
 
-**Updating from v2.5.x:** run `RUN_THIS_ONCE_IN_SUPABASE_v2_6.sql` once in a **new Supabase SQL Editor query**, then upload every file/folder in `UPLOAD_TO_GITHUB` and let Streamlit redeploy.
+**Updating from v2.6:** this v2.6.1 hotfix is **code only**. Do not run another Supabase query; just upload every file/folder in `UPLOAD_TO_GITHUB` and let Streamlit redeploy.
+
+**Updating from v2.5.x:** first run `RUN_THIS_ONCE_IN_SUPABASE_v2_6.sql` once in a **new Supabase SQL Editor query**, then upload the v2.6.1 app files.
 
 **Updating from v2.4 or earlier:** first apply any earlier migration your installation has not yet run (including `RUN_THIS_ONCE_IN_SUPABASE_v2_5.sql` when needed), then run `RUN_THIS_ONCE_IN_SUPABASE_v2_6.sql`, then upload the app.
 
@@ -162,6 +164,15 @@ Make sure all five browser-component folders are present in GitHub:
 `SUPABASE_SCHEMA.sql` represents the current full schema for a brand-new installation.
 
 ## Version notes
+
+### v2.6.1 — Finished Screen Growth Hotfix
+
+- Restores the student **🌱 My Growth** card that was accidentally omitted from the v2.6 app file.
+- Prevents a missing display helper or other programming error from being mislabeled as **“The classroom connection is busy.”**
+- The yellow classroom-busy message is now reserved for real transient HTTP/connection failures such as read errors, timeouts, resets, or dropped connections.
+- Unexpected finished-screen display errors use separate wording while still protecting the already-saved Daily result.
+- No learning logic, Guided Practice behavior, Mystery rules, leaderboard rules, Teacher Tools, or database schema changes.
+- No Supabase migration or new Streamlit secret is required when updating from v2.6.
 
 ### v2.6 — Guided Practice Performance Pass
 

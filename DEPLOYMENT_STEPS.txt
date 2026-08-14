@@ -1,17 +1,14 @@
-TEAL'S DAILY FACT CHALLENGE v2.6
+TEAL'S DAILY FACT CHALLENGE v2.6.1
 
-CURRENT UPDATE FROM v2.5.x
+CURRENT UPDATE FROM v2.6
 
-1. In the existing Fact Challenge Supabase project, open SQL Editor → New query.
-2. Run RUN_THIS_ONCE_IN_SUPABASE_v2_6.sql ONCE.
-   - This only adds the idempotency key used to save a whole Fix/Focus browser session safely.
-   - Do not rerun v2, v2.1, v2.2, v2.5, or SUPABASE_SCHEMA.sql if you already ran them.
-3. Upload/replace every file and folder inside UPLOAD_TO_GITHUB in the existing GitHub repository.
-4. Confirm guided_practice_component/index.html is present in GitHub, along with the existing daily_sprint, answer_pad, persistent_login, and pin_entry component folders.
-5. Wait for Streamlit Community Cloud to redeploy.
-6. Test one student through Step 2 and Step 3. Questions should advance without the page jumping to the top, and the app should contact Streamlit only when each whole step is finished.
+1. There is NO Supabase SQL step for v2.6.1.
+2. Upload/replace every file and folder inside UPLOAD_TO_GITHUB in the existing GitHub repository.
+3. Keep all five browser-component folders present in GitHub: daily_sprint_component, guided_practice_component, answer_pad_component, persistent_login_component, and pin_entry_component.
+4. Wait for Streamlit Community Cloud to redeploy.
+5. Reopen a completed student Daily. The optional “See My Growth” section should work, and the yellow classroom-busy message should appear only for a real transient connection failure.
 
 No new Streamlit Secrets are required.
 
 Suggested commit:
-v2.6 - make Fix Misses and Focus Practice browser-fast
+v2.6.1 - fix finished-screen Growth card and connection warning

@@ -7,6 +7,7 @@ import random
 from pathlib import Path
 
 import pandas as pd
+import httpx
 import streamlit as st
 import streamlit.components.v1 as components
 
@@ -1303,6 +1304,18 @@ def render_focus_practice(store: SupabaseFactStore, day, challenge, answers, pro
     return False
 
 
+def render_mastery_card(store: SupabaseFactStore) -> None:
+    """Render the student's private mastery summary from saved Daily/Focus evidence."""
+    summary = store.mastery_summary(st.session_state.student_id)
+    st.markdown("### 🌱 My Growth")
+    st.caption("Your fact map grows from normal Daily and Focus work. It starts blank — there is no placement test.")
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("🟢 Fluent", summary.get(STATUS_FLUENT, 0))
+    c2.metric("🟡 Building", summary.get(STATUS_BUILDING, 0))
+    c3.metric("🔴 Focus", summary.get(STATUS_FOCUS, 0))
+    c4.metric("⚪ Learning", summary.get(STATUS_UNKNOWN, 0))
+
+
 def render_day_complete(store: SupabaseFactStore, day, facts: list[Fact], challenge, attempt, answers) -> None:
     stats = store.student_learning_stats(st.session_state.student_id, day)
     streak = int(stats.get("current_streak", 0))
@@ -1342,9 +1355,32 @@ def render_day_complete(store: SupabaseFactStore, day, facts: list[Fact], challe
         pass
 
 
+def _is_transient_classroom_error(exc: Exception) -> bool:
+    """Only classify real short-lived HTTP transport failures as classroom congestion."""
+    transient_types = (
+        httpx.ReadError,
+        httpx.ConnectError,
+        httpx.RemoteProtocolError,
+        httpx.ReadTimeout,
+        httpx.ConnectTimeout,
+        httpx.PoolTimeout,
+    )
+    if isinstance(exc, transient_types):
+        return True
+    text = f"{type(exc).__name__}: {exc}".lower()
+    return any(token in text for token in (
+        "readerror", "connection reset", "server disconnected",
+        "remoteprotocolerror", "read timeout", "connect timeout", "pool timeout",
+    ))
+
+
 def render_classroom_connection_retry(exc: Exception, *, key: str = "classroom_retry") -> None:
-    st.warning("The classroom connection is busy for a moment. Your completed Daily is still saved.")
-    st.caption("Wait a second and try again — you do not need to redo your 10 facts.")
+    if _is_transient_classroom_error(exc):
+        st.warning("The classroom connection is busy for a moment. Your completed Daily is still saved.")
+        st.caption("Wait a second and try again — you do not need to redo your 10 facts.")
+    else:
+        st.error("This part of the finished screen hit an unexpected display error. Your completed Daily is still saved.")
+        st.caption("Refresh once and try again. If it keeps happening, your teacher can report it without redoing the Daily 10.")
     if st.button("Try again", use_container_width=True, type="primary", key=key):
         st.rerun()
     if str(st.query_params.get("dbcheck", "0")) == "1":
