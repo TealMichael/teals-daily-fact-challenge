@@ -48,6 +48,7 @@
   let digits = '';
   let lastSent = null;
   let lastHeight = 0;
+  let hydrated = false;
 
   const slots = Array.from(document.querySelectorAll('[data-slot]'));
   const pad = document.getElementById('pad');
@@ -128,13 +129,24 @@
     if (!event.data || event.data.type !== 'streamlit:render') return;
     const args = event.data.args || {};
     const incoming = String(args.value || '').replace(/\D/g, '').slice(0, 4);
-    if (incoming !== digits) {
+
+    // Streamlit may send repeated render messages while the student is tapping.
+    // The parent value is intentionally still empty until all four digits are
+    // complete, so re-applying that empty value would erase partial local input.
+    // Hydrate once when the iframe is first mounted; after that, the browser owns
+    // the partial PIN until four digits are submitted or the student taps backspace.
+    if (!hydrated) {
+      hydrated = true;
       digits = incoming;
       lastSent = incoming.length === 4 ? incoming : null;
       paint();
-    } else {
-      resize();
+      return;
     }
+
+    // A normal rerender must never overwrite partially-entered local digits.
+    // Once four digits are sent, the component already holds the same completed
+    // value, so there is nothing to synchronize back from Python.
+    resize();
   });
 
   if (window.ResizeObserver) {

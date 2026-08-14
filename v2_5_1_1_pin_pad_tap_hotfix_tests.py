@@ -6,7 +6,7 @@ APP = (ROOT / 'app.py').read_text()
 ENGINE = (ROOT / 'fact_engine.py').read_text()
 
 checks = {
-    'version bumped': 'APP_VERSION = "2.5.1.1"' in ENGINE,
+    'version bumped': 'APP_VERSION = "2.5.1.2"' in ENGINE,
     'pin component declared': 'tdfc_student_pin' in APP,
     'no input element': '<input' not in HTML.lower(),
     'no password field': 'type="password"' not in HTML.lower(),
@@ -24,4 +24,4 @@ checks = {
 failed = [name for name, ok in checks.items() if not ok]
 if failed:
     raise AssertionError(f'Failed: {failed}')
-print(f"v2.5.1.1 PIN tap hotfix: {len(checks)}/{len(checks)} checks passed")
+print(f"v2.5.1.2 PIN tap hotfix: {len(checks)}/{len(checks)} checks passed")

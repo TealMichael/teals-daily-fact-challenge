@@ -1,22 +1,15 @@
-TEAL'S DAILY FACT CHALLENGE v2.5.1.1
+TEAL'S DAILY FACT CHALLENGE v2.5.1.2
 
-CURRENT UPDATE FROM v2.5.1
---------------------------
-1. No Supabase SQL is required for v2.5.1.1.
-2. Upload/replace every file and folder inside UPLOAD_TO_GITHUB in the existing GitHub repository.
-3. Confirm these component folders are present in GitHub:
-   - daily_sprint_component/index.html
-   - answer_pad_component/index.html
-   - persistent_login_component/index.html
-   - pin_entry_component/index.html
-4. Let Streamlit redeploy automatically.
-5. Test one student login on an iPad and one Step 3 Focus answer before class.
+CURRENT UPDATE FROM v2.5.1.1
 
-IMPORTANT
----------
-- Keep RUN_THIS_ONCE_IN_SUPABASE_v2_5.sql in the repository/package history, but DO NOT rerun it if v2.5 was already installed.
-- No new Streamlit Secrets are required.
+1. No Supabase SQL is required for v2.5.1.2.
+2. No new Streamlit Secrets are required.
+3. Upload/replace every file inside UPLOAD_TO_GITHUB in the existing GitHub repository.
+4. Confirm pin_entry_component/index.html is present in GitHub.
+5. Wait for Streamlit Community Cloud to redeploy.
+6. Test one student login: tap four PIN digits. The four dots must remain filled instead of resetting after each tap, then press Sign in.
 
-SUGGESTED COMMIT
-----------------
-v2.5.1.1 - fix student PIN keypad taps
+This hotfix only changes student PIN entry state persistence. Daily Challenge, adaptive learning, Focus Practice, leaderboard, Mystery, Teacher Tools, and 30-day login behavior are unchanged.
+
+Suggested commit:
+v2.5.1.2 - keep student PIN digits from resetting

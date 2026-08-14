@@ -11,7 +11,7 @@ PIN = (ROOT / "pin_entry_component" / "index.html").read_text(encoding="utf-8")
 
 def run():
     checks = {}
-    checks["version 2.5.1.1"] = APP_VERSION == "2.5.1.1"
+    checks["version 2.5.1.2"] = APP_VERSION == "2.5.1.2"
 
     # Shared Step 2/3/Practice keypad must size to its actual browser content.
     checks["answer pad no fixed 310 height"] = "setHeight(310)" not in PAD and "height=310" not in PAD
@@ -54,7 +54,7 @@ def run():
         print(f"{'PASS' if ok else 'FAIL'}: {name}")
     if failed:
         raise AssertionError("Failed: " + ", ".join(failed))
-    print(f"v2.5.1.1 iPad/Mystery hotfix: {len(checks)}/{len(checks)} checks passed")
+    print(f"v2.5.1.2 iPad/Mystery hotfix: {len(checks)}/{len(checks)} checks passed")
 
 
 if __name__ == "__main__":
