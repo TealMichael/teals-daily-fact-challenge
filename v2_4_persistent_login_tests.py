@@ -27,7 +27,7 @@ def run():
     checks["student id can be peeked before validation"] = peek_student_id(token) == student_id
     checks["PIN not present in browser token"] = pin not in token
 
-    checks["version 2.6"] = 'APP_VERSION = "2.6.1"' in ENGINE
+    checks["version 2.6"] = 'APP_VERSION = "2.6.2"' in ENGINE
     checks["remember checkbox shown"] = "Keep me signed in on this device for {REMEMBER_DAYS} days" in APP
     checks["shared-device warning shown"] = "Leave this unchecked on a shared device" in APP
     checks["sign out clears remembered login"] = 'persistent_login_pending_action = {"action": "clear"}' in APP

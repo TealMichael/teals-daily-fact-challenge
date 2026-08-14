@@ -165,6 +165,14 @@ Make sure all five browser-component folders are present in GitHub:
 
 ## Version notes
 
+
+### v2.6.2 — Final Screen Polish
+
+- Removes the duplicate Daily/Fix/Focus/Mystery progress strip on the completed-day screen.
+- Keeps the Top 10 where it belongs: immediately after the Daily 10 rather than re-adding it to the final screen.
+- Collapses the repeated Mystery headings into one clear **Today’s Mystery Reward** section.
+- Code-only update: no Supabase migration or new Streamlit secret.
+
 ### v2.6.1 — Finished Screen Growth Hotfix
 
 - Restores the student **🌱 My Growth** card that was accidentally omitted from the v2.6 app file.

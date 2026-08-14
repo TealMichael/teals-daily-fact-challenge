@@ -802,7 +802,7 @@ def _render_mystery_win(mystery, solved_guess, week_start) -> None:
     _render_mystery_learning(mystery)
 
 
-def render_weekly_mystery_reward(store: SupabaseFactStore, day, challenge) -> None:
+def render_weekly_mystery_reward(store: SupabaseFactStore, day, challenge, *, show_heading: bool = True) -> None:
     """Earn clues Monday-Thursday; guessing exists only Thursday and Friday."""
     try:
         week_start, _, mystery = ensure_weekly_mystery(store, day)
@@ -826,8 +826,9 @@ def render_weekly_mystery_reward(store: SupabaseFactStore, day, challenge) -> No
     guess_by_day = {int(row.guess_day): row for row in guesses}
     solved_guess = next((row for row in guesses if row.correct), None)
 
-    st.markdown("### 🕵️ This Week's Mystery")
-    st.caption("Earn one clue for each full routine Monday–Thursday. Guess #1 is Thursday; Guess #2 is Friday.")
+    if show_heading:
+        st.markdown("### 🕵️ This Week's Mystery")
+        st.caption("Earn one clue for each full routine Monday–Thursday. Guess #1 is Thursday; Guess #2 is Friday.")
     _render_mystery_clues(mystery, clue_count)
 
     if day_number is None:
@@ -1321,7 +1322,6 @@ def render_day_complete(store: SupabaseFactStore, day, facts: list[Fact], challe
     streak = int(stats.get("current_streak", 0))
     stars = int(stats.get("stars", 0))
 
-    render_routine_strip("mystery")
     st.markdown(
         "<div class='finish-banner'><div class='big'>✅ YOU'RE DONE FOR TODAY!</div>"
         "<div class='sub'>Daily 10 ✓ &nbsp; · &nbsp; Fix Misses ✓ &nbsp; · &nbsp; Focus Practice ✓</div>"
@@ -1335,8 +1335,8 @@ def render_day_complete(store: SupabaseFactStore, day, facts: list[Fact], challe
     else:
         st.success(f"⭐ Daily Star earned · {stars} total")
 
-    st.markdown("## 🕵️ You earned today's Mystery reward!")
-    render_weekly_mystery_reward(store, day, challenge)
+    st.markdown("## 🕵️ Today's Mystery Reward")
+    render_weekly_mystery_reward(store, day, challenge, show_heading=False)
 
     st.markdown("### ✅ That's it — see you next Challenge day! 👋")
     st.caption("Everything below is optional. Your required work is complete.")

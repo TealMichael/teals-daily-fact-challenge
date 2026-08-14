@@ -105,7 +105,7 @@ def run():
     migration = Path("RUN_THIS_ONCE_IN_SUPABASE_v2_2.sql").read_text(encoding="utf-8").lower()
     backend = Path("supabase_fact_store.py").read_text(encoding="utf-8")
     migration25 = Path("RUN_THIS_ONCE_IN_SUPABASE_v2_5.sql").read_text(encoding="utf-8").lower()
-    assert "render_weekly_mystery_reward(store, day, challenge)" in app
+    assert "render_weekly_mystery_reward(store, day, challenge" in app
     assert "Guess #1 of 2 — Thursday" in app and "Guess #2 of 2 — Friday" in app
     assert "Friday never" in app and "backfill" in app
     assert "Weekly Mystery" in app and "Pick another mystery" in app

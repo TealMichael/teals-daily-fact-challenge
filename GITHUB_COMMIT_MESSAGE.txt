@@ -1,1 +1,1 @@
-v2.6.1 - fix finished-screen Growth card and connection warning
+v2.6.2 - clean up duplicate final-screen progress and Mystery headings

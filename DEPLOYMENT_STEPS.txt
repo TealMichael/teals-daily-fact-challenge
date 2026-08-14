@@ -1,14 +1,13 @@
-TEAL'S DAILY FACT CHALLENGE v2.6.1
+TEAL'S DAILY FACT CHALLENGE v2.6.2
 
-CURRENT UPDATE FROM v2.6
+UPDATING FROM v2.6.1
 
-1. There is NO Supabase SQL step for v2.6.1.
-2. Upload/replace every file and folder inside UPLOAD_TO_GITHUB in the existing GitHub repository.
-3. Keep all five browser-component folders present in GitHub: daily_sprint_component, guided_practice_component, answer_pad_component, persistent_login_component, and pin_entry_component.
-4. Wait for Streamlit Community Cloud to redeploy.
-5. Reopen a completed student Daily. The optional “See My Growth” section should work, and the yellow classroom-busy message should appear only for a real transient connection failure.
+1. There is NO Supabase SQL step for v2.6.2.
+2. Upload every file/folder in UPLOAD_TO_GITHUB to the existing GitHub repository root.
+3. Let Streamlit redeploy automatically.
+4. Confirm the completed-day screen shows one routine strip and one Mystery heading.
 
-No new Streamlit Secrets are required.
+No new Streamlit secrets are required.
 
-Suggested commit:
-v2.6.1 - fix finished-screen Growth card and connection warning
+Suggested GitHub commit:
+v2.6.2 - clean up duplicate final-screen progress and Mystery headings
