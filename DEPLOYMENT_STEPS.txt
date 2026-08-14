@@ -1,15 +1,15 @@
-TEAL'S DAILY FACT CHALLENGE v2.5.1.2
+TEAL'S DAILY FACT CHALLENGE v2.5.1.3
 
-CURRENT UPDATE FROM v2.5.1.1
+CURRENT UPDATE FROM v2.5.1.2
 
-1. No Supabase SQL is required for v2.5.1.2.
+1. No Supabase SQL is required for v2.5.1.3.
 2. No new Streamlit Secrets are required.
 3. Upload/replace every file inside UPLOAD_TO_GITHUB in the existing GitHub repository.
 4. Confirm pin_entry_component/index.html is present in GitHub.
 5. Wait for Streamlit Community Cloud to redeploy.
-6. Test one student login: tap four PIN digits. The four dots must remain filled instead of resetting after each tap, then press Sign in.
+6. Test one student login: choose class + nickname, enter four PIN digits, then tap the green ✓. The ✓ itself must sign the student in.
 
-This hotfix only changes student PIN entry state persistence. Daily Challenge, adaptive learning, Focus Practice, leaderboard, Mystery, Teacher Tools, and 30-day login behavior are unchanged.
+This hotfix only changes the final PIN-to-login handoff. Daily Challenge, adaptive learning, Focus Practice, leaderboard, Mystery, Teacher Tools, and 30-day login behavior are unchanged.
 
 Suggested commit:
-v2.5.1.2 - keep student PIN digits from resetting
+v2.5.1.3 - make PIN check button sign students in

@@ -6,7 +6,7 @@ APP = (ROOT / 'app.py').read_text()
 ENGINE = (ROOT / 'fact_engine.py').read_text()
 
 checks = {
-    'version bumped': 'APP_VERSION = "2.5.1.2"' in ENGINE,
+    'version bumped': 'APP_VERSION = "2.5.1.3"' in ENGINE,
     'pin component declared': 'tdfc_student_pin' in APP,
     'no input element': '<input' not in HTML.lower(),
     'no password field': 'type="password"' not in HTML.lower(),
@@ -18,7 +18,7 @@ checks = {
     'four digit completion': "digits.length !== 4" in HTML,
     'backspace supported': "data-action=\"back\"" in HTML and 'function erase()' in HTML,
     'physical keyboard supported': "document.addEventListener('keydown'" in HTML,
-    'streamlit value only on complete': 'sendIfComplete()' in HTML and 'setValue(digits)' in HTML,
+    'streamlit value only on explicit complete submit': 'submitPin()' in HTML and "setValue({pin:digits, submitted:true, nonce:Date.now()});" in HTML,
 }
 
 failed = [name for name, ok in checks.items() if not ok]

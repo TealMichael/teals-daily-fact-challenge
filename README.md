@@ -119,7 +119,7 @@ Every existing teacher function remains available, but the dashboard is reorgani
 
 ## Daily fact generator
 
-The shared Daily generator remains versioned as `TDFC-DAILY-v1`, so the previously audited Daily sequence does not change in v2.5.1.2.
+The shared Daily generator remains versioned as `TDFC-DAILY-v1`, so the previously audited Daily sequence does not change in v2.5.1.3.
 
 Each Daily contains 10 unique underlying multiplication facts. Commutative mirrors cannot both appear. Normal core days contain 3 easier, 4 medium, and 3 harder facts. On selected extension days, one harder slot becomes one 11/12 fact.
 
@@ -145,19 +145,32 @@ TEACHER_PASSWORD = "CHOOSE-A-PRIVATE-TEACHER-PASSWORD"
 
 ## Updating an existing installation
 
-**Current live v2.4 installation:** run `RUN_THIS_ONCE_IN_SUPABASE_v2_5.sql` once in a **new Supabase SQL Editor query**, then upload every file/folder in `UPLOAD_TO_GITHUB` to the existing GitHub repo and let Streamlit redeploy.
+**Updating from v2.5.0 or any v2.5.1.x build:** no Supabase SQL is required. Upload every file/folder in `UPLOAD_TO_GITHUB` to the existing GitHub repo and let Streamlit redeploy.
+
+**Updating from v2.4 or earlier:** run `RUN_THIS_ONCE_IN_SUPABASE_v2_5.sql` once in a **new Supabase SQL Editor query** first, then upload the app.
 
 No new Streamlit Secret is required. Do **not** rerun v2, v2.1, v2.2, or `SUPABASE_SCHEMA.sql`.
 
-Make sure all three browser-component folders are present in GitHub:
+Make sure all four browser-component folders are present in GitHub:
 
 - `daily_sprint_component/index.html`
 - `answer_pad_component/index.html`
 - `persistent_login_component/index.html`
+- `pin_entry_component/index.html`
 
 `SUPABASE_SCHEMA.sql` represents the current full schema for a brand-new installation.
 
 ## Version notes
+
+### v2.5.1.3 — PIN Check/Login Hotfix
+
+- Makes the green ✓ on the student PIN keypad the **actual sign-in control** instead of a disabled status indicator.
+- Student flow is now: choose class → enter nickname → choose 30-day option if wanted → enter four PIN digits → tap ✓ → sign in.
+- Removes the separate Streamlit **Sign in** button so there is only one obvious login action.
+- PIN digits remain browser-local until ✓ is tapped; no Supabase or Streamlit work occurs per digit.
+- Wrong nickname/PIN clears the PIN pad and gives the student a clean retry.
+- Keeps the no-HTML-input PIN design, so iPadOS strong-password suggestions remain suppressed.
+- No database migration or new Streamlit secret is required.
 
 
 ### v2.5.1.2 — Student PIN State Persistence Hotfix

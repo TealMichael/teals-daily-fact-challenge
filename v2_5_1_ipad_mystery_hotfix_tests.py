@@ -11,7 +11,7 @@ PIN = (ROOT / "pin_entry_component" / "index.html").read_text(encoding="utf-8")
 
 def run():
     checks = {}
-    checks["version 2.5.1.2"] = APP_VERSION == "2.5.1.2"
+    checks["version 2.5.1.3"] = APP_VERSION == "2.5.1.3"
 
     # Shared Step 2/3/Practice keypad must size to its actual browser content.
     checks["answer pad no fixed 310 height"] = "setHeight(310)" not in PAD and "height=310" not in PAD
@@ -22,14 +22,14 @@ def run():
     # Student PIN has no HTML password/input surface at all, so iPad password
     # generation/autofill cannot treat it as an account password field.
     checks["student pin custom component declared"] = "PIN_ENTRY_COMPONENT" in APP and "pin_entry_component" in APP
-    checks["student login uses pin pad"] = 'render_student_pin(key="student_login_pin_pad")' in APP
+    checks["student login uses pin pad"] = 'pin, submitted = render_student_pin(key=f"student_login_pin_pad_' in APP
     checks["student password field removed"] = 'st.text_input("4-digit PIN", type="password"' not in APP
     checks["teacher password remains protected"] = 'st.text_input("Teacher password", type="password")' in APP
     checks["pin component contains no input field"] = "<input" not in PIN.lower()
     checks["pin component is four digits"] = "digits.length >= 4" in PIN and PIN.count("data-slot=\"") == 4
     checks["pin component touch keypad"] = all(token in PIN for token in ['data-digit="1"', 'data-digit="0"', '⌫'])
     checks["pin component supports hardware keys"] = "document.addEventListener('keydown'" in PIN
-    checks["pin component only sends completed pin"] = "sendIfComplete" in PIN and "digits.length !== 4" in PIN
+    checks["pin component only sends completed pin"] = "function submitPin()" in PIN and "if (submitted || digits.length !== 4) return;" in PIN
 
     # Mystery correct guesses now feel like a reward and every reveal teaches.
     checks["mystery balloons"] = "st.balloons()" in APP
@@ -54,7 +54,7 @@ def run():
         print(f"{'PASS' if ok else 'FAIL'}: {name}")
     if failed:
         raise AssertionError("Failed: " + ", ".join(failed))
-    print(f"v2.5.1.2 iPad/Mystery hotfix: {len(checks)}/{len(checks)} checks passed")
+    print(f"v2.5.1.3 iPad/Mystery hotfix: {len(checks)}/{len(checks)} checks passed")
 
 
 if __name__ == "__main__":

@@ -76,15 +76,18 @@ PIN_ENTRY_COMPONENT = components.declare_component(
     path=str(Path(__file__).with_name("pin_entry_component")),
 )
 
-def render_student_pin(*, key: str) -> str:
-    """Classroom PIN pad with no browser password field/autofill surface."""
-    state_key = f"student_pin_value::{key}"
-    current = str(st.session_state.get(state_key) or "")
-    result = PIN_ENTRY_COMPONENT(value=current, key=key, default=None)
-    if isinstance(result, str):
-        cleaned = "".join(ch for ch in result if ch.isdigit())[:4]
-        st.session_state[state_key] = cleaned
-    return str(st.session_state.get(state_key) or "")
+def render_student_pin(*, key: str) -> tuple[str, bool]:
+    """Return a completed PIN only when the student explicitly taps the keypad check."""
+    result = PIN_ENTRY_COMPONENT(key=key, default=None)
+    if not isinstance(result, dict) or not result.get("submitted"):
+        return "", False
+    cleaned = "".join(ch for ch in str(result.get("pin") or "") if ch.isdigit())[:4]
+    nonce = str(result.get("nonce") or "")
+    nonce_key = f"student_pin_submit_nonce::{key}"
+    if len(cleaned) != 4 or not nonce or st.session_state.get(nonce_key) == nonce:
+        return "", False
+    st.session_state[nonce_key] = nonce
+    return cleaned, True
 
 def render_number_pad(*, key: str) -> tuple[int, float] | None:
     """Browser-local touch keypad; digit taps never rerun Streamlit."""
@@ -631,32 +634,38 @@ def render_student_sign_in(store: SupabaseFactStore | None) -> bool:
         return False
 
     st.markdown("### Student sign in")
-    st.caption("Use the nickname and 4-digit PIN your teacher gave you.")
+    st.caption("Choose your class, enter your nickname, then tap your 4-digit classroom PIN and ✓.")
     class_by_name = {item.class_name: item for item in classes}
     class_name = st.selectbox("Class", list(class_by_name), key="student_login_class")
     nickname = st.text_input("Nickname", max_chars=28, key="student_login_nickname")
-    st.markdown("**4-digit PIN**")
-    pin = render_student_pin(key="student_login_pin_pad")
     remember_device = st.checkbox(
         f"Keep me signed in on this device for {REMEMBER_DAYS} days",
         key="student_login_remember",
     )
     st.caption("Great for your assigned Chromebook or iPad. Leave this unchecked on a shared device.")
-    submitted = st.button("Sign in", use_container_width=True, type="primary", key="student_login_submit")
+    login_error = st.session_state.pop("student_login_error", None)
+    if login_error:
+        st.error(login_error)
+    st.markdown("**4-digit PIN**")
+    pin_reset = int(st.session_state.get("student_pin_reset_counter", 0))
+    pin, submitted = render_student_pin(key=f"student_login_pin_pad_{pin_reset}")
     if submitted:
         selected = class_by_name[class_name]
-        if len(pin) != 4:
-            st.error("Enter your 4-digit PIN first.")
-            return False
+        if not nickname.strip():
+            st.session_state.student_login_error = "Enter your nickname before your PIN."
+            st.session_state.student_pin_reset_counter = pin_reset + 1
+            st.rerun()
         try:
             student = store.authenticate_student(selected.class_id, nickname, pin)
         except Exception:
             student = None
         if student is None:
-            st.error("That nickname/PIN combination did not match this class.")
-            return False
+            st.session_state.student_login_error = "That nickname/PIN combination did not match this class. Try again."
+            st.session_state.student_pin_reset_counter = pin_reset + 1
+            st.rerun()
         _set_student_session(student, selected)
-        st.session_state.pop("student_pin_value::student_login_pin_pad", None)
+        st.session_state.pop("student_pin_reset_counter", None)
+        st.session_state.pop("student_login_error", None)
         if remember_device:
             token = issue_student_token(student.student_id, pin, _persistent_login_secret())
             st.session_state.persistent_login_pending_action = {"action": "store", "token": token}
