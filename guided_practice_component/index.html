@@ -4,67 +4,132 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
 <style>
-  :root { font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; color:#111827; }
+  :root {
+    font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    color:#111827;
+    --teal:#0f766e;
+    --teal2:#14b8a6;
+    --teal-bg:#f0fdfa;
+    --orange:#f97316;
+    --orange-bg:#fff7ed;
+    --purple:#7c3aed;
+    --purple-bg:#f5f3ff;
+    --red:#b91c1c;
+    --red-bg:#fef2f2;
+    --muted:#6b7280;
+  }
   * { box-sizing:border-box; }
-  body { margin:0; padding:2px 2px 12px; background:transparent; }
+  body { margin:0; padding:2px 2px 14px; background:transparent; }
   .wrap { max-width:540px; margin:0 auto; }
-  .topline { display:flex; justify-content:space-between; align-items:center; gap:10px; margin:2px 2px 8px; color:#4b5563; font-size:13px; font-weight:750; }
+  .topline { display:flex; justify-content:space-between; align-items:center; gap:10px; margin:2px 2px 8px; color:#4b5563; font-size:13px; font-weight:800; }
   .track { height:8px; border-radius:999px; overflow:hidden; background:#e5e7eb; margin:0 2px 12px; }
-  .fill { height:100%; background:#0f766e; transition:width .2s ease; }
+  .fill { height:100%; background:var(--teal); transition:width .2s ease; }
   .fact { text-align:center; font-size:42px; font-weight:950; letter-spacing:-.03em; margin:9px 0 12px; }
-  .context { border:1px solid #d1fae5; background:#f0fdfa; border-radius:14px; padding:10px 12px; margin:5px 0 10px; font-size:14px; line-height:1.35; }
-  .feedback { border-radius:14px; padding:10px 12px; margin:7px 0; font-size:15px; font-weight:800; }
-  .feedback.bad { background:#fef2f2; border:1px solid #fecaca; color:#991b1b; }
-  .feedback.good { background:#ecfdf5; border:1px solid #a7f3d0; color:#065f46; }
-  .coach-card { border:1px solid #99f6e4; background:#f8fffe; border-radius:20px; padding:14px 12px 13px; margin:8px 0 12px; overflow:hidden; }
-  .coach-eyebrow { text-align:center; color:#0f766e; font-size:12px; font-weight:900; letter-spacing:.08em; text-transform:uppercase; }
-  .coach-title { text-align:center; font-size:24px; font-weight:950; margin:3px 0 5px; }
-  .coach-rel { text-align:center; font-size:15px; line-height:1.35; color:#374151; margin:0 auto 9px; max-width:440px; }
-  .coach-array-shell { display:flex; justify-content:center; margin:8px 0 10px; }
+  .context { border:1px solid #d1fae5; background:var(--teal-bg); border-radius:14px; padding:9px 12px; margin:5px 0 9px; text-align:center; }
+  .context .missed { font-size:18px; font-weight:950; }
+  .context .said { margin-top:2px; color:#4b5563; font-size:13px; font-weight:750; }
+  .feedback { border-radius:14px; padding:10px 12px; margin:7px 0; font-size:16px; font-weight:900; text-align:center; }
+  .feedback.bad { background:var(--red-bg); border:1px solid #fecaca; color:#991b1b; }
+  .feedback.good { background:#ecfdf5; border:1px solid #a7f3d0; color:#065f46; animation:goodPop .35s ease both; }
+  @keyframes goodPop { 0%{transform:scale(.96);opacity:.25} 75%{transform:scale(1.015)} 100%{transform:scale(1);opacity:1} }
+
+  .coach-card { border:1px solid #99f6e4; background:#f8fffe; border-radius:20px; padding:13px 12px 14px; margin:8px 0 12px; overflow:hidden; text-align:center; }
+  .stage-row { display:flex; justify-content:center; gap:6px; flex-wrap:wrap; margin-bottom:7px; }
+  .stage-chip { border-radius:999px; padding:4px 9px; font-size:11px; font-weight:950; letter-spacing:.04em; background:#e5e7eb; color:#6b7280; opacity:.38; transform:scale(.94); }
+  .stage-chip.see { animation:stageOn .3s ease .08s forwards; }
+  .stage-chip.break { animation:stageOn .35s ease .86s forwards; }
+  .stage-chip.turn { animation:stageOn .35s ease 1.55s forwards; }
+  @keyframes stageOn { to { opacity:1; transform:scale(1); background:#ccfbf1; color:#115e59; } }
+  .coach-title { text-align:center; font-size:31px; font-weight:950; letter-spacing:-.025em; margin:1px 0 3px; }
+  .visual-caption { color:#374151; font-size:15px; font-weight:850; margin-bottom:4px; }
+  .same-fact { display:inline-block; margin:1px 0 5px; padding:3px 8px; border-radius:999px; background:#eef2ff; color:#4338ca; font-size:12px; font-weight:850; }
+
+  .coach-array-shell { display:flex; justify-content:center; margin:8px 0 7px; min-height:28px; }
   .coach-array { display:grid; gap:4px; justify-content:center; align-items:center; padding:4px; }
-  .coach-cell { width:12px; height:12px; border-radius:4px; background:#0f766e; opacity:0; transform:scale(.55); animation:cellIn .26s ease forwards; animation-delay:var(--delay); }
-  .coach-cell.part-a { background:#f97316; }
-  .coach-cell.part-b { background:#7c3aed; }
-  .coach-cell.removed { background:#9ca3af; animation:cellIn .26s ease forwards, fadeRemoved .45s ease forwards; animation-delay:var(--delay), calc(var(--delay) + .65s); }
-  @keyframes cellIn { to { opacity:1; transform:scale(1); } }
-  @keyframes fadeRemoved { to { opacity:.22; transform:scale(.82); } }
-  .legend { display:flex; flex-wrap:wrap; justify-content:center; gap:8px 14px; margin:3px 0 9px; color:#4b5563; font-size:12px; font-weight:750; }
-  .legend span { display:inline-flex; align-items:center; gap:5px; }
-  .swatch { width:10px; height:10px; border-radius:3px; display:inline-block; }
-  .swatch.a { background:#f97316; } .swatch.b { background:#7c3aed; } .swatch.r { background:#9ca3af; opacity:.45; }
-  .coach-step { border-top:1px solid #ccfbf1; padding-top:11px; margin-top:7px; text-align:center; }
-  .step-chip { display:inline-block; background:#ccfbf1; color:#115e59; border-radius:999px; padding:4px 9px; font-size:12px; font-weight:900; margin-bottom:5px; }
-  .anchor-prompt { font-size:14px; color:#4b5563; font-weight:750; }
-  .anchor-fact { font-size:30px; font-weight:950; margin:4px 0 7px; }
-  .anchor-miss { background:#fef2f2; border:1px solid #fecaca; color:#991b1b; border-radius:12px; padding:8px 10px; font-size:13px; font-weight:800; margin:6px 0 8px; }
+  .coach-cell { width:12px; height:12px; border-radius:4px; background:var(--teal); opacity:0; transform:scale(.55); animation:cellIn .25s ease forwards; animation-delay:var(--delay); }
+  @keyframes cellIn { 75%{transform:scale(1.12)} 100%{opacity:1;transform:scale(1)} }
+
+  /* First show the whole array, then visibly transform it into the relationship. */
+  .coach-card.teach-view .coach-cell.part-a { animation:cellIn .25s ease forwards, toOrange .42s ease forwards; animation-delay:var(--delay), .82s; }
+  .coach-card.teach-view .coach-cell.part-b { animation:cellIn .25s ease forwards, toPurple .42s ease forwards; animation-delay:var(--delay), .82s; }
+  .coach-card.teach-view .coach-cell.removed { animation:cellIn .25s ease forwards, toRemoved .55s ease forwards; animation-delay:var(--delay), .82s; }
+  @keyframes toOrange { from{background:var(--teal)} to{background:var(--orange);transform:scale(1.04)} }
+  @keyframes toPurple { from{background:var(--teal)} to{background:var(--purple);transform:scale(1.04)} }
+  @keyframes toRemoved { 0%{background:var(--teal);opacity:1} 55%{background:#9ca3af;opacity:.75} 100%{background:#9ca3af;opacity:.22;transform:scale(.84)} }
+  @keyframes fadeRemoved { to { opacity:.22; transform:scale(.84); } }
+
+  .coach-card.combine-view .coach-cell { opacity:1; transform:scale(1); animation:none; }
+  .coach-card.combine-view .coach-cell.part-a { background:var(--orange); animation:pulseA .6s ease .2s both; }
+  .coach-card.combine-view .coach-cell.part-b { background:var(--purple); animation:pulseB .6s ease .75s both; }
+  .coach-card.combine-view .coach-cell.removed { background:#9ca3af; opacity:.22; }
+  @keyframes pulseA { 50%{transform:scale(1.16);filter:brightness(1.05)} }
+  @keyframes pulseB { 50%{transform:scale(1.16);filter:brightness(1.05)} }
+
+  .group-equation { display:flex; justify-content:center; align-items:center; gap:6px; flex-wrap:wrap; min-height:30px; margin:4px 0 4px; font-size:15px; font-weight:900; }
+  .part-pill { display:inline-flex; align-items:center; gap:5px; border-radius:999px; padding:4px 9px; opacity:0; transform:translateY(5px); }
+  .part-pill.a { color:#c2410c; background:var(--orange-bg); animation:revealUp .35s ease .9s forwards; }
+  .part-pill.b { color:#6d28d9; background:var(--purple-bg); animation:revealUp .35s ease 1.15s forwards; }
+  .part-pill.r { color:#4b5563; background:#f3f4f6; animation:revealUp .35s ease 1.15s forwards; }
+  @keyframes revealUp { to{opacity:1;transform:translateY(0)} }
+
+  .coach-question { border-top:1px solid #ccfbf1; padding-top:11px; margin-top:7px; text-align:center; opacity:0; transform:translateY(8px); animation:questionIn .4s ease 1.48s forwards; }
+  @keyframes questionIn { to{opacity:1;transform:translateY(0)} }
+  .your-turn { display:inline-block; background:#ccfbf1; color:#115e59; border-radius:999px; padding:5px 11px; font-size:12px; font-weight:950; margin-bottom:3px; }
+  .micro-prompt { font-size:13px; color:#4b5563; font-weight:800; }
+  .anchor-fact { font-size:34px; font-weight:950; margin:2px 0 6px; }
+  .anchor-miss { display:none; background:var(--red-bg); border:1px solid #fecaca; color:#991b1b; border-radius:12px; padding:8px 10px; font-size:13px; font-weight:850; margin:6px 0 8px; }
+  .anchor-miss.show { display:block; animation:shake .25s ease; }
+  @keyframes shake { 25%{transform:translateX(-4px)} 50%{transform:translateX(4px)} 75%{transform:translateX(-2px)} }
+
+  details.why { margin:8px auto 0; max-width:430px; color:#4b5563; font-size:12px; text-align:left; }
+  details.why summary { cursor:pointer; text-align:center; font-weight:800; color:#64748b; }
+  details.why div { margin-top:5px; padding:7px 9px; background:#f8fafc; border-radius:10px; line-height:1.35; }
+
   .equation-stack { display:grid; gap:7px; max-width:390px; margin:10px auto 3px; }
-  .equation { border-radius:13px; padding:9px 10px; text-align:center; font-size:20px; font-weight:900; background:#fff; border:1px solid #d1d5db; }
-  .equation.anchor { border-color:#fdba74; color:#c2410c; background:#fff7ed; }
-  .equation.second { border-color:#c4b5fd; color:#6d28d9; background:#f5f3ff; }
-  .equation.combine { border:2px solid #5eead4; color:#0f766e; background:#f0fdfa; font-size:23px; }
-  .equation.final { border:none; background:#0f766e; color:#fff; font-size:27px; }
-  .prompt { text-align:center; font-size:16px; font-weight:850; margin:9px 0 5px; }
-  .display { height:56px; display:flex; align-items:center; justify-content:center; border:2px solid #99f6e4; border-radius:16px; background:#fff; font-size:29px; font-weight:950; color:#111827; margin:4px 0 9px; }
+  .equation { border-radius:13px; padding:9px 10px; text-align:center; font-size:21px; font-weight:950; background:#fff; border:1px solid #d1d5db; opacity:0; transform:translateY(8px) scale(.98); }
+  .equation.anchor { border-color:#fdba74; color:#c2410c; background:var(--orange-bg); animation:eqIn .35s ease .15s forwards; }
+  .equation.second { border-color:#c4b5fd; color:#6d28d9; background:var(--purple-bg); animation:eqIn .35s ease .68s forwards; }
+  .equation.combine { border:2px solid #5eead4; color:var(--teal); background:var(--teal-bg); font-size:24px; animation:eqIn .4s ease 1.18s forwards; }
+  .equation.final { border:none; background:var(--teal); color:#fff; font-size:29px; animation:finalPop .5s cubic-bezier(.2,.9,.25,1.35) 1.7s forwards; }
+  @keyframes eqIn { to{opacity:1;transform:translateY(0) scale(1)} }
+  @keyframes finalPop { 0%{opacity:0;transform:scale(.72)} 75%{opacity:1;transform:scale(1.07)} 100%{opacity:1;transform:scale(1)} }
+  .combine-action { opacity:0; animation:revealUp .35s ease 2.18s forwards; }
+
+  .prompt { text-align:center; font-size:16px; font-weight:900; margin:7px 0 5px; }
+  .retry-boss { text-align:center; border:1px solid #99f6e4; background:var(--teal-bg); border-radius:18px; padding:12px 10px 9px; margin:6px 0 9px; }
+  .boss-chip { display:inline-block; border-radius:999px; background:#ccfbf1; color:#115e59; font-size:12px; font-weight:950; padding:4px 10px; }
+  .boss-fact { font-size:36px; font-weight:950; margin:3px 0 2px; }
+  .boss-hint { color:#64748b; font-size:12px; font-weight:750; }
+  .retry-feedback { display:none; margin:6px 0; border-radius:12px; padding:8px 9px; background:var(--red-bg); color:#991b1b; font-size:13px; font-weight:850; }
+  .retry-feedback.show { display:block; animation:shake .25s ease; }
+
+  .display { height:56px; display:flex; align-items:center; justify-content:center; border:2px solid #99f6e4; border-radius:16px; background:#fff; font-size:29px; font-weight:950; color:#111827; margin:4px 0 9px; transition:border-color .15s, transform .15s; }
   .display.empty { color:#9ca3af; font-size:17px; font-weight:750; }
+  .display.flash-good { border-color:#34d399; transform:scale(1.02); background:#ecfdf5; }
   .pad { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
   button { min-height:54px; border:1px solid #d1d5db; border-radius:15px; background:#fff; color:#111827; font-size:23px; font-weight:900; cursor:pointer; touch-action:manipulation; -webkit-tap-highlight-color:transparent; }
   button:active { background:#f3f4f6; transform:translateY(1px); }
   .back { color:#4b5563; background:#f9fafb; }
-  .submit { background:#0f766e; color:#fff; border-color:#0f766e; }
+  .submit { background:var(--teal); color:#fff; border-color:var(--teal); }
   .submit:active { background:#115e59; }
-  .continue { width:100%; background:#0f766e; color:#fff; border-color:#0f766e; margin-top:11px; font-size:17px; min-height:50px; }
+  .continue { width:100%; background:var(--teal); color:#fff; border-color:var(--teal); margin-top:11px; font-size:18px; min-height:51px; }
   .error { min-height:18px; margin-top:5px; text-align:center; color:#b91c1c; font-size:13px; font-weight:750; }
-  .hint { margin-top:2px; text-align:center; color:#6b7280; font-size:12px; }
-  .retry-recap { border:1px solid #99f6e4; background:#f0fdfa; border-radius:14px; padding:9px 11px; text-align:center; color:#115e59; font-weight:850; margin:5px 0 9px; }
-  .done { text-align:center; border:1px solid #99f6e4; background:#f0fdfa; border-radius:18px; padding:20px 14px; margin-top:8px; }
+  .hint { margin-top:2px; text-align:center; color:#6b7280; font-size:11px; }
+  .done { text-align:center; border:1px solid #99f6e4; background:var(--teal-bg); border-radius:18px; padding:20px 14px; margin-top:8px; }
   .done .big { font-size:25px; font-weight:950; }
   .done .small { color:#4b5563; margin-top:4px; font-size:14px; }
+
   @media (max-width:420px) {
     .fact { font-size:37px; }
     button { min-height:51px; }
-    .coach-cell { width:10px; height:10px; gap:3px; }
-    .coach-title { font-size:22px; }
-    .anchor-fact { font-size:28px; }
+    .coach-cell { width:10px; height:10px; }
+    .coach-title { font-size:28px; }
+    .anchor-fact { font-size:31px; }
+    .coach-card { padding-left:9px; padding-right:9px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration:.01ms !important; animation-delay:0ms !important; transition-duration:.01ms !important; }
+    .coach-cell,.coach-question,.part-pill,.equation,.combine-action,.stage-chip { opacity:1 !important; transform:none !important; }
   }
 </style>
 </head>
@@ -135,16 +200,24 @@
 
   function keypadMarkup() {
     const display = digits || 'Tap your answer';
-    return `<div class="display ${digits ? '' : 'empty'}" aria-live="polite">${escapeHtml(display)}</div>
+    return `<div id="answer-display" class="display ${digits ? '' : 'empty'}" aria-live="polite">${escapeHtml(display)}</div>
       <div class="pad" aria-label="Number pad">
         <button type="button" data-digit="1">1</button><button type="button" data-digit="2">2</button><button type="button" data-digit="3">3</button>
         <button type="button" data-digit="4">4</button><button type="button" data-digit="5">5</button><button type="button" data-digit="6">6</button>
         <button type="button" data-digit="7">7</button><button type="button" data-digit="8">8</button><button type="button" data-digit="9">9</button>
         <button type="button" id="back" class="back" aria-label="Delete last digit">⌫</button><button type="button" data-digit="0">0</button><button type="button" id="submit" class="submit">✓</button>
-      </div><div id="error" class="error"></div><div class="hint">Tap the numbers, then ✓. A physical keyboard works too.</div>`;
+      </div><div id="error" class="error"></div><div class="hint">Tap numbers, then ✓</div>`;
   }
 
-  function coachArrayMarkup(item) {
+  function updateDigitDisplay() {
+    const display = document.getElementById('answer-display');
+    if (!display) return;
+    display.textContent = digits || 'Tap your answer';
+    display.classList.toggle('empty', !digits);
+    setHeight();
+  }
+
+  function coachArrayMarkup(item, view='teach') {
     const p = coach(item);
     if (!p) return '';
     const rows = Number(p.visual_groups || item.a);
@@ -156,69 +229,84 @@
         let cls = 'coach-cell';
         if (modeName === 'split_add') cls += r < Number(p.first_groups || 0) ? ' part-a' : ' part-b';
         else if (modeName === 'split_subtract') cls += r < Number(p.groups || 0) ? ' part-a' : ' removed';
-        const delay = Math.min(520, r * 58 + c * 4);
+        const delay = Math.min(420, r * 42 + c * 3);
         cells += `<span class="${cls}" style="--delay:${delay}ms"></span>`;
       }
     }
-    let legend = '';
+    let parts = '';
     if (modeName === 'split_add') {
-      legend = `<div class="legend"><span><i class="swatch a"></i>${p.first_groups} groups</span><span><i class="swatch b"></i>${p.second_groups} ${Number(p.second_groups) === 1 ? 'group' : 'groups'}</span></div>`;
+      parts = `<div class="group-equation"><span class="part-pill a">${p.first_groups} groups</span><span class="part-pill b">${p.second_groups} ${Number(p.second_groups) === 1 ? 'group' : 'groups'}</span></div>`;
     } else if (modeName === 'split_subtract') {
-      legend = `<div class="legend"><span><i class="swatch a"></i>${p.groups} groups we keep</span><span><i class="swatch r"></i>${p.second_groups} ${Number(p.second_groups) === 1 ? 'group' : 'groups'} taken away</span></div>`;
+      parts = `<div class="group-equation"><span class="part-pill a">${p.groups} keep</span><span class="part-pill r">${p.second_groups} take away</span></div>`;
     }
-    return `<div class="coach-array-shell"><div class="coach-array" style="grid-template-columns:repeat(${cols},12px)">${cells}</div></div>${legend}`;
+    return `<div class="coach-array-shell"><div class="coach-array" style="grid-template-columns:repeat(${cols},12px)">${cells}</div></div>${parts}`;
   }
 
-  function coachShell(item, inner='') {
+  function orientationMarkup(item, p) {
+    if (!p) return '';
+    const caption = `${p.groups} groups of ${p.size}`;
+    if (Number(p.groups) === Number(item.a) && Number(p.size) === Number(item.b)) return `<div class="visual-caption">${caption}</div>`;
+    return `<div class="visual-caption">${caption}</div><div class="same-fact">↔ ${p.groups} × ${p.size}</div>`;
+  }
+
+  function optionalWhy(p) {
+    if (!p || !p.relationship) return '';
+    return `<details class="why"><summary>💡 Why?</summary><div>${escapeHtml(p.relationship)}</div></details>`;
+  }
+
+  function coachShell(item, inner='', view='teach') {
     const p = coach(item);
     if (!p) return '';
-    return `<div class="coach-card"><div class="coach-eyebrow">See it · Connect it · Solve it</div><div class="coach-title">Let's build ${item.a} × ${item.b}</div><div class="coach-rel">${escapeHtml(p.relationship || '')}</div>${coachArrayMarkup(item)}${inner}</div>`;
+    const stages = p.needs_anchor
+      ? `<div class="stage-row"><span class="stage-chip see">SEE IT</span><span class="stage-chip break">BREAK IT</span><span class="stage-chip turn">YOUR TURN</span></div>`
+      : `<div class="stage-row"><span class="stage-chip see">SEE IT</span><span class="stage-chip break">BUILD IT</span></div>`;
+    return `<div class="coach-card ${view === 'combine' ? 'combine-view' : 'teach-view'}" data-learning-sequence="See it · Connect it · Solve it">${stages}<div class="coach-title">${item.a} × ${item.b}</div>${orientationMarkup(item,p)}${coachArrayMarkup(item,view)}${inner}${optionalWhy(p)}</div>`;
   }
 
   function coachPhaseMarkup(item) {
     const p = coach(item);
     if (!p) {
-      return `<div class="feedback bad">Not yet — ${item.a} × ${item.b} = ${item.product}.</div><div class="retry-recap">Use the array and strategy, then try the fact again.</div><button id="to-retry" class="continue" type="button">Now try ${item.a} × ${item.b} again →</button>`;
+      return `<div class="feedback bad">Not yet — let's build it!</div><div class="retry-boss"><div class="boss-chip">TRY AGAIN</div><div class="boss-fact">${item.a} × ${item.b} = ?</div></div>${keypadMarkup()}`;
     }
     let inner = '';
     if (p.needs_anchor) {
-      inner += `<div class="coach-step"><div class="step-chip">YOUR TURN</div><div class="anchor-prompt">${escapeHtml(p.anchor_prompt || 'Start with an easier anchor fact')}</div><div class="anchor-fact">${p.anchor_a} × ${p.anchor_b} = ?</div>`;
-      if (anchorMissed) inner += `<div class="anchor-miss">Not yet — ${p.anchor_a} × ${p.anchor_b} = ${p.anchor_answer}. Enter ${p.anchor_answer} to continue.</div>`;
-      inner += keypadMarkup() + `</div>`;
+      inner = `<div class="coach-question"><div class="your-turn">YOUR TURN 🎯</div><div class="micro-prompt">Easy fact first</div><div class="anchor-fact">${p.anchor_a} × ${p.anchor_b} = ?</div><div id="anchor-miss" class="anchor-miss ${anchorMissed ? 'show' : ''}">Not yet — ${p.anchor_a} × ${p.anchor_b} = ${p.anchor_answer}. Enter ${p.anchor_answer}.</div>${keypadMarkup()}</div>`;
     } else {
-      inner += `<div class="coach-step"><div class="step-chip">NOTICE THE RELATIONSHIP</div><div class="anchor-prompt">${escapeHtml(p.direct_message || p.combine_equation || '')}</div><div class="equation-stack"><div class="equation combine">${escapeHtml(p.combine_equation || p.final_equation || '')}</div></div><button id="to-retry" class="continue" type="button">Now try ${item.a} × ${item.b} again →</button></div>`;
+      inner = `<div class="coach-question"><div class="your-turn">PUT IT TOGETHER</div><div class="equation-stack"><div class="equation combine">${escapeHtml(p.combine_equation || p.final_equation || '')}</div><div class="equation final">${escapeHtml(p.final_equation || `${item.a} × ${item.b} = ${item.product}`)}</div></div><div class="combine-action"><button id="to-retry" class="continue" type="button">TRY AGAIN →</button></div></div>`;
     }
-    return `<div class="feedback bad">Not yet — let's use a relationship instead of counting.</div>${coachShell(item, inner)}`;
+    return `<div class="feedback bad">Not yet — let's build it!</div>${coachShell(item, inner, 'teach')}`;
   }
 
+  // Legacy regression marker: PUT THE PARTS TOGETHER
   function combineMarkup(item) {
     const p = coach(item);
-    if (!p) return `<button id="to-retry" class="continue" type="button">Now try it again →</button>`;
+    if (!p) return `<button id="to-retry" class="continue" type="button">TRY AGAIN →</button>`;
     const anchorEq = p.needs_anchor ? `${p.anchor_a} × ${p.anchor_b} = ${p.anchor_answer}` : '';
     let eqs = '';
     if (anchorEq) eqs += `<div class="equation anchor">✓ ${escapeHtml(anchorEq)}</div>`;
     if (p.second_equation) eqs += `<div class="equation second">${escapeHtml(p.second_equation)}</div>`;
     if (p.combine_equation) eqs += `<div class="equation combine">${escapeHtml(p.combine_equation)}</div>`;
     eqs += `<div class="equation final">${escapeHtml(p.final_equation || `${item.a} × ${item.b} = ${item.product}`)}</div>`;
-    const inner = `<div class="coach-step"><div class="step-chip">PUT THE PARTS TOGETHER</div><div class="equation-stack">${eqs}</div><button id="to-retry" class="continue" type="button">Now try ${item.a} × ${item.b} again →</button></div>`;
-    return `<div class="feedback good">Nice — you found the anchor fact!</div>${coachShell(item, inner)}`;
+    const inner = `<div class="coach-question" style="animation-delay:.05s"><div class="your-turn">PUT IT TOGETHER ⚡</div><div class="equation-stack">${eqs}</div><div class="combine-action"><button id="to-retry" class="continue" type="button">TRY AGAIN →</button></div></div>`;
+    return `<div class="feedback good">✅ Nice!</div>${coachShell(item, inner, 'combine')}`;
   }
 
+  // Legacy regression marker: Now you try it
   function retryMarkup(item) {
     const p = coach(item);
     const recap = p ? (p.combine_equation || p.final_equation) : `${item.a} × ${item.b} = ${item.product}`;
-    return `${retryMissed ? `<div class="feedback bad">Not yet — look back at the relationship and try once more.</div>` : ''}<div class="retry-recap">Remember: ${escapeHtml(recap)}</div><div class="prompt">Now you try it: ${item.a} × ${item.b} = ?</div>${keypadMarkup()}`;
+    return `<div id="retry-feedback" class="retry-feedback ${retryMissed ? 'show' : ''}">Almost — try once more.</div><div class="retry-boss"><div class="boss-chip">🎯 TRY AGAIN</div><div class="boss-fact">${item.a} × ${item.b} = ?</div><div class="boss-hint">${escapeHtml(recap)}</div></div>${keypadMarkup()}`;
   }
 
   function render() {
     const root = document.getElementById('root');
     const item = currentItem();
     if (!item) {
-      root.innerHTML = `<div class="done"><div class="big">✓ ${escapeHtml(args.done_title || 'Step complete!')}</div><div class="small">Saving your work…</div></div>`;
+      root.innerHTML = `<div class="done"><div class="big">⭐ ${escapeHtml(args.done_title || 'Step complete!')}</div><div class="small">Saving your work…</div></div>`;
       setHeight(); submitSession(); return;
     }
     let body = progressMarkup();
-    if (mode === 'fix') body += `<div class="context"><strong>Daily miss:</strong> You answered ${escapeHtml(item.original_answer)}.<br><strong>${item.a} × ${item.b}</strong> is worth learning, not just memorizing.</div>`;
+    if (mode === 'fix') body += `<div class="context"><div class="missed">Missed: ${item.a} × ${item.b}</div><div class="said">You said ${escapeHtml(item.original_answer)}</div></div>`;
     if (phase === 'coach' || phase === 'teach') body += coachPhaseMarkup(item);
     else if (phase === 'combine') body += combineMarkup(item);
     else if (phase === 'retry') body += retryMarkup(item);
@@ -237,9 +325,13 @@
     if (submitted || digits.length >= 3) return;
     digits += d;
     if (digits.length > 1) digits = digits.replace(/^0+/, '') || '0';
-    saveLocal(); render();
+    saveLocal(); updateDigitDisplay();
   }
-  function erase() { if (!submitted) { digits = digits.slice(0,-1); saveLocal(); render(); } }
+  function erase() {
+    if (submitted) return;
+    digits = digits.slice(0,-1);
+    saveLocal(); updateDigitDisplay();
+  }
 
   function recordOriginalAttempt(item, value, isRetry) {
     const prior = attemptsFor(item).length;
@@ -250,41 +342,60 @@
     });
   }
 
+  function flashDisplay(kind='good') {
+    const display = document.getElementById('answer-display');
+    if (!display) return;
+    if (kind === 'good') {
+      display.classList.add('flash-good');
+      setTimeout(() => display.classList.remove('flash-good'), 260);
+    }
+  }
+
   function submitAnswer() {
     if (submitted) return;
     const value = Number(digits);
     const error = document.getElementById('error');
-    if (!digits || !Number.isInteger(value) || value < 0 || value > 200) { if (error) error.textContent='Enter a whole-number answer.'; return; }
+    if (!digits || !Number.isInteger(value) || value < 0 || value > 200) { if (error) error.textContent='Enter a whole number.'; return; }
     const item = currentItem();
     const p = coach(item);
 
     // Scaffolded anchor retrieval is deliberately NOT sent as mastery evidence.
     if (phase === 'coach' || phase === 'teach') {
       if (p && p.needs_anchor) {
-        digits = '';
-        if (value === Number(p.anchor_answer)) { anchorMissed=false; phase='combine'; }
-        else { anchorMissed=true; }
-        saveLocal(); render(); return;
+        if (value === Number(p.anchor_answer)) {
+          flashDisplay('good');
+          digits=''; anchorMissed=false; phase='combine'; saveLocal();
+          setTimeout(render, 180);
+        } else {
+          digits=''; anchorMissed=true; saveLocal(); updateDigitDisplay();
+          const msg=document.getElementById('anchor-miss');
+          if (msg) { msg.classList.remove('show'); void msg.offsetWidth; msg.classList.add('show'); }
+        }
+        return;
       }
       phase='retry'; digits=''; saveLocal(); render(); return;
     }
 
     const isRetry = phase === 'retry' || mode === 'fix' || !!item.first_already_recorded;
     recordOriginalAttempt(item, value, isRetry);
-    digits = '';
     const correct = value === Number(item.product);
+    digits = '';
     if (correct) {
-      index += 1;
-      const next = currentItem();
-      phase = next ? (next.start_state || (mode === 'fix' ? 'coach' : 'question')) : 'done';
-      if (phase === 'teach') phase='coach';
-      anchorMissed=false; retryMissed=false; itemStartedAt=Date.now();
+      flashDisplay('good');
+      setTimeout(() => {
+        index += 1;
+        const next = currentItem();
+        phase = next ? (next.start_state || (mode === 'fix' ? 'coach' : 'question')) : 'done';
+        if (phase === 'teach') phase='coach';
+        anchorMissed=false; retryMissed=false; itemStartedAt=Date.now(); saveLocal(); render();
+      }, 170);
     } else if (phase === 'retry') {
-      retryMissed=true; itemStartedAt=Date.now();
+      retryMissed=true; itemStartedAt=Date.now(); saveLocal(); updateDigitDisplay();
+      const msg=document.getElementById('retry-feedback');
+      if (msg) { msg.classList.remove('show'); void msg.offsetWidth; msg.classList.add('show'); }
     } else {
-      phase='coach'; anchorMissed=false; retryMissed=false; itemStartedAt=Date.now();
+      phase='coach'; anchorMissed=false; retryMissed=false; itemStartedAt=Date.now(); saveLocal(); render();
     }
-    saveLocal(); render();
   }
 
   function submitSession() {
@@ -296,7 +407,7 @@
 
   function initialize(newArgs) {
     args=newArgs || {};
-    mode=args.mode === 'fix' ? 'fix' : 'focus';
+    mode=args.mode === 'fix' ? 'fix' : (args.mode === 'practice' ? 'practice' : 'focus');
     sessionKey=String(args.session_key || 'session');
     items=Array.isArray(args.items) ? args.items : [];
     if (!loadLocal()) {

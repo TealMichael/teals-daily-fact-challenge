@@ -2,6 +2,14 @@
 
 A classroom-first multiplication fact fluency game built around one short shared competition, a private adaptive learning routine, and a just-for-fun weekly curiosity reward.
 
+
+### v2.8.1 teacher-dashboard hotfix
+
+- Fixes the **Mastery & Focus → Full Class Fact Map** default filter crash. The previous code treated the label `All facts` as if it were a numeric fact-family label because it ended in the letter `s`.
+- Fact-map family filters now use an explicit `2s`–`10s` mapping, so **All facts** and **Focus facts only** can never be parsed as numbers.
+- Keeps the complete v2.8.1 Silent Visual Fact Coach and all v2.7 teacher-dashboard features unchanged.
+- Code-only hotfix: no Supabase migration and no new Streamlit Secret.
+
 ## The daily student routine
 
 Every signed-in student follows the same learning path:
@@ -21,11 +29,11 @@ Every signed-in student follows the same learning path:
 
 ### 2. Fix Your Misses
 
-Every missed Daily fact is now taught by the **Interactive Fact Coach**. Instead of only showing a static answer/array, the coach uses a short relationship-based sequence:
+Every missed Daily fact is taught by the **Silent Visual Fact Coach**. The coach is deliberately low-reading and game-like: the **array movement carries the explanation**, while full written strategy text sits behind an optional `Why?` disclosure.
 
-**See it → Connect it → Solve it → Retry it**
+**SEE IT → BREAK IT → YOUR TURN → PUT IT TOGETHER → TRY AGAIN**
 
-For example, a missed `7 × 7` becomes: see a 7-by-7 array split into 5 groups + 2 groups → answer the scaffolded anchor `5 × 7 = ?` → see `2 × 7 = 14` and `35 + 14 = 49` → retry `7 × 7`. The student must finish the correction before moving on.
+For example, a missed `7 × 7` becomes: the whole 7-by-7 array appears first → five rows visibly change to one color and two rows to another → answer the scaffolded anchor `5 × 7 = ?` → watch `2 × 7 = 14` and `35 + 14 = 49` reveal in stages → retry `7 × 7`. The student must finish the correction before moving on.
 
 The coach chooses the relationship that best fits the fact: doubles for ×2/×4, 2+1 for ×3, 5+1 for ×6, 5+2 for ×7, 10−2 for ×8, 10−1 for ×9, and 10+1/10+2 for the occasional 11/12 extension. When a clearer strategy rotates the factors, the coach explicitly teaches the commutative connection before returning to the original orientation.
 
@@ -157,9 +165,11 @@ TEACHER_PASSWORD = "CHOOSE-A-PRIVATE-TEACHER-PASSWORD"
 
 ## Updating an existing installation
 
-**Updating from v2.7.0:** v2.8.0 is **code only**. There is no new Supabase SQL migration and no new Streamlit Secret. Upload every file/folder in `UPLOAD_TO_GITHUB` and let Streamlit redeploy. The existing v2.6 browser-batch schema already stores every independent/correction event Fact Coach needs.
+**Updating from v2.8.0:** v2.8.1 is **code only**. There is no new Supabase SQL migration and no new Streamlit Secret. Upload every file/folder in `UPLOAD_TO_GITHUB` and let Streamlit redeploy. The existing v2.6 browser-batch schema already stores every independent/correction event Fact Coach needs.
 
-**Updating from v2.5.x or earlier:** first apply any migration your installation has not yet run (including `RUN_THIS_ONCE_IN_SUPABASE_v2_6.sql` for Guided Practice), then upload the v2.8.0 app files. Do **not** rerun migrations you already completed.
+**Updating from v2.7.0:** upload the v2.8.1 app files; there is no additional SQL migration beyond the migrations your installation has already completed.
+
+**Updating from v2.5.x or earlier:** first apply any migration your installation has not yet run (including `RUN_THIS_ONCE_IN_SUPABASE_v2_6.sql` for Guided Practice), then upload the v2.8.1 app files. Do **not** rerun migrations you already completed.
 
 Make sure all five browser-component folders are present in GitHub:
 
@@ -172,6 +182,18 @@ Make sure all five browser-component folders are present in GitHub:
 `SUPABASE_SCHEMA.sql` represents the current full schema for a brand-new installation.
 
 ## Version notes
+
+### v2.8.1 — Silent Visual Fact Coach
+
+- Reworks the Interactive Fact Coach for students who benefit from **less reading and more visual movement**.
+- Makes the array itself carry the explanation: the whole array appears first, then groups visibly change color or fade to show the relationship.
+- Uses short game-like prompts: **SEE IT → BREAK IT → YOUR TURN → PUT IT TOGETHER → TRY AGAIN**.
+- Keeps the full written strategy behind an optional **Why?** disclosure instead of requiring students to read it before progressing.
+- Stops rebuilding the coaching card on every keypad digit, so animations can finish uninterrupted and touch input stays browser-fast.
+- Adds staged visual equation reveals and silent visual celebration for correct anchor facts and final combinations.
+- Keeps all Fact Coach interactions **silent**—no sound effects or audio cues in a classroom.
+- Preserves all v2.8 mastery/data rules: scaffolded anchor answers remain coached practice only; independent Daily/Focus evidence and corrected retries stay distinct.
+- No Supabase migration or new Streamlit secret is required.
 
 ### v2.8.0 — Interactive Fact Coach
 

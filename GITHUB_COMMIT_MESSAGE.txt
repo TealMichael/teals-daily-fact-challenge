@@ -1,1 +1,1 @@
-v2.8.0 - add Interactive Fact Coach for multiplication relationships
+v2.8.1 - fix Teacher Mastery fact-map filter and keep Visual Fact Coach

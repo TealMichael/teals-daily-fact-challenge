@@ -1,0 +1,24 @@
+Teal's Daily Fact Challenge v2.8.1 validation
+
+Release focus: Silent Visual Fact Coach
+
+PASS - 33/33 Python automated test suites
+PASS - v2.8.1 Visual Fact Coach regression: 14/14
+PASS - v2.8 Interactive Fact Coach regression: 32/32
+PASS - v2.6 Guided Practice regression: 21/21
+PASS - all Python source compilation
+PASS - JavaScript syntax validation for all 5 browser components
+
+Protected behavior:
+- Student teaching stages are SEE IT / BREAK IT / YOUR TURN / PUT IT TOGETHER / TRY AGAIN.
+- Whole array appears before decomposition colors/fading animate.
+- Anchor prompt is delayed until the visual relationship has appeared.
+- Keypad digit taps do not rebuild the coaching card.
+- Scaffolded anchor answers remain excluded from mastery evidence.
+- Guided evidence still submits as one browser-local batch at step completion.
+- Full written strategy is optional behind Why?.
+- No audio/sound APIs are present in the Guided Practice component.
+- Reduced-motion accessibility fallback is present.
+- Existing classroom-load, adaptive learning, Mystery, teacher dashboard, roster, leaderboard privacy, and 30-day login regressions all remain passing.
+
+No Supabase migration. No new Streamlit Secret.

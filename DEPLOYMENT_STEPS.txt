@@ -1,18 +1,21 @@
-TEAL'S DAILY FACT CHALLENGE v2.8.0
+TEAL'S DAILY FACT CHALLENGE v2.8.1
 
-UPDATING FROM v2.7.0
+UPDATING FROM v2.8.0 / v2.7.0
 
-1. There is NO new Supabase SQL step for v2.8.0.
-2. Upload every file/folder in UPLOAD_TO_GITHUB to the existing GitHub repository root.
-3. Let Streamlit redeploy automatically.
-4. Student check: use a test account and intentionally miss 7 × 7 in Focus/Practice.
-5. Confirm Fact Coach shows the animated 5-groups + 2-groups model, asks 5 × 7 = ?, combines 35 + 14 = 49, then requires 7 × 7 again.
-6. Confirm Step 2/3 remain smooth with no full-page jump between coaching stages.
-7. Teacher check: Mastery & Focus and all v2.7 teacher tools remain available.
-
-No new Streamlit secrets are required.
+1. There is NO new Supabase SQL step for v2.8.1.
+2. There are NO new Streamlit Secrets.
+3. Upload every file/folder in UPLOAD_TO_GITHUB to the existing GitHub repository root.
+4. Let Streamlit redeploy automatically.
+5. Student check: intentionally miss 7 × 7 in Fix Your Misses, Focus Practice, or Extra Practice.
+6. Confirm the whole 7×7 array appears first, then visibly changes into 5 groups + 2 groups before the anchor question appears.
+7. Enter 35 for 5 × 7. Confirm 2 × 7 = 14, 35 + 14 = 49, and 7 × 7 = 49 reveal in stages.
+8. Confirm TRY AGAIN returns to 7 × 7 = ? and the correction remains browser-fast with no page jump.
+9. Confirm there are NO sound effects.
+10. Teacher check: open Teacher → Mastery & Focus. Confirm the default **All facts** map loads without a ValueError.
+11. Change the Fact map filter to **Focus facts only**, **2s**, and **10s**; confirm each view loads normally.
+12. Confirm all v2.7 teacher dashboard, Top 10, Mystery planning, and mastery tools remain available.
 
 If updating from v2.5.x or earlier, first run any older migration you have not yet applied, including RUN_THIS_ONCE_IN_SUPABASE_v2_6.sql when needed. Do not rerun migrations already completed.
 
 Suggested GitHub commit:
-v2.8.0 - add Interactive Fact Coach for multiplication relationships
+v2.8.1 - fix Teacher Mastery fact-map filter and keep Visual Fact Coach

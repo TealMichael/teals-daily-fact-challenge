@@ -1995,12 +1995,14 @@ def render_teacher_mastery_focus(store: SupabaseFactStore) -> None:
     focus_keys = [key for key in fact_keys if any(full_by_student[s.student_id][key].status == STATUS_FOCUS for s in students)]
     filter_options = ["All facts", "Focus facts only"] + [f"{value}s" for value in range(2, 11)]
     heat_filter = st.selectbox("Fact map filter", filter_options, key="teacher_heatmap_filter")
+    family_filters = {f"{value}s": value for value in range(2, 11)}
     if heat_filter == "Focus facts only":
         shown_keys = focus_keys
-    elif heat_filter.endswith("s"):
-        family = int(heat_filter[:-1])
+    elif heat_filter in family_filters:
+        family = family_filters[heat_filter]
         shown_keys = [key for key in fact_keys if family in key]
     else:
+        # "All facts" (and any future non-family label) should never be parsed as a number.
         shown_keys = fact_keys
     matrix_rows = []
     for student in students:
