@@ -8,12 +8,12 @@ GUIDED = (ROOT / "guided_practice_component" / "index.html").read_text(encoding=
 
 def run():
     checks = {}
-    checks["version 2.8.1"] = APP_VERSION == "2.8.1"
+    checks["version 2.8.2"] = APP_VERSION == "2.8.2"
     checks["short visual stages"] = all(text in GUIDED for text in ["SEE IT", "BREAK IT", "YOUR TURN", "PUT IT TOGETHER", "TRY AGAIN"])
-    checks["whole array transforms after appearing"] = "toOrange" in GUIDED and "toPurple" in GUIDED and "animation-delay:var(--delay), .82s" in GUIDED
-    checks["subtraction visibly fades removed groups"] = "toRemoved" in GUIDED and "opacity:.22" in GUIDED
-    checks["anchor question waits for visual"] = "questionIn" in GUIDED and "1.48s" in GUIDED
-    checks["equations reveal in stages"] = "eqIn" in GUIDED and "finalPop" in GUIDED and "combine-action" in GUIDED
+    checks["whole array transforms after appearing"] = "seq-see" in GUIDED and "seq-break" in GUIDED and "background:var(--orange)" in GUIDED and "background:var(--purple)" in GUIDED
+    checks["subtraction visibly fades removed groups"] = ".coach-cell.removed" in GUIDED and "opacity:.22" in GUIDED
+    checks["anchor question waits for visual"] = "coachSequenceReady = false" in GUIDED and ".coach-card.seq-turn .coach-question" in GUIDED
+    checks["equations reveal in stages"] = "eq-step-1" in GUIDED and "eq-step-4" in GUIDED and "finalPop" in GUIDED and "combine-action" in GUIDED
     checks["written explanation optional"] = "details class=\"why\"" in GUIDED and "<summary>💡 Why?</summary>" in GUIDED
     checks["digit taps do not rerender"] = "saveLocal(); updateDigitDisplay();" in GUIDED and "saveLocal(); render();" not in GUIDED[GUIDED.index("function addDigit"):GUIDED.index("function recordOriginalAttempt")]
     checks["browser local evidence rule retained"] = "Scaffolded anchor retrieval is deliberately NOT sent as mastery evidence" in GUIDED
@@ -28,7 +28,7 @@ def run():
         print(f"{'PASS' if ok else 'FAIL'}: {name}")
     if failed:
         raise AssertionError("Failed: " + ", ".join(failed))
-    print(f"v2.8.1 Visual Fact Coach regression: {len(checks)}/{len(checks)} checks passed")
+    print(f"v2.8.2 Visual Fact Coach regression: {len(checks)}/{len(checks)} checks passed")
 
 
 if __name__ == "__main__":

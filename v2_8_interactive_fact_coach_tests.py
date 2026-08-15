@@ -11,7 +11,7 @@ COACH = (ROOT / "fact_coach.py").read_text(encoding="utf-8")
 
 def run():
     checks = {}
-    checks["version 2.8.0"] = APP_VERSION == "2.8.1"
+    checks["version 2.8.0"] = APP_VERSION == "2.8.2"
     checks["coach module imported"] = "from fact_coach import" in APP
     checks["guided items receive coach plan"] = '"coach": coach_plan_for_fact(fact)' in APP
     checks["fix starts in coach"] = 'start_state="coach"' in APP
@@ -58,9 +58,9 @@ def run():
     checks["all 2-12 plans mathematically consistent"] = all_plans_ok
     checks["library includes anchor and direct teaching"] = anchor_plans > 0 and direct_plans > 0
 
-    checks["browser-local array animation"] = "@keyframes cellIn" in GUIDED and "coachArrayMarkup" in GUIDED
+    checks["browser-local array animation"] = "startTeachSequence" in GUIDED and "seq-see" in GUIDED and "coachArrayMarkup" in GUIDED
     checks["additive split visual"] = "split_add" in GUIDED and "part-a" in GUIDED and "part-b" in GUIDED
-    checks["subtractive visual"] = "split_subtract" in GUIDED and "removed" in GUIDED and "fadeRemoved" in GUIDED
+    checks["subtractive visual"] = "split_subtract" in GUIDED and "coach-cell.removed" in GUIDED and "opacity:.22" in GUIDED
     checks["student answers anchor"] = "anchor-fact" in GUIDED and "p.anchor_answer" in GUIDED
     checks["wrong anchor is retaught"] = "Not yet — ${p.anchor_a} × ${p.anchor_b} = ${p.anchor_answer}" in GUIDED
     checks["combine stage"] = "PUT THE PARTS TOGETHER" in GUIDED and "combineMarkup" in GUIDED

@@ -1,1 +1,1 @@
-v2.8.1 - fix Teacher Mastery fact-map filter and keep Visual Fact Coach
+v2.8.2 - make Fact Coach animations staged and impossible to miss

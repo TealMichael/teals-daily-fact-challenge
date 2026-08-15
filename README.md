@@ -3,6 +3,18 @@
 A classroom-first multiplication fact fluency game built around one short shared competition, a private adaptive learning routine, and a just-for-fun weekly curiosity reward.
 
 
+
+### v2.8.2 — True Staged Fact Coach Animation
+
+- Makes the Fact Coach animation **impossible to miss**: the student taps a large **▶ WATCH IT** control before the teaching sequence begins.
+- Stages the visual math in order: the whole array appears first, then the relationship transform happens, then **YOUR TURN** unlocks.
+- Adds a **↻ REPLAY** control after the sequence so a student can watch the relationship again without changing any learning/mastery data.
+- For subtraction strategies such as `7 × 9`, all 10 groups appear first, the removed group then visibly fades, and only afterward does the anchor question `10 × 7 = ?` unlock.
+- For additive strategies such as `7 × 7`, the full array appears first, then the `5 groups + 2 groups` color split happens, then the anchor question unlocks.
+- After a correct anchor, the anchor equation, second part, combined equation, and final fact reveal one stage at a time before **TRY AGAIN** appears.
+- Devices using **Reduce Motion** still receive the same timed mathematical stages; motion effects are removed, but the full solution is no longer dumped onto the screen at once.
+- Keeps all Fact Coach feedback silent and browser-local. No Supabase migration, new Streamlit Secret, mastery change, or teacher-data change is required.
+
 ### v2.8.1 teacher-dashboard hotfix
 
 - Fixes the **Mastery & Focus → Full Class Fact Map** default filter crash. The previous code treated the label `All facts` as if it were a numeric fact-family label because it ended in the letter `s`.
@@ -165,11 +177,11 @@ TEACHER_PASSWORD = "CHOOSE-A-PRIVATE-TEACHER-PASSWORD"
 
 ## Updating an existing installation
 
-**Updating from v2.8.0:** v2.8.1 is **code only**. There is no new Supabase SQL migration and no new Streamlit Secret. Upload every file/folder in `UPLOAD_TO_GITHUB` and let Streamlit redeploy. The existing v2.6 browser-batch schema already stores every independent/correction event Fact Coach needs.
+**Updating from v2.8.1 / v2.8.0:** v2.8.2 is **code only**. There is no new Supabase SQL migration and no new Streamlit Secret. Upload every file/folder in `UPLOAD_TO_GITHUB` and let Streamlit redeploy. The existing v2.6 browser-batch schema already stores every independent/correction event Fact Coach needs.
 
-**Updating from v2.7.0:** upload the v2.8.1 app files; there is no additional SQL migration beyond the migrations your installation has already completed.
+**Updating from v2.7.0:** upload the v2.8.2 app files; there is no additional SQL migration beyond the migrations your installation has already completed.
 
-**Updating from v2.5.x or earlier:** first apply any migration your installation has not yet run (including `RUN_THIS_ONCE_IN_SUPABASE_v2_6.sql` for Guided Practice), then upload the v2.8.1 app files. Do **not** rerun migrations you already completed.
+**Updating from v2.5.x or earlier:** first apply any migration your installation has not yet run (including `RUN_THIS_ONCE_IN_SUPABASE_v2_6.sql` for Guided Practice), then upload the v2.8.2 app files. Do **not** rerun migrations you already completed.
 
 Make sure all five browser-component folders are present in GitHub:
 
@@ -182,6 +194,17 @@ Make sure all five browser-component folders are present in GitHub:
 `SUPABASE_SCHEMA.sql` represents the current full schema for a brand-new installation.
 
 ## Version notes
+
+### v2.8.2 — True Staged Fact Coach Animation
+
+- Adds a student-triggered **▶ WATCH IT** gate so visual instruction never finishes while Streamlit is still laying out the page or while the coach is below the fold.
+- Replaces fragile load-time CSS animation timing with browser-local JavaScript stages for **SEE IT → BREAK IT → YOUR TURN**.
+- Keeps the anchor keypad locked until the visual sequence is complete, then unlocks the exact same scaffolded retrieval used by v2.8.1.
+- Stages post-anchor equations and the final answer before the retry button appears.
+- Adds a browser-local **↻ REPLAY** option that does not create mastery evidence or server/database traffic.
+- Preserves accessibility: Reduce Motion removes movement but not the sequence of mathematical reveals.
+- Retains the v2.8.1 Teacher Mastery filter hotfix and every v2.7 teacher feature.
+- Code-only update: no Supabase migration and no new Streamlit Secret.
 
 ### v2.8.1 — Silent Visual Fact Coach
 

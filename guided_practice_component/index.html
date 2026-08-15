@@ -35,45 +35,55 @@
 
   .coach-card { border:1px solid #99f6e4; background:#f8fffe; border-radius:20px; padding:13px 12px 14px; margin:8px 0 12px; overflow:hidden; text-align:center; }
   .stage-row { display:flex; justify-content:center; gap:6px; flex-wrap:wrap; margin-bottom:7px; }
-  .stage-chip { border-radius:999px; padding:4px 9px; font-size:11px; font-weight:950; letter-spacing:.04em; background:#e5e7eb; color:#6b7280; opacity:.38; transform:scale(.94); }
-  .stage-chip.see { animation:stageOn .3s ease .08s forwards; }
-  .stage-chip.break { animation:stageOn .35s ease .86s forwards; }
-  .stage-chip.turn { animation:stageOn .35s ease 1.55s forwards; }
-  @keyframes stageOn { to { opacity:1; transform:scale(1); background:#ccfbf1; color:#115e59; } }
+  .stage-chip { border-radius:999px; padding:4px 9px; font-size:11px; font-weight:950; letter-spacing:.04em; background:#e5e7eb; color:#6b7280; opacity:.38; transform:scale(.94); transition:opacity .24s ease, transform .24s ease, background .24s ease, color .24s ease; }
+  .coach-card.seq-see .stage-chip.see,
+  .coach-card.seq-break .stage-chip.see,
+  .coach-card.seq-turn .stage-chip.see,
+  .coach-card.seq-break .stage-chip.break,
+  .coach-card.seq-turn .stage-chip.break,
+  .coach-card.seq-turn .stage-chip.turn { opacity:1; transform:scale(1); background:#ccfbf1; color:#115e59; }
   .coach-title { text-align:center; font-size:31px; font-weight:950; letter-spacing:-.025em; margin:1px 0 3px; }
   .visual-caption { color:#374151; font-size:15px; font-weight:850; margin-bottom:4px; }
   .same-fact { display:inline-block; margin:1px 0 5px; padding:3px 8px; border-radius:999px; background:#eef2ff; color:#4338ca; font-size:12px; font-weight:850; }
 
+  .watch-controls { display:flex; justify-content:center; align-items:center; gap:8px; min-height:48px; margin:7px 0 4px; }
+  .watch-btn { min-height:44px; padding:0 24px; border-radius:999px; border:1px solid var(--teal); background:var(--teal); color:#fff; font-size:16px; font-weight:950; }
+  .watch-btn.secondary { display:none; background:#fff; color:var(--teal); }
+  .coach-card.sequence-complete .watch-btn.primary { display:none; }
+  .coach-card.sequence-complete .watch-btn.secondary { display:inline-block; }
+  .coach-card.sequence-playing .watch-btn.primary { opacity:.6; pointer-events:none; }
+  .watch-note { font-size:11px; color:#64748b; font-weight:750; margin-top:-1px; }
+
   .coach-array-shell { display:flex; justify-content:center; margin:8px 0 7px; min-height:28px; }
   .coach-array { display:grid; gap:4px; justify-content:center; align-items:center; padding:4px; }
-  .coach-cell { width:12px; height:12px; border-radius:4px; background:var(--teal); opacity:0; transform:scale(.55); animation:cellIn .25s ease forwards; animation-delay:var(--delay); }
-  @keyframes cellIn { 75%{transform:scale(1.12)} 100%{opacity:1;transform:scale(1)} }
+  .coach-cell { width:12px; height:12px; border-radius:4px; background:var(--teal); opacity:0; transform:scale(.62); transition:opacity .22s ease, transform .22s ease, background-color .38s ease, filter .28s ease; transition-delay:0ms; }
+  .coach-card.seq-see .coach-cell { opacity:1; transform:scale(1); transition-delay:var(--delay); }
 
-  /* First show the whole array, then visibly transform it into the relationship. */
-  .coach-card.teach-view .coach-cell.part-a { animation:cellIn .25s ease forwards, toOrange .42s ease forwards; animation-delay:var(--delay), .82s; }
-  .coach-card.teach-view .coach-cell.part-b { animation:cellIn .25s ease forwards, toPurple .42s ease forwards; animation-delay:var(--delay), .82s; }
-  .coach-card.teach-view .coach-cell.removed { animation:cellIn .25s ease forwards, toRemoved .55s ease forwards; animation-delay:var(--delay), .82s; }
-  @keyframes toOrange { from{background:var(--teal)} to{background:var(--orange);transform:scale(1.04)} }
-  @keyframes toPurple { from{background:var(--teal)} to{background:var(--purple);transform:scale(1.04)} }
-  @keyframes toRemoved { 0%{background:var(--teal);opacity:1} 55%{background:#9ca3af;opacity:.75} 100%{background:#9ca3af;opacity:.22;transform:scale(.84)} }
-  @keyframes fadeRemoved { to { opacity:.22; transform:scale(.84); } }
+  /* The whole array appears first. Only then does it visibly transform. */
+  .coach-card.seq-break .coach-cell { opacity:1; transform:scale(1); transition-delay:0ms; }
+  .coach-card.seq-break .coach-cell.part-a { background:var(--orange); transform:scale(1.04); }
+  .coach-card.seq-break .coach-cell.part-b { background:var(--purple); transform:scale(1.04); }
+  .coach-card.seq-break .coach-cell.removed { background:#9ca3af; opacity:.22; transform:scale(.84); }
 
-  .coach-card.combine-view .coach-cell { opacity:1; transform:scale(1); animation:none; }
-  .coach-card.combine-view .coach-cell.part-a { background:var(--orange); animation:pulseA .6s ease .2s both; }
-  .coach-card.combine-view .coach-cell.part-b { background:var(--purple); animation:pulseB .6s ease .75s both; }
-  .coach-card.combine-view .coach-cell.removed { background:#9ca3af; opacity:.22; }
-  @keyframes pulseA { 50%{transform:scale(1.16);filter:brightness(1.05)} }
-  @keyframes pulseB { 50%{transform:scale(1.16);filter:brightness(1.05)} }
+  .coach-card.combine-view .coach-cell { opacity:1; transform:scale(1); transition-delay:0ms; }
+  .coach-card.combine-view .coach-cell.part-a { background:var(--orange); }
+  .coach-card.combine-view .coach-cell.part-b { background:var(--purple); }
+  .coach-card.combine-view .coach-cell.removed { background:#9ca3af; opacity:.22; transform:scale(.84); }
+  .coach-card.combine-view.pulse-a .coach-cell.part-a { animation:pulseA .52s ease both; }
+  .coach-card.combine-view.pulse-b .coach-cell.part-b { animation:pulseB .52s ease both; }
+  @keyframes pulseA { 50%{transform:scale(1.16);filter:brightness(1.08)} }
+  @keyframes pulseB { 50%{transform:scale(1.16);filter:brightness(1.08)} }
 
   .group-equation { display:flex; justify-content:center; align-items:center; gap:6px; flex-wrap:wrap; min-height:30px; margin:4px 0 4px; font-size:15px; font-weight:900; }
-  .part-pill { display:inline-flex; align-items:center; gap:5px; border-radius:999px; padding:4px 9px; opacity:0; transform:translateY(5px); }
-  .part-pill.a { color:#c2410c; background:var(--orange-bg); animation:revealUp .35s ease .9s forwards; }
-  .part-pill.b { color:#6d28d9; background:var(--purple-bg); animation:revealUp .35s ease 1.15s forwards; }
-  .part-pill.r { color:#4b5563; background:#f3f4f6; animation:revealUp .35s ease 1.15s forwards; }
-  @keyframes revealUp { to{opacity:1;transform:translateY(0)} }
+  .part-pill { display:inline-flex; align-items:center; gap:5px; border-radius:999px; padding:4px 9px; opacity:0; transform:translateY(5px); transition:opacity .28s ease, transform .28s ease; }
+  .part-pill.a { color:#c2410c; background:var(--orange-bg); }
+  .part-pill.b { color:#6d28d9; background:var(--purple-bg); }
+  .part-pill.r { color:#4b5563; background:#f3f4f6; }
+  .coach-card.seq-break .part-pill { opacity:1; transform:translateY(0); }
 
-  .coach-question { border-top:1px solid #ccfbf1; padding-top:11px; margin-top:7px; text-align:center; opacity:0; transform:translateY(8px); animation:questionIn .4s ease 1.48s forwards; }
-  @keyframes questionIn { to{opacity:1;transform:translateY(0)} }
+  .coach-question { display:none; border-top:1px solid #ccfbf1; padding-top:11px; margin-top:7px; text-align:center; opacity:0; transform:translateY(8px); pointer-events:none; transition:opacity .3s ease, transform .3s ease; }
+  .coach-card.seq-turn .coach-question,
+  .coach-card.combine-view .coach-question { display:block; opacity:1; transform:translateY(0); pointer-events:auto; }
   .your-turn { display:inline-block; background:#ccfbf1; color:#115e59; border-radius:999px; padding:5px 11px; font-size:12px; font-weight:950; margin-bottom:3px; }
   .micro-prompt { font-size:13px; color:#4b5563; font-weight:800; }
   .anchor-fact { font-size:34px; font-weight:950; margin:2px 0 6px; }
@@ -86,14 +96,30 @@
   details.why div { margin-top:5px; padding:7px 9px; background:#f8fafc; border-radius:10px; line-height:1.35; }
 
   .equation-stack { display:grid; gap:7px; max-width:390px; margin:10px auto 3px; }
-  .equation { border-radius:13px; padding:9px 10px; text-align:center; font-size:21px; font-weight:950; background:#fff; border:1px solid #d1d5db; opacity:0; transform:translateY(8px) scale(.98); }
-  .equation.anchor { border-color:#fdba74; color:#c2410c; background:var(--orange-bg); animation:eqIn .35s ease .15s forwards; }
-  .equation.second { border-color:#c4b5fd; color:#6d28d9; background:var(--purple-bg); animation:eqIn .35s ease .68s forwards; }
-  .equation.combine { border:2px solid #5eead4; color:var(--teal); background:var(--teal-bg); font-size:24px; animation:eqIn .4s ease 1.18s forwards; }
-  .equation.final { border:none; background:var(--teal); color:#fff; font-size:29px; animation:finalPop .5s cubic-bezier(.2,.9,.25,1.35) 1.7s forwards; }
-  @keyframes eqIn { to{opacity:1;transform:translateY(0) scale(1)} }
+  .equation { border-radius:13px; padding:9px 10px; text-align:center; font-size:21px; font-weight:950; background:#fff; border:1px solid #d1d5db; opacity:0; transform:translateY(8px) scale(.98); transition:opacity .32s ease, transform .32s ease; }
+  .equation.anchor { border-color:#fdba74; color:#c2410c; background:var(--orange-bg); }
+  .equation.second { border-color:#c4b5fd; color:#6d28d9; background:var(--purple-bg); }
+  .equation.combine { border:2px solid #5eead4; color:var(--teal); background:var(--teal-bg); font-size:24px; }
+  .equation.final { border:none; background:var(--teal); color:#fff; font-size:29px; }
+  .coach-card.combine-view.eq-step-1 .equation.anchor,
+  .coach-card.combine-view.eq-step-2 .equation.anchor,
+  .coach-card.combine-view.eq-step-3 .equation.anchor,
+  .coach-card.combine-view.eq-step-4 .equation.anchor,
+  .coach-card.combine-view.eq-step-2 .equation.second,
+  .coach-card.combine-view.eq-step-3 .equation.second,
+  .coach-card.combine-view.eq-step-4 .equation.second,
+  .coach-card.combine-view.eq-step-3 .equation.combine,
+  .coach-card.combine-view.eq-step-4 .equation.combine,
+  .coach-card.combine-view.eq-step-4 .equation.final { opacity:1; transform:translateY(0) scale(1); }
+  .coach-card.combine-view.eq-step-4 .equation.final { animation:finalPop .48s cubic-bezier(.2,.9,.25,1.35) both; }
   @keyframes finalPop { 0%{opacity:0;transform:scale(.72)} 75%{opacity:1;transform:scale(1.07)} 100%{opacity:1;transform:scale(1)} }
-  .combine-action { opacity:0; animation:revealUp .35s ease 2.18s forwards; }
+  .combine-action { opacity:0; visibility:hidden; transform:translateY(6px); transition:opacity .28s ease, transform .28s ease; }
+  .coach-card.combine-view.action-ready .combine-action,
+  .coach-card.teach-view.action-ready .combine-action { opacity:1; visibility:visible; transform:translateY(0); }
+  .coach-card.teach-view.direct-step-1 .equation.combine,
+  .coach-card.teach-view.direct-step-2 .equation.combine,
+  .coach-card.teach-view.direct-step-2 .equation.final { opacity:1; transform:translateY(0) scale(1); }
+  .coach-card.teach-view.direct-step-2 .equation.final { animation:finalPop .48s cubic-bezier(.2,.9,.25,1.35) both; }
 
   .prompt { text-align:center; font-size:16px; font-weight:900; margin:7px 0 5px; }
   .retry-boss { text-align:center; border:1px solid #99f6e4; background:var(--teal-bg); border-radius:18px; padding:12px 10px 9px; margin:6px 0 9px; }
@@ -128,8 +154,9 @@
     .coach-card { padding-left:9px; padding-right:9px; }
   }
   @media (prefers-reduced-motion: reduce) {
-    *, *::before, *::after { animation-duration:.01ms !important; animation-delay:0ms !important; transition-duration:.01ms !important; }
-    .coach-cell,.coach-question,.part-pill,.equation,.combine-action,.stage-chip { opacity:1 !important; transform:none !important; }
+    *, *::before, *::after { animation-duration:.01ms !important; transition-duration:.01ms !important; }
+    /* Accessibility: remove motion, but JS still reveals each math stage in order. */
+    .coach-cell,.coach-question,.part-pill,.equation,.combine-action,.stage-chip { transform:none !important; }
   }
 </style>
 </head>
@@ -151,6 +178,8 @@
   let lastHeight = 0;
   let anchorMissed = false;
   let retryMissed = false;
+  let coachSequenceReady = true;
+  let coachSequenceTimers = [];
 
   function post(type, extra={}) { window.parent.postMessage(Object.assign({isStreamlitMessage:true, type}, extra), '*'); }
   function ready() { post('streamlit:componentReady', {apiVersion:1}); }
@@ -260,7 +289,8 @@
     const stages = p.needs_anchor
       ? `<div class="stage-row"><span class="stage-chip see">SEE IT</span><span class="stage-chip break">BREAK IT</span><span class="stage-chip turn">YOUR TURN</span></div>`
       : `<div class="stage-row"><span class="stage-chip see">SEE IT</span><span class="stage-chip break">BUILD IT</span></div>`;
-    return `<div class="coach-card ${view === 'combine' ? 'combine-view' : 'teach-view'}" data-learning-sequence="See it · Connect it · Solve it">${stages}<div class="coach-title">${item.a} × ${item.b}</div>${orientationMarkup(item,p)}${coachArrayMarkup(item,view)}${inner}${optionalWhy(p)}</div>`;
+    const watch = view === 'combine' ? '' : `<div class="watch-controls"><button id="watch-coach" class="watch-btn primary" type="button">▶ WATCH IT</button><button id="replay-coach" class="watch-btn secondary" type="button">↻ REPLAY</button></div>`;
+    return `<div class="coach-card ${view === 'combine' ? 'combine-view' : 'teach-view'}" data-learning-sequence="See it · Connect it · Solve it">${stages}<div class="coach-title">${item.a} × ${item.b}</div>${orientationMarkup(item,p)}${watch}${coachArrayMarkup(item,view)}${inner}${optionalWhy(p)}</div>`;
   }
 
   function coachPhaseMarkup(item) {
@@ -298,6 +328,68 @@
     return `<div id="retry-feedback" class="retry-feedback ${retryMissed ? 'show' : ''}">Almost — try once more.</div><div class="retry-boss"><div class="boss-chip">🎯 TRY AGAIN</div><div class="boss-fact">${item.a} × ${item.b} = ?</div><div class="boss-hint">${escapeHtml(recap)}</div></div>${keypadMarkup()}`;
   }
 
+  function clearCoachSequenceTimers() {
+    coachSequenceTimers.forEach(id => clearTimeout(id));
+    coachSequenceTimers = [];
+  }
+  function later(ms, fn) { coachSequenceTimers.push(setTimeout(fn, ms)); }
+  function resetTeachClasses(card) {
+    ['seq-see','seq-break','seq-turn','sequence-playing','sequence-complete','direct-step-1','direct-step-2','action-ready'].forEach(c => card.classList.remove(c));
+  }
+  function startTeachSequence() {
+    const card = document.querySelector('.coach-card.teach-view');
+    if (!card) return;
+    clearCoachSequenceTimers();
+    resetTeachClasses(card);
+    coachSequenceReady = false;
+    const needsAnchor = !!card.querySelector('.anchor-fact');
+    card.classList.add('sequence-playing');
+    setHeight();
+    later(120, () => { card.classList.add('seq-see'); setHeight(); });
+    later(1050, () => { card.classList.add('seq-break'); setHeight(); });
+    if (needsAnchor) {
+      later(2050, () => {
+        card.classList.add('seq-turn','sequence-complete');
+        card.classList.remove('sequence-playing');
+        coachSequenceReady = true;
+        setHeight();
+      });
+    } else {
+      later(1750, () => { card.classList.add('seq-turn','direct-step-1'); setHeight(); });
+      later(2250, () => { card.classList.add('direct-step-2'); setHeight(); });
+      later(2700, () => {
+        card.classList.add('action-ready','sequence-complete');
+        card.classList.remove('sequence-playing');
+        coachSequenceReady = true;
+        setHeight();
+      });
+    }
+  }
+  function startCombineSequence() {
+    const card = document.querySelector('.coach-card.combine-view');
+    if (!card) return;
+    clearCoachSequenceTimers();
+    card.classList.add('seq-see','seq-break','seq-turn');
+    coachSequenceReady = true;
+    later(180, () => card.classList.add('pulse-a'));
+    later(570, () => card.classList.remove('pulse-a'));
+    later(620, () => card.classList.add('eq-step-1'));
+    later(960, () => card.classList.add('pulse-b'));
+    later(1310, () => { card.classList.remove('pulse-b'); card.classList.add('eq-step-2'); });
+    later(1720, () => card.classList.add('eq-step-3'));
+    later(2170, () => card.classList.add('eq-step-4'));
+    later(2700, () => { card.classList.add('action-ready'); setHeight(); });
+  }
+  function prepareCoachSequence() {
+    clearCoachSequenceTimers();
+    if (phase === 'coach' || phase === 'teach') {
+      coachSequenceReady = false;
+      return;
+    }
+    coachSequenceReady = true;
+    if (phase === 'combine') later(180, startCombineSequence);
+  }
+
   function render() {
     const root = document.getElementById('root');
     const item = currentItem();
@@ -312,7 +404,7 @@
     else if (phase === 'retry') body += retryMarkup(item);
     else body += `<div class="fact">${item.a} × ${item.b}</div>${keypadMarkup()}`;
     root.innerHTML = body;
-    bindControls(); setHeight();
+    bindControls(); prepareCoachSequence(); setHeight();
   }
 
   function bindControls() {
@@ -320,15 +412,19 @@
     const back = document.getElementById('back'); if (back) back.addEventListener('click', erase);
     const submit = document.getElementById('submit'); if (submit) submit.addEventListener('click', submitAnswer);
     const next = document.getElementById('to-retry'); if (next) next.addEventListener('click', () => { phase='retry'; digits=''; retryMissed=false; itemStartedAt=Date.now(); saveLocal(); render(); });
+    const watch = document.getElementById('watch-coach'); if (watch) watch.addEventListener('click', startTeachSequence);
+    const replay = document.getElementById('replay-coach'); if (replay) replay.addEventListener('click', startTeachSequence);
   }
   function addDigit(d) {
     if (submitted || digits.length >= 3) return;
+    if ((phase === 'coach' || phase === 'teach') && !coachSequenceReady) return;
     digits += d;
     if (digits.length > 1) digits = digits.replace(/^0+/, '') || '0';
     saveLocal(); updateDigitDisplay();
   }
   function erase() {
     if (submitted) return;
+    if ((phase === 'coach' || phase === 'teach') && !coachSequenceReady) return;
     digits = digits.slice(0,-1);
     saveLocal(); updateDigitDisplay();
   }
@@ -353,6 +449,7 @@
 
   function submitAnswer() {
     if (submitted) return;
+    if ((phase === 'coach' || phase === 'teach') && !coachSequenceReady) return;
     const value = Number(digits);
     const error = document.getElementById('error');
     if (!digits || !Number.isInteger(value) || value < 0 || value > 200) { if (error) error.textContent='Enter a whole number.'; return; }
