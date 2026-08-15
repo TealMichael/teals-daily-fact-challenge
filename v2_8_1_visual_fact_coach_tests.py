@@ -8,7 +8,7 @@ GUIDED = (ROOT / "guided_practice_component" / "index.html").read_text(encoding=
 
 def run():
     checks = {}
-    checks["version 2.8.2"] = APP_VERSION == "2.8.2"
+    checks["version 2.8.2.1"] = APP_VERSION == "2.8.2.1"
     checks["short visual stages"] = all(text in GUIDED for text in ["SEE IT", "BREAK IT", "YOUR TURN", "PUT IT TOGETHER", "TRY AGAIN"])
     checks["whole array transforms after appearing"] = "seq-see" in GUIDED and "seq-break" in GUIDED and "background:var(--orange)" in GUIDED and "background:var(--purple)" in GUIDED
     checks["subtraction visibly fades removed groups"] = ".coach-cell.removed" in GUIDED and "opacity:.22" in GUIDED
@@ -28,7 +28,7 @@ def run():
         print(f"{'PASS' if ok else 'FAIL'}: {name}")
     if failed:
         raise AssertionError("Failed: " + ", ".join(failed))
-    print(f"v2.8.2 Visual Fact Coach regression: {len(checks)}/{len(checks)} checks passed")
+    print(f"v2.8.2.1 Visual Fact Coach regression: {len(checks)}/{len(checks)} checks passed")
 
 
 if __name__ == "__main__":

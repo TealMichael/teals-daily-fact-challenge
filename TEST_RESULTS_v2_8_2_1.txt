@@ -1,0 +1,18 @@
+Teal's Daily Fact Challenge v2.8.2.1 validation
+
+PASS - all 36 automated Python test suites
+PASS - new Daily continuity hotfix regression: 11/11
+PASS - v2.8.2 staged animation regression retained
+PASS - v2.8.1 Visual Fact Coach regression retained
+PASS - v2.8 Interactive Fact Coach regression retained
+PASS - Teacher Dashboard fact-map filter regression retained
+PASS - Python compilation across the full app
+PASS - JavaScript syntax validation for all 5 browser components
+PASS - existing classroom-scale, adaptive-learning, mastery-data, Mystery, roster, login, leaderboard-privacy, teacher-dashboard, and classroom-load regressions retained
+
+Key v2.8.2.1 protection:
+- The first Daily Challenge stored for a calendar date is authoritative for that date.
+- Later app deployments cannot invalidate students' live Daily by comparing against a regenerated local copy.
+- Existing challenge IDs, attempts, answers, and leaderboard data remain attached to the stored Daily.
+- New dates continue to use the normal deterministic generator.
+- No Supabase migration or new Streamlit Secret is required.

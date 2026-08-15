@@ -11,7 +11,7 @@ PIN = (ROOT / "pin_entry_component" / "index.html").read_text(encoding="utf-8")
 
 def run():
     checks = {}
-    checks["version 2.6"] = APP_VERSION == "2.8.2"
+    checks["version 2.6"] = APP_VERSION == "2.8.2.1"
 
     # Shared Step 2/3/Practice keypad must size to its actual browser content.
     checks["answer pad no fixed 310 height"] = "setHeight(310)" not in PAD and "height=310" not in PAD

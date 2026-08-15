@@ -1,1 +1,1 @@
-v2.8.2 - make Fact Coach animations staged and impossible to miss
+v2.8.2.1 - keep the stored Daily authoritative during live-day updates

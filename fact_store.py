@@ -390,8 +390,9 @@ class InMemoryFactStore:
         key = _as_date_key(challenge_date)
         existing = self.challenges.get(key)
         if existing:
-            if existing.challenge_version != challenge_version or tuple(existing.facts) != tuple(facts):
-                raise FactStoreError("Stored Daily Challenge does not match the local generator.")
+            # Once a Daily has been created for a calendar date, that stored
+            # challenge is authoritative for the rest of the day.  A later app
+            # deployment must never invalidate students' already-live Daily.
             return existing
         record = ChallengeRecord(_uuid(), key, challenge_version, tuple(facts), utc_now())
         self.challenges[key] = record

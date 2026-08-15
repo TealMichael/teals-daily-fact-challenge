@@ -525,6 +525,14 @@ class SupabaseFactStore:
         self, challenge_date: date | str, challenge_version: str, facts: Sequence[Fact]
     ) -> ChallengeRecord:
         key = challenge_date.isoformat() if isinstance(challenge_date, date) else str(challenge_date)
+
+        # The first challenge stored for a date is the classroom source of truth.
+        # This protects an in-progress Daily from later UI/teaching deployments
+        # that may regenerate a different local copy for the same date.
+        existing = self.get_challenge(key)
+        if existing is not None:
+            return existing
+
         payload = {
             "challenge_date": key,
             "challenge_version": str(challenge_version),
@@ -535,11 +543,11 @@ class SupabaseFactStore:
         except Exception as exc:
             if not _is_unique(exc):
                 raise
+
+        # If another request won the insert race, its stored challenge still wins.
         record = self.get_challenge(key)
         if record is None:
             raise FactStoreError("Could not load today's challenge after registration.")
-        if record.challenge_version != challenge_version or tuple(record.facts) != tuple(facts):
-            raise FactStoreError("Stored Daily Challenge does not match the local generator.")
         return record
 
     # ----- Attempts / answers -----

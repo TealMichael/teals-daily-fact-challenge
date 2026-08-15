@@ -19,7 +19,7 @@ def run():
         print(f"{'PASS' if ok else 'FAIL'}: {name}")
     if failed:
         raise AssertionError('Failed: ' + ', '.join(failed))
-    print(f"v2.8.2 Teacher Dashboard filter hotfix: {len(checks)}/{len(checks)} checks passed")
+    print(f"v2.8.2.1 Teacher Dashboard filter hotfix: {len(checks)}/{len(checks)} checks passed")
 
 
 if __name__ == '__main__':
