@@ -1,0 +1,17 @@
+Teal's Daily Fact Challenge v2.7.0 validation
+
+- 31/31 automated Python test suites passed.
+- New v2.7 after-school teacher update regression: 39/39 checks passed.
+- 38 Python source files compiled successfully.
+- JavaScript syntax passed for all 5 browser components:
+  - daily_sprint_component
+  - answer_pad_component
+  - guided_practice_component
+  - persistent_login_component
+  - pin_entry_component
+- Existing 90-student classroom-scale simulation remains passing.
+- Existing classroom-load, guided-practice, mastery, roster, PIN, remembered-login, leaderboard privacy, and Weekly Mystery regressions remain passing.
+
+Important deployment note:
+- No new Supabase SQL migration is required when updating from v2.6.x.
+- No new Streamlit secret is required.

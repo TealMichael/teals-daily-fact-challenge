@@ -4,7 +4,7 @@ from __future__ import annotations
 
 The mystery bank is intentionally local and curated so the classroom experience
 never depends on a live web request.  Every school week receives one shared
-mystery. Monday-Thursday completion unlocks one clue per completed day. Students may
+mystery. Monday-Friday completion unlocks one clue per completed day. Students may
 make Guess #1 on Thursday and Guess #2 on Friday; Friday then reveals the answer.
 Skipped clue days are never backfilled.
 """
@@ -20,12 +20,13 @@ class MysteryDefinition:
     key: str
     category: str
     answer: str
-    clues: tuple[str, str, str, str]
+    clues: tuple[str, ...]
     reveal_note: str
     aliases: tuple[str, ...] = ()
+    learning_paragraph: str | None = None
 
 
-def _m(key: str, category: str, answer: str, clues: tuple[str, str, str, str], note: str, *aliases: str) -> MysteryDefinition:
+def _m(key: str, category: str, answer: str, clues: tuple[str, ...], note: str, *aliases: str) -> MysteryDefinition:
     return MysteryDefinition(key, category, answer, clues, note, tuple(aliases))
 
 
@@ -213,10 +214,77 @@ LEARNING_PARAGRAPHS: dict[str, str] = {
 
 def learning_paragraph_for(mystery: MysteryDefinition) -> str:
     """Return a short, kid-friendly learning paragraph for every mystery reveal."""
+    if mystery.learning_paragraph:
+        return str(mystery.learning_paragraph)
     return LEARNING_PARAGRAPHS.get(
         mystery.key,
         f"{mystery.answer} was this week's mystery. {mystery.reveal_note}",
     )
+
+
+def default_friday_clue(answer: str) -> str:
+    """Create a safe final-day clue for legacy four-clue bank entries.
+
+    Friday is intentionally the most direct clue day, but this avoids placing the
+    answer itself in the clue text. Teacher-customized mysteries can replace it.
+    """
+    cleaned = " ".join(str(answer or "").split())
+    words = [word for word in re.findall(r"[A-Za-z0-9]+", cleaned) if word]
+    if not words:
+        return "My name gives one last strong hint before the final guess."
+    first = words[0][0].upper()
+    if len(words) == 1:
+        letters = sum(ch.isalnum() for ch in cleaned)
+        return f"My answer starts with the letter {first} and has {letters} letters."
+    return f"My answer has {len(words)} words and starts with the letter {first}."
+
+
+def with_five_clues(mystery: MysteryDefinition) -> MysteryDefinition:
+    clues = tuple(str(clue) for clue in mystery.clues if str(clue).strip())
+    if len(clues) >= 5:
+        clues = clues[:5]
+    else:
+        while len(clues) < 4:
+            clues = clues + (f"More information about this mystery is still being gathered for clue #{len(clues)+1}.",)
+        clues = clues + (default_friday_clue(mystery.answer),)
+    return MysteryDefinition(
+        key=mystery.key,
+        category=mystery.category,
+        answer=mystery.answer,
+        clues=clues,
+        reveal_note=mystery.reveal_note,
+        aliases=mystery.aliases,
+        learning_paragraph=mystery.learning_paragraph,
+    )
+
+
+def mystery_to_plan(mystery: MysteryDefinition) -> dict:
+    item = with_five_clues(mystery)
+    return {
+        "mystery_key": item.key,
+        "category": item.category,
+        "answer": item.answer,
+        "clues": list(item.clues),
+        "learning_paragraph": learning_paragraph_for(item),
+        "fun_fact": item.reveal_note,
+        "aliases": list(item.aliases),
+    }
+
+
+def mystery_from_plan(plan: dict) -> MysteryDefinition:
+    base_key = str(plan.get("mystery_key") or "custom")
+    base = MYSTERY_BY_KEY.get(base_key)
+    category = str(plan.get("category") or (base.category if base else "🎲 Totally Random"))
+    answer = str(plan.get("answer") or (base.answer if base else "Mystery")).strip()
+    raw_clues = plan.get("clues") or (list(base.clues) if base else [])
+    clues = tuple(str(value).strip() for value in raw_clues if str(value).strip())
+    reveal_note = str(plan.get("fun_fact") or (base.reveal_note if base else "Keep being curious!"))
+    aliases = tuple(str(value).strip() for value in (plan.get("aliases") or (base.aliases if base else ())) if str(value).strip())
+    paragraph = str(plan.get("learning_paragraph") or (learning_paragraph_for(base) if base else f"{answer} was this week's mystery."))
+    return with_five_clues(MysteryDefinition(
+        key=base_key, category=category, answer=answer, clues=clues, reveal_note=reveal_note,
+        aliases=aliases, learning_paragraph=paragraph,
+    ))
 
 
 MYSTERY_BY_KEY = {item.key: item for item in MYSTERIES}
@@ -270,7 +338,7 @@ def next_mystery_key(current_key: str, *, offset: int = 1) -> str:
 
 def mystery_for_key(key: str) -> MysteryDefinition:
     try:
-        return MYSTERY_BY_KEY[str(key)]
+        return with_five_clues(MYSTERY_BY_KEY[str(key)])
     except KeyError as exc:
         raise KeyError(f"Unknown weekly mystery key: {key}") from exc
 

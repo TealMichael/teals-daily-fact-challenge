@@ -1008,6 +1008,21 @@ class SupabaseFactStore:
                 result.append({"a": a, "b": b, "fact": f"{a} × {b}", **counts, "students": len(students)})
         return result
 
+    def class_mastery_detail(self, class_id: str) -> dict[str, list[MasterySnapshot]]:
+        """Return all persisted mastery rows for a class in one database read."""
+        students = self.list_students(class_id)
+        student_ids = [student.student_id for student in students]
+        result: dict[str, list[MasterySnapshot]] = {student_id: [] for student_id in student_ids}
+        if not student_ids:
+            return result
+        rows = _rows(_retry_transient(lambda: self.client.table("student_fact_mastery")
+            .select("*").in_("student_id", student_ids).range(0, 4999).execute()))
+        for row in rows:
+            sid = str(row.get("student_id"))
+            if sid in result:
+                result[sid].append(_mastery(row))
+        return result
+
     def get_or_create_learning_progress(self, student_id: str, challenge_id: str) -> LearningProgressRecord:
         row = _first(_retry_transient(lambda: (
             self.client.table("daily_learning_progress").select("*")
@@ -1182,6 +1197,52 @@ class SupabaseFactStore:
         if not 2 <= value <= 10:
             raise ValueError("Focus override must be 2 through 10 or Automatic.")
         return value
+
+    def get_app_setting(self, setting_key: str, default=None):
+        row = _first(_retry_transient(lambda: self.client.table("app_settings")
+            .select("setting_value").eq("setting_key", str(setting_key)).limit(1).execute()))
+        if not row:
+            return default
+        value = row.get("setting_value")
+        return default if value is None else value
+
+    def set_app_setting(self, setting_key: str, value) -> None:
+        _retry_transient(lambda: self.client.table("app_settings").upsert({
+            "setting_key": str(setting_key),
+            "setting_value": value,
+            "updated_at": utc_now().isoformat(),
+        }, on_conflict="setting_key").execute())
+
+    def delete_app_setting(self, setting_key: str) -> None:
+        _retry_transient(lambda: self.client.table("app_settings").delete()
+            .eq("setting_key", str(setting_key)).execute())
+
+    @staticmethod
+    def _mystery_plan_key(week_start: date | str) -> str:
+        week_key = week_start.isoformat() if isinstance(week_start, date) else str(week_start)
+        return f"weekly_mystery_plan::{week_key}"
+
+    def get_mystery_plan(self, week_start: date | str) -> dict | None:
+        value = self.get_app_setting(self._mystery_plan_key(week_start))
+        return dict(value) if isinstance(value, Mapping) else None
+
+    def save_mystery_plan(self, week_start: date | str, plan: Mapping) -> None:
+        week_key = week_start.isoformat() if isinstance(week_start, date) else str(week_start)
+        if self.weekly_mystery_locked(week_key):
+            raise FactStoreError("This week's mystery is locked because a student has already unlocked a clue.")
+        payload = dict(plan)
+        self.set_app_setting(self._mystery_plan_key(week_key), payload)
+        mystery_key = str(payload.get("mystery_key") or "").strip()
+        if mystery_key:
+            existing = self.get_weekly_mystery(week_key)
+            if existing is not None and existing.mystery_key != mystery_key:
+                self.replace_weekly_mystery(week_key, mystery_key)
+
+    def clear_mystery_plan(self, week_start: date | str) -> None:
+        week_key = week_start.isoformat() if isinstance(week_start, date) else str(week_start)
+        if self.weekly_mystery_locked(week_key):
+            raise FactStoreError("This week's mystery is locked because a student has already unlocked a clue.")
+        self.delete_app_setting(self._mystery_plan_key(week_key))
 
     def set_global_focus_override(self, family: int | None) -> None:
         value = self._normalize_override(family)

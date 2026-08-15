@@ -52,11 +52,11 @@ Completing the full learning routine earns one **Daily Star**, progress toward a
 The Weekly Mystery is a curiosity reward that appears only after the full learning routine is complete.
 
 - One shared mystery is used across every class for the school week.
-- **Monday-Thursday:** each completed routine earns the next clue in order.
+- **Monday-Friday:** each completed routine earns one clue. Friday now earns a fifth clue before the final guess/reveal.
 - Students **cannot guess Monday-Wednesday**.
 - **Thursday:** a completed routine unlocks **Guess #1 of 2**.
-- **Friday:** a completed routine unlocks **Guess #2 of 2**, then the answer is revealed.
-- Missed clue days are **never backfilled**. A student who completes only Monday and Thursday has only two clues on Thursday and still only those two clues for the Friday final guess.
+- **Friday:** a completed routine earns **Clue #5**, unlocks **Guess #2 of 2**, then the answer is revealed.
+- Missed clue days are **never backfilled**. A student who completes only Monday, Thursday, and Friday finishes with exactly three clues. Skipped Tuesday/Wednesday clues are never auto-granted.
 - Thursday and Friday guesses are separate; an unused Thursday guess does not roll into Friday.
 - Mystery solves are private and never affect Daily rank, mastery, Stars, or streaks.
 
@@ -99,19 +99,25 @@ The private Teacher Dashboard supports roughly 90 students across multiple class
 
 ### Today
 
-The teacher home view is organized around **🟢 Done / 🟡 Working / ⚪ Not started**. PINs and routine status stay visible in the main table; accuracy and timing are tucked into a teacher-only detail section. **Done** means Daily 10 + Fix Your Misses + Focus Practice are complete; using the Mystery guess is optional.
+The teacher home view is organized around **🟢 Done / 🟡 Working / ⚪ Not started** and now includes a teacher-safe **Live/Final Top 10**. A **🔄 Refresh data** button updates current Supabase results without logging the teacher out or changing the selected class. Teachers can open a large **Display Top 10** view for projection; it contains rank + nickname only, never PINs, scores, or times. Standings automatically become Final when everyone finishes the Daily 10, or the teacher can mark them Final manually.
+
+PINs and routine status remain visible in the private teacher table; accuracy and timing stay in a collapsed teacher-only detail section. **Done** means Daily 10 + Fix Your Misses + Focus Practice are complete; using the Mystery guess is optional.
 
 ### Mastery & Focus
 
-Teachers can see a full 45-fact class heatmap, facts showing the greatest observed need, an individual student's mastery map, and optional Focus overrides.
+The Mastery page is organized around teacher decisions rather than raw counts. It includes **evidence coverage**, **Best Teaching Opportunities**, **Students Who May Need Support**, **Students Showing Momentum**, a filterable 45-fact class matrix, detailed fact inspection, teaching-strategy connections, quick family Focus assignment, and a richer individual-student explanation of why a fact is Learning/Focus/Building/Fluent.
 
-Override priority is:
+The page explicitly distinguishes observed evidence from **⚪ Learning/unknown**, so early incomplete data is not mistaken for lack of knowledge. A collapsed **How the app teaches & uses data** section explains the Daily → correction → adaptive retrieval model and the exact mastery thresholds.
+
+Override priority remains:
 
 **Student override → Class override → All-student override → Automatic personalization**
 
 ### Weekly Mystery
 
-Teachers can preview the week's answer and all four clues, see unlock/guess/solve counts, and press **Pick Another Mystery** before any student earns a clue. Once the first clue is earned, the mystery locks for the week so students cannot receive a changed answer midstream.
+Teachers can preview the current week's answer and all five clues, see unlock/guess/solve counts, and swap the current mystery only before the first student earns a clue. Once the first clue is earned, the current week remains locked.
+
+A new **Next Week's Mystery** planning area lets the teacher preview the automatic selection, choose another curated mystery, or customize the answer, all five daily clues, learning paragraph, fun fact, and accepted aliases before Monday. The saved plan uses the existing private `app_settings` table and automatically becomes the active mystery when the new school week begins; it never changes the current week.
 
 ### Classes & Rosters / Student Support
 
@@ -119,7 +125,7 @@ Every existing teacher function remains available, but the dashboard is reorgani
 
 ## Daily fact generator
 
-The shared Daily generator remains versioned as `TDFC-DAILY-v1`, so the previously audited Daily sequence does not change in v2.6.
+The shared Daily generator remains versioned as `TDFC-DAILY-v1`, so the previously audited Daily sequence does not change in v2.7.
 
 Each Daily contains 10 unique underlying multiplication facts. Commutative mirrors cannot both appear. Normal core days contain 3 easier, 4 medium, and 3 harder facts. On selected extension days, one harder slot becomes one 11/12 fact.
 
@@ -145,13 +151,9 @@ TEACHER_PASSWORD = "CHOOSE-A-PRIVATE-TEACHER-PASSWORD"
 
 ## Updating an existing installation
 
-**Updating from v2.6:** this v2.6.1 hotfix is **code only**. Do not run another Supabase query; just upload every file/folder in `UPLOAD_TO_GITHUB` and let Streamlit redeploy.
+**Updating from v2.6.x:** v2.7.0 is **code only**. There is no new Supabase SQL migration and no new Streamlit Secret. Upload every file/folder in `UPLOAD_TO_GITHUB` and let Streamlit redeploy. The new next-week Mystery planning uses the existing private `app_settings` table that was added in v2.
 
-**Updating from v2.5.x:** first run `RUN_THIS_ONCE_IN_SUPABASE_v2_6.sql` once in a **new Supabase SQL Editor query**, then upload the v2.6.1 app files.
-
-**Updating from v2.4 or earlier:** first apply any earlier migration your installation has not yet run (including `RUN_THIS_ONCE_IN_SUPABASE_v2_5.sql` when needed), then run `RUN_THIS_ONCE_IN_SUPABASE_v2_6.sql`, then upload the app.
-
-No new Streamlit Secret is required. Do **not** rerun migrations you already completed.
+**Updating from v2.5.x or earlier:** first apply any migration your installation has not yet run (including `RUN_THIS_ONCE_IN_SUPABASE_v2_6.sql` for Guided Practice), then upload the v2.7.0 app files. Do **not** rerun migrations you already completed.
 
 Make sure all five browser-component folders are present in GitHub:
 
@@ -164,6 +166,18 @@ Make sure all five browser-component folders are present in GitHub:
 `SUPABASE_SCHEMA.sql` represents the current full schema for a brand-new installation.
 
 ## Version notes
+
+### v2.7.0 — Teacher Intelligence & Weekly Planning
+
+- Adds a real Friday **Clue #5**. Students earn one clue for each completed Monday-Friday routine; skipped days are never backfilled. Friday's earned clue appears before Guess #2/reveal.
+- Adds **🔄 Refresh data** to the Teacher Today view and projector view so teachers can pull fresh class status without losing the authenticated Streamlit session.
+- Adds teacher **Live Top 10 / Final Top 10** with rank + nickname only, manual Final control, automatic Final when the class has finished the Daily 10, and a large student-safe **Display Top 10** presentation view.
+- Labels the student post-Daily board **Current Top 10** and explicitly explains that standings can change as classmates finish.
+- Rebuilds **Mastery & Focus** around instructional decisions: evidence coverage, teaching opportunities, support needs, student momentum, a filterable class fact matrix, fact-level evidence/strategy details, quick Focus-family assignment, and richer individual student explanations.
+- Adds a teacher-facing explanation of how Daily retrieval, correction, Focus Practice, accuracy, timing, and mastery statuses work; no placement test is introduced.
+- Adds **Next Week's Mystery** planning: preview the automatic choice, switch to another curated mystery, or customize the answer, all five clues, learning paragraph, fun fact, and aliases before Monday. Current-week locks remain protected.
+- Renames the Teacher Dashboard **Lock** button to **Log out**.
+- Uses the existing `app_settings` table for teacher planning/final-board settings, so **no Supabase migration is required** from v2.6.x.
 
 
 ### v2.6.2 — Final Screen Polish

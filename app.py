@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import html
 import hmac
 import random
@@ -42,6 +42,8 @@ from weekly_mystery import (
     is_correct_guess,
     learning_paragraph_for,
     mystery_for_key,
+    mystery_from_plan,
+    mystery_to_plan,
     next_mystery_key,
     school_day_number,
     week_start_for,
@@ -740,10 +742,24 @@ def render_student_sign_in(store: SupabaseFactStore | None) -> bool:
 # ---------------------------------------------------------------------------
 # Weekly Mystery reward
 # ---------------------------------------------------------------------------
+def resolve_weekly_mystery(store: SupabaseFactStore, week_start, record=None):
+    plan = store.get_mystery_plan(week_start)
+    if plan:
+        return mystery_from_plan(plan)
+    if record is None:
+        record = store.get_weekly_mystery(week_start)
+    key = record.mystery_key if record is not None else default_mystery_key_for_week(week_start)
+    return mystery_for_key(key)
+
+
 def ensure_weekly_mystery(store: SupabaseFactStore, day):
     week_start = week_start_for(day)
-    record = store.get_or_create_weekly_mystery(week_start, default_mystery_key_for_week(week_start))
-    return week_start, record, mystery_for_key(record.mystery_key)
+    plan = store.get_mystery_plan(week_start)
+    planned_key = str(plan.get("mystery_key") or "").strip() if plan else ""
+    record = store.get_or_create_weekly_mystery(
+        week_start, planned_key or default_mystery_key_for_week(week_start)
+    )
+    return week_start, record, resolve_weekly_mystery(store, week_start, record)
 
 
 def _mystery_solve_title(clue_count: int) -> str:
@@ -803,7 +819,7 @@ def _render_mystery_win(mystery, solved_guess, week_start) -> None:
 
 
 def render_weekly_mystery_reward(store: SupabaseFactStore, day, challenge, *, show_heading: bool = True) -> None:
-    """Earn clues Monday-Thursday; guessing exists only Thursday and Friday."""
+    """Earn one clue Monday-Friday; guessing exists only Thursday and Friday."""
     try:
         week_start, _, mystery = ensure_weekly_mystery(store, day)
         day_number = school_day_number(day)
@@ -819,16 +835,16 @@ def render_weekly_mystery_reward(store: SupabaseFactStore, day, challenge, *, sh
             st.exception(exc)
         return
 
-    # Clues are earned only by completing Monday-Thursday. Friday never
-    # backfills clues a student skipped earlier in the week.
-    clue_count = min(4, sum(1 for row in unlocks if 1 <= int(row.day_number) <= 4))
+    # One clue is earned for each completed school day, including Friday.
+    # Skipped days never backfill: two completed days means exactly two clues.
+    clue_count = min(5, sum(1 for row in unlocks if 1 <= int(row.day_number) <= 5))
     completed_days = {int(row.day_number) for row in unlocks}
     guess_by_day = {int(row.guess_day): row for row in guesses}
     solved_guess = next((row for row in guesses if row.correct), None)
 
     if show_heading:
         st.markdown("### 🕵️ This Week's Mystery")
-        st.caption("Earn one clue for each full routine Monday–Thursday. Guess #1 is Thursday; Guess #2 is Friday.")
+        st.caption("Earn one clue for each full routine Monday–Friday. Guess #1 is Thursday; Guess #2 is Friday.")
     _render_mystery_clues(mystery, clue_count)
 
     if day_number is None:
@@ -875,8 +891,8 @@ def render_weekly_mystery_reward(store: SupabaseFactStore, day, challenge, *, sh
         _render_mystery_stats(store)
         return
 
-    # Friday: completing Friday unlocks the second/final guess and the reveal,
-    # but it does not grant any missed Monday-Thursday clues.
+    # Friday: completing Friday earns that day's clue, then unlocks the
+    # second/final guess and reveal. It never grants clues for skipped days.
     if 5 not in completed_days:
         st.caption("Complete Friday's full routine to unlock the final guess and reveal.")
         return
@@ -1015,8 +1031,8 @@ def render_leaderboard(
     finished = int(context["finished"])
     roster_count = int(context["roster_count"])
 
-    st.markdown("### 🏆 Today's Top 10")
-    st.caption(f"{finished} of {roster_count} finished · rank is based on accuracy first, with time used privately as the tiebreaker")
+    st.markdown("### 🏆 Current Top 10")
+    st.caption(f"{finished} of {roster_count} finished · standings may change as more classmates finish · accuracy ranks first, with time used privately as the tiebreaker")
     if not rows:
         st.info("No one has finished yet. The first completed challenge will start the board!")
         return
@@ -1680,9 +1696,84 @@ def teacher_login() -> bool:
     return False
 
 
+def _leaderboard_final_key(day, class_id: str) -> str:
+    return f"teacher_leaderboard_final::{day.isoformat()}::{class_id}"
+
+
+def _leaderboard_is_final(store: SupabaseFactStore, day, class_id: str, *, completed: int, total: int) -> bool:
+    if total > 0 and completed >= total:
+        return True
+    return bool(store.get_app_setting(_leaderboard_final_key(day, class_id), False))
+
+
+def _set_teacher_refresh_stamp() -> None:
+    st.session_state["teacher_last_refresh_at"] = datetime.now().strftime("%I:%M:%S %p").lstrip("0")
+
+
+def _teacher_refresh_control(*, key: str) -> None:
+    if st.button("🔄 Refresh data", use_container_width=True, key=key):
+        _set_teacher_refresh_stamp()
+        st.rerun()
+    stamp = st.session_state.get("teacher_last_refresh_at")
+    if stamp:
+        st.caption(f"Last refreshed {stamp}")
+
+
+def render_teacher_projector(store: SupabaseFactStore) -> None:
+    class_id = st.session_state.get("teacher_projector_class_id")
+    class_name = st.session_state.get("teacher_projector_class_name") or "Class"
+    if not class_id:
+        st.session_state["teacher_projector_mode"] = False
+        st.rerun()
+        return
+
+    day, _, challenge = ensure_today(store)
+    status = store.daily_status(class_id, challenge.challenge_id)
+    completed = sum(row["status"] == "Complete" for row in status)
+    total = len(status)
+    final = _leaderboard_is_final(store, day, class_id, completed=completed, total=total)
+    board = store.leaderboard(class_id, challenge.challenge_id, limit=10)
+
+    top_a, top_b = st.columns([1, 1])
+    with top_a:
+        if st.button("← Back to Teacher Dashboard", use_container_width=True, key="projector_back"):
+            st.session_state["teacher_projector_mode"] = False
+            st.rerun()
+    with top_b:
+        _teacher_refresh_control(key="projector_refresh")
+
+    status_text = "FINAL TOP 10" if final else "LIVE TOP 10"
+    sub = "Final standings for today" if final else f"{completed} of {total} finished · standings may change"
+    st.markdown(
+        f"<div class='finish-banner'><div class='big'>🏆 {html.escape(str(class_name))} — {status_text}</div>"
+        f"<div class='sub'>{html.escape(sub)}</div></div>",
+        unsafe_allow_html=True,
+    )
+    if not board:
+        st.info("No students have finished the Daily 10 yet.")
+        return
+
+    medal = {1: "🥇", 2: "🥈", 3: "🥉"}
+    rows = []
+    for row in board:
+        marker = medal.get(int(row["rank"]), f"{int(row['rank'])}.")
+        rows.append(
+            f"<div style='display:grid;grid-template-columns:76px 1fr;align-items:center;gap:18px;"
+            f"padding:14px 18px;border-bottom:1px solid #e5e7eb;font-size:clamp(1.35rem,3vw,2.1rem);font-weight:850'>"
+            f"<div>{marker}</div><div>{html.escape(str(row['nickname']))}</div></div>"
+        )
+    st.markdown("<div class='soft-card'>" + "".join(rows) + "</div>", unsafe_allow_html=True)
+    st.caption("Student-safe display: rank + nickname only. Scores, times, PINs, and teacher data are hidden.")
+
+
 def render_teacher_today(store: SupabaseFactStore) -> None:
-    st.markdown("### 📊 Today")
-    st.caption("Done means Daily 10 + Fix Your Misses + Focus Practice are complete. The Mystery guess is optional.")
+    header_left, header_right = st.columns([4.2, 1.4])
+    with header_left:
+        st.markdown("### 📊 Today")
+        st.caption("Done means Daily 10 + Fix Your Misses + Focus Practice are complete. The Mystery guess is optional.")
+    with header_right:
+        _teacher_refresh_control(key="teacher_today_refresh")
+
     classes = store.list_classes()
     if not classes:
         st.info("Create your first class in Classes & Rosters.")
@@ -1718,6 +1809,38 @@ def render_teacher_today(store: SupabaseFactStore) -> None:
     c2.metric("🟡 Working", working)
     c3.metric("⚪ Not started", not_started)
     c4.metric("Daily 10 finished", f"{daily_complete}/{total}")
+
+    st.markdown("#### 🏆 Class Top 10")
+    board = store.leaderboard(selected.class_id, challenge.challenge_id, limit=10)
+    final = _leaderboard_is_final(store, day, selected.class_id, completed=daily_complete, total=total)
+    if final:
+        st.success("**Final Top 10** · final standings for today")
+    else:
+        st.info(f"**Live Top 10** · {daily_complete} of {total} finished · standings may change")
+    board_frame = pd.DataFrame([{"Rank": row["rank"], "Nickname": row["nickname"]} for row in board]) if board else pd.DataFrame(columns=["Rank", "Nickname"])
+    if board:
+        st.dataframe(board_frame, hide_index=True, use_container_width=True)
+    else:
+        st.caption("No completed Daily attempts yet today.")
+
+    top10_a, top10_b = st.columns(2)
+    with top10_a:
+        if st.button("🏆 Display Top 10", use_container_width=True, key=f"display_top10_{selected.class_id}"):
+            st.session_state["teacher_projector_mode"] = True
+            st.session_state["teacher_projector_class_id"] = selected.class_id
+            st.session_state["teacher_projector_class_name"] = selected.class_name
+            st.rerun()
+    with top10_b:
+        if final and not (total > 0 and daily_complete >= total):
+            if st.button("Return standings to Live", use_container_width=True, key=f"unfinal_top10_{selected.class_id}"):
+                store.set_app_setting(_leaderboard_final_key(day, selected.class_id), False)
+                st.rerun()
+        elif not final:
+            if st.button("Mark standings Final", use_container_width=True, key=f"final_top10_{selected.class_id}"):
+                store.set_app_setting(_leaderboard_final_key(day, selected.class_id), True)
+                st.rerun()
+        else:
+            st.caption("Everyone has finished the Daily 10, so standings are automatically Final.")
 
     teacher_students = {student.student_id: student for student in store.list_students(selected.class_id)}
     summary_rows = []
@@ -1761,15 +1884,6 @@ def render_teacher_today(store: SupabaseFactStore) -> None:
             st.caption(f"Class average: {average_accuracy:.1f}/10 · median timed sprint: {format_seconds(median_time)}")
         st.dataframe(pd.DataFrame(performance_rows), hide_index=True, use_container_width=True)
 
-    with st.expander("Student-visible Top 10 preview", expanded=False):
-        st.caption("This is exactly the information students are allowed to see: rank + nickname only.")
-        board = store.leaderboard(selected.class_id, challenge.challenge_id, limit=10)
-        if board:
-            board_frame = pd.DataFrame([{"Rank": row["rank"], "Nickname": row["nickname"]} for row in board])
-            st.dataframe(board_frame, hide_index=True, use_container_width=True)
-        else:
-            st.caption("No completed Daily attempts yet today.")
-
     with st.expander("Preview today's balanced 10", expanded=False):
         mix = daily_mix_summary(facts)
         st.caption(
@@ -1779,6 +1893,7 @@ def render_teacher_today(store: SupabaseFactStore) -> None:
         for index, fact in enumerate(facts, start=1):
             st.write(f"{index}. **{fact.label} = {fact.product}** · {fact.tier}")
 
+
 def _override_label(value: int | None) -> str:
     return "Automatic" if value is None else f"{value}s"
 
@@ -1787,9 +1902,45 @@ def _override_value(label: str) -> int | None:
     return None if label == "Automatic" else int(label.rstrip("s"))
 
 
+def _status_icon(status: str) -> str:
+    return {
+        STATUS_FLUENT: "🟢",
+        STATUS_BUILDING: "🟡",
+        STATUS_FOCUS: "🔴",
+        STATUS_UNKNOWN: "⚪",
+    }.get(status, "⚪")
+
+
+def _family_need_text(rows) -> str:
+    counts = {value: 0 for value in range(2, 11)}
+    for row in rows:
+        if row.status != STATUS_FOCUS:
+            continue
+        counts[row.a] += 1
+        if row.b != row.a:
+            counts[row.b] += 1
+    ranked = sorted(counts.items(), key=lambda item: (-item[1], item[0]))
+    ranked = [(family, count) for family, count in ranked if count > 0]
+    if not ranked:
+        return "No clear fact-family need yet"
+    return " / ".join(f"{family}s" for family, _ in ranked[:2])
+
+
+def _teaching_recommendation(*, students: int, observed: int, focus: int, building: int) -> str:
+    if observed < max(4, int(students * 0.25)):
+        return "Keep gathering evidence before making a class-wide decision."
+    focus_ratio = focus / observed if observed else 0
+    developing_ratio = (focus + building) / observed if observed else 0
+    if focus_ratio >= 0.35 or developing_ratio >= 0.70:
+        return "Good candidate for a quick whole-class strategy reminder."
+    if focus >= 2 or developing_ratio >= 0.35:
+        return "Good small-group target while adaptive practice continues."
+    return "Keep this in adaptive practice; whole-class instruction is probably not needed right now."
+
+
 def render_teacher_mastery_focus(store: SupabaseFactStore) -> None:
     st.markdown("### 🎯 Mastery & Focus")
-    st.caption("See what students are learning now. New students begin as Learning — there is no placement test.")
+    st.caption("Turn the app's growing fact evidence into teaching decisions. New students begin as Learning — there is no placement test.")
     classes = store.list_classes()
     if not classes:
         st.info("Create a class first.")
@@ -1798,77 +1949,246 @@ def render_teacher_mastery_focus(store: SupabaseFactStore) -> None:
     class_by_name = {item.class_name: item for item in classes}
     class_name = st.selectbox("Class", list(class_by_name), key="teacher_mastery_class")
     selected = class_by_name[class_name]
-
-    rows = store.class_mastery_summary(selected.class_id)
-    if not rows:
+    students = store.list_students(selected.class_id)
+    if not students:
         st.info("No students are in this class yet.")
         return
-    frame = pd.DataFrame(rows)
+
+    summary_rows = store.class_mastery_summary(selected.class_id)
+    raw_by_student = store.class_mastery_detail(selected.class_id)
+    full_by_student = {
+        student.student_id: complete_mastery_map(raw_by_student.get(student.student_id, []))
+        for student in students
+    }
+    student_by_id = {student.student_id: student for student in students}
+
+    frame = pd.DataFrame(summary_rows)
     frame["Observed"] = frame["students"] - frame["Unknown"]
     frame["Need score"] = frame["Focus"] * 2 + frame["Building"]
+    total_cells = len(students) * 45
+    observed_cells = int(frame["Observed"].sum()) if not frame.empty else 0
+    evidence_pct = (100.0 * observed_cells / total_cells) if total_cells else 0.0
+    unique_focus_facts = int((frame["Focus"] > 0).sum()) if not frame.empty else 0
+    fluent_cells = int(frame["Fluent"].sum()) if not frame.empty else 0
+
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Students", len(students))
+    c2.metric("Evidence coverage", f"{evidence_pct:.0f}%")
+    c3.metric("Facts needing attention", unique_focus_facts)
+    c4.metric("Fluent fact-student matches", fluent_cells)
+    st.caption("Evidence coverage means the share of student/fact combinations with enough independent retrieval evidence to move beyond Learning. Low coverage early on is expected.")
+
+    with st.expander("📘 How the app teaches & uses data", expanded=False):
+        st.markdown("**Daily 10 — independent retrieval.** The shared Daily gives the app first-try accuracy and quiet response-time evidence.")
+        st.markdown("**Fix Your Misses — corrective instruction.** Missed facts are retaught with an array and strategy, then retried. The taught retry does **not** erase the original miss or count as independent mastery.")
+        st.markdown("**Focus Practice — adaptive retrieval.** Eight facts are selected from each student's evolving profile, with weak/developing facts, some unknown facts, spacing, and stronger maintenance facts mixed together.")
+        st.markdown("**No placement test.** Every fact starts as ⚪ Learning. The app earns its knowledge of each student through normal Daily and Focus work over time.")
+        st.markdown("**Accuracy before speed.** Speed helps distinguish automaticity only after accurate retrieval is established; it never outweighs poor accuracy.")
+        st.caption("Status rules: ⚪ Learning = fewer than 2 independent observations · 🔴 Focus = recent weighted accuracy below 68% · 🟡 Building = developing evidence · 🟢 Fluent = at least 4 observations, weighted accuracy ≥88%, 3 correct in a row, and typically ≤5 seconds when timing is available.")
 
     observed_needs = frame[(frame["Observed"] > 0) & ((frame["Focus"] > 0) | (frame["Building"] > 0))].copy()
-    st.markdown("#### What this class needs most")
-    if not observed_needs.empty:
-        top = observed_needs.sort_values(["Need score", "Focus", "Building"], ascending=False).head(8)
-        for _, row in top.iterrows():
-            st.write(f"**{row['fact']}** · 🔴 {int(row['Focus'])} Focus · 🟡 {int(row['Building'])} Building · 🟢 {int(row['Fluent'])} Fluent")
+    st.markdown("#### 🚨 Best Teaching Opportunities")
+    if observed_needs.empty:
+        st.info("The app is still gathering evidence. That's intentional — keep using the normal routine rather than testing students all at once.")
     else:
-        st.info("The app is still gathering evidence. That's intentional — it learns gradually instead of giving students a placement test.")
+        observed_needs["Need ratio"] = (observed_needs["Focus"] + observed_needs["Building"]) / observed_needs["Observed"]
+        top = observed_needs.sort_values(["Need score", "Need ratio", "Focus"], ascending=False).head(6)
+        for _, row in top.iterrows():
+            a, b = int(row["a"]), int(row["b"])
+            observed = int(row["Observed"]); total = int(row["students"])
+            recommendation = _teaching_recommendation(
+                students=total, observed=observed, focus=int(row["Focus"]), building=int(row["Building"])
+            )
+            st.markdown(
+                f"**{row['fact']}** · 🔴 {int(row['Focus'])} Focus · 🟡 {int(row['Building'])} Building · 🟢 {int(row['Fluent'])} Fluent · ⚪ {int(row['Unknown'])} Learning"
+            )
+            st.caption(f"{observed} of {total} students have enough evidence for a status · {recommendation}")
+            st.markdown(f"💡 **Strategy connection:** {strategy_tip(Fact(a=a, b=b, tier='core'))}")
 
-    st.markdown("#### Full class fact map")
-    heat = frame[["fact", "Fluent", "Building", "Focus", "Unknown"]].copy()
-    heat.columns = ["Fact", "🟢 Fluent", "🟡 Building", "🔴 Focus", "⚪ Learning"]
-    st.dataframe(heat, hide_index=True, use_container_width=True)
+    student_summaries = []
+    momentum = []
+    for student in students:
+        rows = list(full_by_student[student.student_id].values())
+        focus_rows = [row for row in rows if row.status == STATUS_FOCUS]
+        building_rows = [row for row in rows if row.status == STATUS_BUILDING]
+        fluent_rows = [row for row in rows if row.status == STATUS_FLUENT]
+        unknown_rows = [row for row in rows if row.status == STATUS_UNKNOWN]
+        if focus_rows:
+            student_summaries.append((len(focus_rows), student.nickname, _family_need_text(focus_rows), student.student_id))
+        strengthening = [row for row in rows if row.status in {STATUS_BUILDING, STATUS_FLUENT} and row.correct_streak >= 2 and row.evidence_count >= 2]
+        if strengthening:
+            momentum.append((len(strengthening), student.nickname, strengthening, student.student_id))
 
-    students = store.list_students(selected.class_id)
-    if students:
-        with st.expander("View one student's private fact map", expanded=False):
-            student_by_name = {
-                f"{student.nickname} · PIN {student.pin_code or 'reset once'}": student
-                for student in students
-            }
-            student_label = st.selectbox("Student", list(student_by_name), key="mastery_student_select")
-            student = student_by_name[student_label]
-            mastery = complete_mastery_map(store.get_mastery(student.student_id))
-            individual = []
-            for key in sorted(mastery):
-                row = mastery[key]
-                icon, label = status_for_display(row.status)
-                individual.append({
-                    "Fact": f"{row.a} × {row.b}",
-                    "Status": f"{icon} {label}",
-                    "Evidence": row.evidence_count,
-                    "First-try correct": "—" if not row.evidence_count else f"{row.correct_count}/{row.evidence_count}",
-                })
-            st.dataframe(pd.DataFrame(individual), hide_index=True, use_container_width=True)
+    support_col, progress_col = st.columns(2)
+    with support_col:
+        st.markdown("#### 👥 Students Who May Need Support")
+        if not student_summaries:
+            st.caption("No students currently have Focus-status facts.")
+        else:
+            for count, nickname, families, _ in sorted(student_summaries, reverse=True)[:8]:
+                st.write(f"**{nickname}** · {count} Focus fact{'s' if count != 1 else ''} · strongest need: {families}")
+    with progress_col:
+        st.markdown("#### 🌱 Students Showing Momentum")
+        if not momentum:
+            st.caption("More repeated evidence is needed before recent momentum will appear here.")
+        else:
+            for count, nickname, strengthening, _ in sorted(momentum, reverse=True)[:8]:
+                examples = ", ".join(f"{row.a}×{row.b}" for row in sorted(strengthening, key=lambda r: (-r.correct_streak, r.a, r.b))[:3])
+                st.write(f"**{nickname}** · {count} strengthening fact{'s' if count != 1 else ''} · {examples}")
+        st.caption("Momentum means Building/Fluent facts with at least two recent correct independent retrievals; it is not a claim that a status changed today.")
 
-    with st.expander("Teacher Focus overrides", expanded=False):
+    st.markdown("#### 🗺️ Full Class Fact Map")
+    st.caption("Use this to spot patterns across students. ⚪ means not enough evidence yet — not 'doesn't know it.'")
+    fact_keys = [(a, b) for a in range(2, 11) for b in range(a, 11)]
+    focus_keys = [key for key in fact_keys if any(full_by_student[s.student_id][key].status == STATUS_FOCUS for s in students)]
+    filter_options = ["All facts", "Focus facts only"] + [f"{value}s" for value in range(2, 11)]
+    heat_filter = st.selectbox("Fact map filter", filter_options, key="teacher_heatmap_filter")
+    if heat_filter == "Focus facts only":
+        shown_keys = focus_keys
+    elif heat_filter.endswith("s"):
+        family = int(heat_filter[:-1])
+        shown_keys = [key for key in fact_keys if family in key]
+    else:
+        shown_keys = fact_keys
+    matrix_rows = []
+    for student in students:
+        row = {"Student": student.nickname}
+        for key in shown_keys:
+            snapshot = full_by_student[student.student_id][key]
+            row[f"{key[0]}×{key[1]}"] = _status_icon(snapshot.status)
+        matrix_rows.append(row)
+    if shown_keys:
+        st.dataframe(pd.DataFrame(matrix_rows), hide_index=True, use_container_width=True, height=min(650, 78 + len(students) * 35))
+    else:
+        st.success("No facts are currently marked Focus in this class.")
+
+    st.markdown("#### 🔎 Inspect One Fact")
+    fact_labels = {f"{a} × {b}": (a, b) for a, b in fact_keys}
+    selected_fact_label = st.selectbox("Fact", list(fact_labels), key="teacher_fact_detail")
+    fa, fb = fact_labels[selected_fact_label]
+    snapshots = [(student, full_by_student[student.student_id][(fa, fb)]) for student in students]
+    observed = [(student, snap) for student, snap in snapshots if snap.status != STATUS_UNKNOWN]
+    focus_students = [student for student, snap in snapshots if snap.status == STATUS_FOCUS]
+    building_students = [student for student, snap in snapshots if snap.status == STATUS_BUILDING]
+    total_evidence = sum(snap.evidence_count for _, snap in observed)
+    total_correct = sum(snap.correct_count for _, snap in observed)
+    accuracy = (100 * total_correct / total_evidence) if total_evidence else 0
+    timing_values = [snap.ema_seconds for _, snap in observed if snap.ema_seconds is not None]
+    typical = float(pd.Series(timing_values).median()) if timing_values else None
+    recent_success = sum(snap.correct_streak >= 2 for _, snap in observed)
+
+    d1, d2, d3, d4 = st.columns(4)
+    d1.metric("Observed students", f"{len(observed)}/{len(students)}")
+    d2.metric("Independent accuracy", "—" if not total_evidence else f"{accuracy:.0f}%")
+    d3.metric("Typical recent retrieval", "—" if typical is None else format_seconds(typical))
+    d4.metric("2+ recent correct", recent_success)
+    st.markdown(f"💡 **Teaching connection:** {strategy_tip(Fact(a=fa, b=fb, tier='core'))}")
+    st.caption(_teaching_recommendation(
+        students=len(students), observed=len(observed), focus=len(focus_students), building=len(building_students)
+    ))
+    if focus_students:
+        st.write("**Students currently needing Focus:** " + ", ".join(student.nickname for student in focus_students))
+    if building_students:
+        st.write("**Building:** " + ", ".join(student.nickname for student in building_students))
+    if len(observed) < len(students):
+        st.caption(f"⚪ {len(students)-len(observed)} student(s) still have Learning/unknown status for this fact.")
+
+    with st.expander("🎯 Quick Focus assignment for students who need this fact", expanded=False):
+        st.caption("Current teacher overrides work by fact family rather than one exact fact. Choose the most useful family for the students below; their automatic personalization returns when you set them back to Automatic.")
+        default_family = fa
+        family_choice = st.selectbox("Fact family to assign", [f"{value}s" for value in range(2, 11)], index=default_family-2, key="fact_quick_family")
+        focus_name_map = {student.nickname: student for student in focus_students}
+        chosen_names = st.multiselect("Students", list(focus_name_map), default=list(focus_name_map), key="fact_quick_students")
+        if st.button("Assign selected students", use_container_width=True, disabled=not chosen_names, key="fact_quick_assign"):
+            family = int(family_choice.rstrip("s"))
+            for name in chosen_names:
+                store.set_student_focus_override(focus_name_map[name].student_id, family)
+            st.success(f"Assigned {family}s Focus to {len(chosen_names)} student(s).")
+            st.rerun()
+
+    st.markdown("#### 👤 Individual Student")
+    student_by_label = {f"{student.nickname} · PIN {student.pin_code or 'reset once'}": student for student in students}
+    student_label = st.selectbox("Student", list(student_by_label), key="mastery_student_select")
+    student = student_by_label[student_label]
+    individual_map = full_by_student[student.student_id]
+    rows = list(individual_map.values())
+    counts = {status: sum(row.status == status for row in rows) for status in (STATUS_FLUENT, STATUS_BUILDING, STATUS_FOCUS, STATUS_UNKNOWN)}
+    i1, i2, i3, i4 = st.columns(4)
+    i1.metric("🟢 Fluent", counts[STATUS_FLUENT]); i2.metric("🟡 Building", counts[STATUS_BUILDING]); i3.metric("🔴 Focus", counts[STATUS_FOCUS]); i4.metric("⚪ Learning", counts[STATUS_UNKNOWN])
+    focus_rows = [row for row in rows if row.status == STATUS_FOCUS]
+    st.write(f"**Strongest current need:** {_family_need_text(focus_rows)}")
+    try:
+        _, _, today_challenge = ensure_today(store)
+        today_progress = store.class_learning_progress(selected.class_id, today_challenge.challenge_id).get(student.student_id)
+    except Exception:
+        today_progress = None
+    if today_progress and today_progress.focus_plan:
+        targets = []
+        for fact in today_progress.focus_plan:
+            label = f"{fact.a}×{fact.b}"
+            if label not in targets:
+                targets.append(label)
+        st.write("**Today's Focus Practice targets:** " + " · ".join(targets))
+    else:
+        st.caption("Today's Focus Practice plan has not been created yet for this student.")
+    strengthening = [row for row in rows if row.status in {STATUS_BUILDING, STATUS_FLUENT} and row.correct_streak >= 2 and row.evidence_count >= 2]
+    if strengthening:
+        st.write("**Recent momentum:** " + ", ".join(f"{row.a}×{row.b}" for row in sorted(strengthening, key=lambda r: (-r.correct_streak, r.a, r.b))[:6]))
+
+    student_fact_label = st.selectbox("Why does this student have this fact status?", list(fact_labels), key="student_fact_why")
+    sa, sb = fact_labels[student_fact_label]
+    snap = individual_map[(sa, sb)]
+    icon, label = status_for_display(snap.status)
+    st.markdown(f"**{student_fact_label} — {icon} {label}**")
+    if snap.evidence_count == 0:
+        st.caption("No independent evidence yet. Learning is intentionally neutral, not a deficit label.")
+    else:
+        st.write(f"Independent attempts: **{snap.evidence_count}** · correct: **{snap.correct_count}** · current correct streak: **{snap.correct_streak}**")
+        if snap.ema_accuracy is not None:
+            st.write(f"Recent weighted accuracy: **{snap.ema_accuracy*100:.0f}%**")
+        if snap.ema_seconds is not None:
+            st.write(f"Recent weighted correct-retrieval time: **{format_seconds(snap.ema_seconds)}**")
+        if snap.last_practiced_at is not None:
+            st.caption(f"Last practiced: {snap.last_practiced_at.astimezone().strftime('%b %d, %Y').replace(' 0',' ')}")
+        if snap.status == STATUS_FOCUS:
+            st.caption("Focus means at least two independent observations and recent weighted accuracy below 68%.")
+        elif snap.status == STATUS_FLUENT:
+            st.caption("Fluent requires at least four observations, weighted accuracy of at least 88%, three correct in a row, and typically ≤5 seconds when timing exists.")
+        elif snap.status == STATUS_BUILDING:
+            st.caption("Building means there is meaningful evidence, but the fact has not yet met the Focus or Fluent rule.")
+
+    individual_table = []
+    for key in fact_keys:
+        snap = individual_map[key]
+        icon, label = status_for_display(snap.status)
+        individual_table.append({
+            "Fact": f"{snap.a} × {snap.b}",
+            "Status": f"{icon} {label}",
+            "Evidence": snap.evidence_count,
+            "Correct": "—" if not snap.evidence_count else f"{snap.correct_count}/{snap.evidence_count}",
+            "Recent time": "—" if snap.ema_seconds is None else format_seconds(snap.ema_seconds),
+        })
+    with st.expander("View all 45 facts", expanded=False):
+        st.dataframe(pd.DataFrame(individual_table), hide_index=True, use_container_width=True)
+
+    with st.expander("⚙️ Manual Focus Controls", expanded=False):
         st.caption("Leave these on Automatic unless you intentionally want to steer Focus Practice. Student override > class override > everyone > Automatic.")
         override_options = ["Automatic"] + [f"{value}s" for value in range(2, 11)]
         current_global = store.get_global_focus_override()
-        global_choice = st.selectbox(
-            "Everyone",
-            override_options,
-            index=override_options.index(_override_label(current_global)),
-            key="global_focus_override_ui",
-        )
-        if st.button("Save everyone focus", use_container_width=True):
-            store.set_global_focus_override(_override_value(global_choice))
-            st.success("Everyone Focus setting saved.")
-            st.rerun()
+        global_choice = st.selectbox("Everyone", override_options, index=override_options.index(_override_label(current_global)), key="global_focus_override_ui")
+        if st.button("Save everyone focus", use_container_width=True, key="save_global_focus_mastery"):
+            store.set_global_focus_override(_override_value(global_choice)); st.success("Everyone Focus setting saved."); st.rerun()
 
         current_class = store.get_class_focus_override(selected.class_id)
-        class_choice = st.selectbox(
-            f"{selected.class_name}",
-            override_options,
-            index=override_options.index(_override_label(current_class)),
-            key=f"class_focus_override_{selected.class_id}",
-        )
-        if st.button("Save class focus", use_container_width=True):
-            store.set_class_focus_override(selected.class_id, _override_value(class_choice))
-            st.success("Class Focus setting saved.")
-            st.rerun()
+        class_choice = st.selectbox(selected.class_name, override_options, index=override_options.index(_override_label(current_class)), key=f"class_focus_override_{selected.class_id}")
+        if st.button("Save class focus", use_container_width=True, key="save_class_focus_mastery"):
+            store.set_class_focus_override(selected.class_id, _override_value(class_choice)); st.success("Class Focus setting saved."); st.rerun()
+
+        current_student = store.get_student_focus_override(student.student_id)
+        student_choice = st.selectbox(student.nickname, override_options, index=override_options.index(_override_label(current_student)), key=f"mastery_student_focus_{student.student_id}")
+        if st.button("Save student focus", use_container_width=True, key="save_student_focus_mastery"):
+            store.set_student_focus_override(student.student_id, _override_value(student_choice)); st.success("Student Focus setting saved."); st.rerun()
+
 
 def render_teacher_classes(store: SupabaseFactStore) -> None:
     st.markdown("### 👥 Classes & Rosters")
@@ -2237,29 +2557,41 @@ def render_teacher_student_tools(store: SupabaseFactStore) -> None:
             except Exception as exc:
                 st.error(str(exc))
 
+def _mystery_bank_label(mystery) -> str:
+    return f"{mystery.category} · {mystery.answer}"
+
+
+def _render_teacher_mystery_preview(mystery, *, label: str) -> None:
+    st.markdown(
+        f"<div class='hero-card'><div class='section-label'>{html.escape(label)} · {html.escape(mystery.category)}</div>"
+        f"<div style='font-size:1.65rem;font-weight:950'>{html.escape(mystery.answer)}</div>"
+        f"<div style='margin-top:.35rem'>{html.escape(mystery.reveal_note)}</div></div>",
+        unsafe_allow_html=True,
+    )
+    for index, clue in enumerate(mystery.clues[:5], start=1):
+        day_name = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday")[index-1]
+        st.write(f"**Clue #{index} · {day_name}:** {clue}")
+    with st.expander("📚 Student learning reveal", expanded=False):
+        st.write(learning_paragraph_for(mystery))
+        st.info(f"🤯 **Fun fact:** {mystery.reveal_note}")
+
+
 def render_teacher_weekly_mystery(store: SupabaseFactStore) -> None:
     st.markdown("### 🕵️ Weekly Mystery")
-    st.caption("One shared just-for-fun mystery. Monday–Thursday routines earn clues; students may guess once Thursday and once Friday.")
+    st.caption("One shared just-for-fun mystery. Full routines earn one clue Monday–Friday; Guess #1 is Thursday and Guess #2 is Friday.")
     day = current_daily_date()
     try:
         week_start, record, mystery = ensure_weekly_mystery(store, day)
         locked = store.weekly_mystery_locked(week_start)
         stats = store.weekly_mystery_teacher_stats(week_start)
     except Exception as exc:
-        st.error("The Weekly Mystery tables are not ready. Run RUN_THIS_ONCE_IN_SUPABASE_v2_5.sql once.")
+        st.error("The Weekly Mystery tables are not ready. Check the earlier v2.5 Mystery database migration.")
         if str(st.query_params.get("dbcheck", "0")) == "1":
             st.exception(exc)
         return
 
-    st.markdown(f"**Week of {week_start.strftime('%B %d, %Y').replace(' 0', ' ')}**")
-    st.markdown(
-        f"<div class='hero-card'><div class='section-label'>Teacher preview · {html.escape(mystery.category)}</div>"
-        f"<div style='font-size:1.65rem;font-weight:950'>{html.escape(mystery.answer)}</div>"
-        f"<div style='margin-top:.35rem'>{html.escape(mystery.reveal_note)}</div></div>",
-        unsafe_allow_html=True,
-    )
-    for index, clue in enumerate(mystery.clues, start=1):
-        st.write(f"**Clue #{index}:** {clue}")
+    st.markdown(f"#### This Week · {week_start.strftime('%B %d, %Y').replace(' 0', ' ')}")
+    _render_teacher_mystery_preview(mystery, label="Teacher preview")
 
     c1, c2, c3 = st.columns(3)
     c1.metric("Students unlocked", int(stats.get("students_unlocked", 0)))
@@ -2269,13 +2601,98 @@ def render_teacher_weekly_mystery(store: SupabaseFactStore) -> None:
     if locked:
         st.info("🔒 This week's mystery is locked because at least one student has already earned a clue.")
     else:
-        st.success("You can still swap this mystery. It locks automatically when the first student earns a clue.")
-        if st.button("🔄 Pick another mystery", use_container_width=True):
+        st.success("You can still swap this week's mystery. It locks automatically when the first student earns a clue.")
+        if st.button("🔄 Pick another mystery for this week", use_container_width=True, key="swap_current_mystery"):
             try:
-                store.replace_weekly_mystery(week_start, next_mystery_key(record.mystery_key))
+                next_item = mystery_for_key(next_mystery_key(record.mystery_key))
+                store.save_mystery_plan(week_start, mystery_to_plan(next_item))
                 st.rerun()
             except Exception as exc:
                 st.error(str(exc))
+
+    st.markdown("---")
+    next_week = week_start + timedelta(days=7)
+    st.markdown(f"#### 📅 Next Week's Mystery · {next_week.strftime('%B %d, %Y').replace(' 0', ' ')}")
+    st.caption("Plan ahead without changing this week's mystery. Your saved choice automatically becomes active when the new school week begins.")
+
+    saved_plan = store.get_mystery_plan(next_week)
+    next_record = store.get_weekly_mystery(next_week)
+    if saved_plan:
+        next_mystery = mystery_from_plan(saved_plan)
+        plan_status = "Saved teacher plan"
+    elif next_record is not None:
+        next_mystery = mystery_for_key(next_record.mystery_key)
+        plan_status = "Scheduled mystery"
+    else:
+        next_mystery = mystery_for_key(default_mystery_key_for_week(next_week))
+        plan_status = "Automatic selection"
+    _render_teacher_mystery_preview(next_mystery, label=plan_status)
+
+    bank_items = [mystery_for_key(item.key) for item in MYSTERIES]
+    bank_by_label = {_mystery_bank_label(item): item for item in bank_items}
+    current_bank_label = _mystery_bank_label(mystery_for_key(next_mystery.key)) if next_mystery.key in {item.key for item in MYSTERIES} else list(bank_by_label)[0]
+    selected_bank_label = st.selectbox(
+        "Choose a curated mystery",
+        list(bank_by_label),
+        index=list(bank_by_label).index(current_bank_label) if current_bank_label in bank_by_label else 0,
+        key="next_week_mystery_bank",
+    )
+    bank_a, bank_b = st.columns(2)
+    with bank_a:
+        if st.button("Use selected bank mystery", use_container_width=True, key="use_next_bank_mystery"):
+            try:
+                store.save_mystery_plan(next_week, mystery_to_plan(bank_by_label[selected_bank_label]))
+                st.success("Next week's mystery saved.")
+                st.rerun()
+            except Exception as exc:
+                st.error(str(exc))
+    with bank_b:
+        if st.button("Reset next week to automatic", use_container_width=True, key="reset_next_mystery"):
+            try:
+                store.clear_mystery_plan(next_week)
+                default_key = default_mystery_key_for_week(next_week)
+                existing = store.get_weekly_mystery(next_week)
+                if existing is not None and existing.mystery_key != default_key:
+                    store.replace_weekly_mystery(next_week, default_key)
+                st.success("Next week is back to the automatic mystery rotation.")
+                st.rerun()
+            except Exception as exc:
+                st.error(str(exc))
+
+    with st.expander("✏️ Edit/customize next week's mystery", expanded=False):
+        st.caption("You can customize the answer, all five daily clues, learning paragraph, and fun fact. These edits affect next week only.")
+        base_plan = mystery_to_plan(next_mystery)
+        with st.form("next_week_mystery_editor"):
+            answer = st.text_input("Mystery answer", value=str(base_plan["answer"]), max_chars=80)
+            category = st.text_input("Category", value=str(base_plan["category"]), max_chars=80)
+            edited_clues = []
+            for index, clue in enumerate(base_plan["clues"][:5], start=1):
+                day_name = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday")[index-1]
+                edited_clues.append(st.text_input(f"Clue #{index} · {day_name}", value=str(clue), max_chars=240))
+            paragraph = st.text_area("Learning paragraph shown after reveal", value=str(base_plan["learning_paragraph"]), height=140, max_chars=1200)
+            fun_fact = st.text_area("Fun fact", value=str(base_plan["fun_fact"]), height=90, max_chars=500)
+            aliases = st.text_input("Accepted alternate answers (comma-separated, optional)", value=", ".join(base_plan.get("aliases") or []), max_chars=300)
+            save_custom = st.form_submit_button("Save customized next-week mystery", use_container_width=True, type="primary")
+        if save_custom:
+            cleaned_clues = [" ".join(str(value or "").split()) for value in edited_clues]
+            if not answer.strip() or any(not clue for clue in cleaned_clues):
+                st.error("The answer and all five clues are required.")
+            else:
+                plan = {
+                    "mystery_key": str(base_plan.get("mystery_key") or next_mystery.key),
+                    "category": " ".join(category.split()) or next_mystery.category,
+                    "answer": " ".join(answer.split()),
+                    "clues": cleaned_clues,
+                    "learning_paragraph": " ".join(paragraph.split()),
+                    "fun_fact": " ".join(fun_fact.split()),
+                    "aliases": [" ".join(value.split()) for value in aliases.split(",") if value.strip()],
+                }
+                try:
+                    store.save_mystery_plan(next_week, plan)
+                    st.success("Customized next-week mystery saved. This week's mystery was not changed.")
+                    st.rerun()
+                except Exception as exc:
+                    st.error(str(exc))
 
     with st.expander(f"Mystery bank · {len(MYSTERIES)} curated mysteries", expanded=False):
         st.caption("Places · animals · foods · sports · science/nature · history/people · music/entertainment · games/toys/objects")
@@ -2290,13 +2707,18 @@ def render_teacher(store: SupabaseFactStore | None) -> None:
     if not teacher_login():
         return
 
+    if st.session_state.get("teacher_projector_mode"):
+        render_teacher_projector(store)
+        return
+
     top_left, top_right = st.columns([5, 1.6])
     with top_left:
         st.markdown("## Teacher Dashboard")
         st.caption("Full class visibility stays here; students only see their class Top 10.")
     with top_right:
-        if st.button("Lock", use_container_width=True):
+        if st.button("Log out", use_container_width=True):
             st.session_state.teacher_authed = False
+            st.session_state["teacher_projector_mode"] = False
             st.rerun()
 
     st.caption("Start with Today. Use Classes & Rosters for whole-class setup; use Student Support when one student needs help.")

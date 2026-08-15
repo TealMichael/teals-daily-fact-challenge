@@ -17,7 +17,7 @@ def run():
         "there is no placement test",
         "🎯 My Focus Facts",
         "Mastery & Focus",
-        "Full class fact map",
+        "Full Class Fact Map",
         "Personal Focus override",
         "runs quietly in the background",
         "count_for_mastery=False",

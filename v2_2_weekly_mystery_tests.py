@@ -21,11 +21,11 @@ def run():
 
     assert len(MYSTERIES) == 80
     assert len({item.key for item in MYSTERIES}) == 80
-    assert all(len(item.clues) == 4 and all(clue.strip() for clue in item.clues) for item in MYSTERIES)
+    assert all(len(mystery_for_key(item.key).clues) == 5 and all(clue.strip() for clue in mystery_for_key(item.key).clues) for item in MYSTERIES)
     assert all(item.answer.strip() and item.reveal_note.strip() for item in MYSTERIES)
     for item in MYSTERIES:
         answer_text = normalize_guess(item.answer)
-        assert all(answer_text not in normalize_guess(clue) for clue in item.clues)
+        assert all(answer_text not in normalize_guess(clue) for clue in mystery_for_key(item.key).clues)
     checks += 5
 
     summary = mystery_bank_summary()
@@ -107,7 +107,7 @@ def run():
     migration25 = Path("RUN_THIS_ONCE_IN_SUPABASE_v2_5.sql").read_text(encoding="utf-8").lower()
     assert "render_weekly_mystery_reward(store, day, challenge" in app
     assert "Guess #1 of 2 — Thursday" in app and "Guess #2 of 2 — Friday" in app
-    assert "Friday never" in app and "backfill" in app
+    assert "never grants clues for skipped days" in app
     assert "Weekly Mystery" in app and "Pick another mystery" in app
     assert "weekly_mysteries" in schema and "weekly_mystery_unlocks" in schema and "weekly_mystery_guesses" in schema
     assert "guess_day smallint not null" in schema and "primary key (student_id, week_start, guess_day)" in schema

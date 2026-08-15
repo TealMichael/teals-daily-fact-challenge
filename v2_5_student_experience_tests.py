@@ -15,7 +15,7 @@ SCHEMA = (ROOT / "SUPABASE_SCHEMA.sql").read_text(encoding="utf-8").lower()
 
 def run():
     checks = {}
-    checks["version 2.6"] = APP_VERSION == "2.6.2"
+    checks["version 2.6"] = APP_VERSION == "2.7.0"
 
     # Touch keypad: digit taps are local browser state; Streamlit receives one
     # component value only when ✓ is submitted.
@@ -50,7 +50,7 @@ def run():
     # Mystery: only earned Mon-Thu clues, Thursday guess, Friday guess/reveal.
     checks["thursday guess only"] = "Guess #1 of 2 — Thursday" in APP
     checks["friday guess only"] = "Guess #2 of 2 — Friday" in APP
-    checks["no Friday clue catchup"] = "Friday never" in APP and "backfill" in APP and "_render_mystery_clues(mystery, 4)" not in APP
+    checks["Friday earns one real clue"] = "One clue is earned for each completed school day, including Friday" in APP and "never grants clues for skipped days" in APP
     checks["Friday optional reveal"] = "Reveal without using my Friday guess" in APP
     checks["migration adds guess day"] = "add column if not exists guess_day" in MIGRATION
     checks["migration two guess slots"] = "guess_day in (4, 5)" in MIGRATION and "primary key (student_id, week_start, guess_day)" in MIGRATION
@@ -71,11 +71,11 @@ def run():
     for d in (1, 4, 5):
         store.unlock_mystery_day(student.student_id, week, d, challenges[d].challenge_id)
     unlocks = store.list_mystery_unlocks(student.student_id, week)
-    earned_clues = sum(1 for row in unlocks if row.day_number <= 4)
-    checks["skipped days mean fewer clues"] = earned_clues == 2
+    earned_clues = sum(1 for row in unlocks if row.day_number <= 5)
+    checks["skipped days mean fewer clues"] = earned_clues == 3
 
     thu = store.submit_mystery_guess(student.student_id, week, "Thursday idea", correct=False, clue_count=2, guess_day=4)
-    fri = store.submit_mystery_guess(student.student_id, week, "Friday idea", correct=True, clue_count=2, guess_day=5)
+    fri = store.submit_mystery_guess(student.student_id, week, "Friday idea", correct=True, clue_count=3, guess_day=5)
     checks["two persistent guess slots"] = [g.guess_day for g in store.list_mystery_guesses(student.student_id, week)] == [4, 5]
     checks["Thursday and Friday distinct"] = thu.guess_text != fri.guess_text
     duplicate_thu = store.submit_mystery_guess(student.student_id, week, "replace", correct=True, clue_count=2, guess_day=4)

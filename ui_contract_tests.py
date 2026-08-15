@@ -8,7 +8,7 @@ def run():
         "10 facts a day · accuracy first · speed breaks ties",
         "The clock starts the instant you submit Fact 1",
         "DAILY_SPRINT_COMPONENT",
-        "rank is based on accuracy first, with time used privately as the tiebreaker",
+        "standings may change as more classmates finish · accuracy ranks first, with time used privately as the tiebreaker",
         "Only the Top 10 is shown",
         "Choose your area of need",
         "See the multiplication",

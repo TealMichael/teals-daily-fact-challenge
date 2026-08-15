@@ -1,1 +1,1 @@
-v2.6.2 - clean up duplicate final-screen progress and Mystery headings
+v2.7.0 - improve teacher data, Top 10 display, and Mystery planning

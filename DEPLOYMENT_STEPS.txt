@@ -1,13 +1,17 @@
-TEAL'S DAILY FACT CHALLENGE v2.6.2
+TEAL'S DAILY FACT CHALLENGE v2.7.0
 
-UPDATING FROM v2.6.1
+UPDATING FROM v2.6.x
 
-1. There is NO Supabase SQL step for v2.6.2.
+1. There is NO new Supabase SQL step for v2.7.0.
 2. Upload every file/folder in UPLOAD_TO_GITHUB to the existing GitHub repository root.
 3. Let Streamlit redeploy automatically.
-4. Confirm the completed-day screen shows one routine strip and one Mystery heading.
+4. Teacher check: open Today, press Refresh data, then test Display Top 10.
+5. Mystery check: open Weekly Mystery and confirm This Week has five clues and Next Week's Mystery is editable.
+6. Mastery check: open Mastery & Focus and confirm Evidence coverage, Teaching Opportunities, class fact map, fact detail, and individual student sections appear.
 
 No new Streamlit secrets are required.
 
+If updating from v2.5.x or earlier, first run any older migration you have not yet applied, including RUN_THIS_ONCE_IN_SUPABASE_v2_6.sql when needed. Do not rerun migrations already completed.
+
 Suggested GitHub commit:
-v2.6.2 - clean up duplicate final-screen progress and Mystery headings
+v2.7.0 - improve teacher data, Top 10 display, and Mystery planning
