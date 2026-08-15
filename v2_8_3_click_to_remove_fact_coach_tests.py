@@ -6,9 +6,9 @@ ROOT = Path(__file__).resolve().parent
 HTML = (ROOT / "guided_practice_component" / "index.html").read_text()
 
 checks = {
-    "version 2.8.3": APP_VERSION == "2.8.3",
+    "version 2.8.3": APP_VERSION == "2.8.4",
     "removable rows are marked": 'data-remove-row=' in HTML,
-    "student remove prompt exists": 'TAP ${removeCount} ${noun} TO TAKE' in HTML,
+    "student remove prompt exists": 'TAP ${removeCount} ${noun} OF ${size} TO TAKE' in HTML,
     "remove-ready state exists": 'remove-ready' in HTML,
     "tapRemoveRow handler exists": 'function tapRemoveRow' in HTML,
     "tap handler is bound": "tapRemoveRow(cell.dataset.removeRow)" in HTML,

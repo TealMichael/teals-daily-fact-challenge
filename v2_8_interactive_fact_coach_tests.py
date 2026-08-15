@@ -11,7 +11,7 @@ COACH = (ROOT / "fact_coach.py").read_text(encoding="utf-8")
 
 def run():
     checks = {}
-    checks["version 2.8.0"] = APP_VERSION == "2.8.3"
+    checks["version 2.8.0"] = APP_VERSION == "2.8.4"
     checks["coach module imported"] = "from fact_coach import" in APP
     checks["guided items receive coach plan"] = '"coach": coach_plan_for_fact(fact)' in APP
     checks["fix starts in coach"] = 'start_state="coach"' in APP
@@ -62,7 +62,7 @@ def run():
     checks["additive split visual"] = "split_add" in GUIDED and "part-a" in GUIDED and "part-b" in GUIDED
     checks["subtractive visual"] = "split_subtract" in GUIDED and "coach-cell.removed" in GUIDED and "opacity:.22" in GUIDED
     checks["student answers anchor"] = "anchor-fact" in GUIDED and "p.anchor_answer" in GUIDED
-    checks["wrong anchor is retaught"] = "Not yet — ${p.anchor_a} × ${p.anchor_b} = ${p.anchor_answer}" in GUIDED
+    checks["wrong anchor is retaught"] = "anchor-miss" in GUIDED and "p.anchor_answer" in GUIDED
     checks["combine stage"] = "PUT THE PARTS TOGETHER" in GUIDED and "combineMarkup" in GUIDED
     checks["final retry stage"] = "Now you try it" in GUIDED and "phase='retry'" in GUIDED
     checks["coach motto"] = "See it · Connect it · Solve it" in GUIDED

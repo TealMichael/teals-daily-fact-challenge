@@ -1,5 +1,9 @@
 # Teal's Daily Fact Challenge
 
+### v2.8.4 — Clear Take-Away Fact Coach
+
+Take-away lessons now explain the mathematical reason before the tap: start with the ×10 anchor, remove one or two equal groups, and show which original fact remains. The anchor question uses the same orientation students just saw.
+
 ### v2.8.3 — Click-to-Remove Fact Coach
 
 - Take-away strategies now include one meaningful student touch before the anchor question.

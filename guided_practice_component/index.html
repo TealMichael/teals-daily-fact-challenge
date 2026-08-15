@@ -82,12 +82,15 @@
   .coach-card.seq-break .part-pill { opacity:1; transform:translateY(0); }
 
   /* v2.8.3: one meaningful touch for take-away strategies. */
+  .remove-explain { display:none; margin:8px auto 3px; max-width:420px; text-align:center; }
+  .coach-card.remove-ready .remove-explain { display:block; animation:removePromptPop .28s ease both; }
+  .remove-start { font-size:18px; font-weight:950; color:#0f766e; margin-bottom:5px; }
+  .remove-leaves { font-size:14px; font-weight:900; color:#4b5563; margin-top:5px; }
   .remove-action {
-    display:none; margin:7px auto 3px; max-width:390px; border:2px dashed #c4b5fd;
+    display:block; margin:5px auto 3px; max-width:390px; border:2px dashed #c4b5fd;
     background:#faf5ff; color:#5b21b6; border-radius:16px; padding:10px 12px;
     font-size:14px; font-weight:950; letter-spacing:.01em;
   }
-  .coach-card.remove-ready .remove-action { display:block; animation:removePromptPop .28s ease both; }
   .remove-action.done { border-style:solid; border-color:#86efac; background:#f0fdf4; color:#166534; }
   @keyframes removePromptPop { from{opacity:0;transform:scale(.96)} to{opacity:1;transform:scale(1)} }
   .coach-card.remove-ready .coach-cell.removed {
@@ -293,7 +296,13 @@
     } else if (modeName === 'split_subtract') {
       const removeCount = Number(p.second_groups || 1);
       const noun = removeCount === 1 ? 'GROUP' : 'GROUPS';
-      parts = `<div class="group-equation"><span class="part-pill a">${p.groups} keep</span><span class="part-pill r">${p.second_groups} take away</span></div><div id="remove-action" class="remove-action">👆 TAP ${removeCount} ${noun} TO TAKE ${removeCount === 1 ? 'IT' : 'THEM'} AWAY</div>`;
+      const size = Number(p.size || item.b);
+      const anchorFirst = (Number(item.a) === size && Number(item.b) === Number(p.groups)) ? size : Number(p.anchor_a);
+      const anchorSecond = (anchorFirst === size) ? 10 : Number(p.anchor_b);
+      const anchorLine = `${anchorFirst} × ${anchorSecond} = ${p.anchor_answer}`;
+      const actionLine = `👆 TAP ${removeCount} ${noun} OF ${size} TO TAKE ${removeCount === 1 ? 'IT' : 'THEM'} AWAY`;
+      const leavesLine = `THAT LEAVES ${item.a} × ${item.b}`;
+      parts = `<div class="group-equation"><span class="part-pill a">${p.groups} keep</span><span class="part-pill r">${p.second_groups} take away</span></div><div class="remove-explain"><div class="remove-start">START WITH ${anchorLine}</div><div id="remove-action" class="remove-action">${actionLine}</div><div class="remove-leaves">${leavesLine}</div></div>`;
     }
     return `<div class="coach-array-shell"><div class="coach-array" style="grid-template-columns:repeat(${cols},12px)">${cells}</div></div>${parts}`;
   }
@@ -320,6 +329,15 @@
     return `<div class="coach-card ${view === 'combine' ? 'combine-view' : 'teach-view'}" data-learning-sequence="See it · Connect it · Solve it">${stages}<div class="coach-title">${item.a} × ${item.b}</div>${orientationMarkup(item,p)}${watch}${coachArrayMarkup(item,view)}${inner}${optionalWhy(p)}</div>`;
   }
 
+  function anchorDisplay(item, p) {
+    if (!p) return {a: 0, b: 0};
+    if (String(p.visual_mode || '') === 'split_subtract') {
+      const size = Number(p.size || item.b);
+      if (Number(item.a) === size && Number(item.b) === Number(p.groups)) return {a:size, b:10};
+    }
+    return {a:Number(p.anchor_a), b:Number(p.anchor_b)};
+  }
+
   function coachPhaseMarkup(item) {
     const p = coach(item);
     if (!p) {
@@ -327,7 +345,8 @@
     }
     let inner = '';
     if (p.needs_anchor) {
-      inner = `<div class="coach-question"><div class="your-turn">YOUR TURN 🎯</div><div class="micro-prompt">Easy fact first</div><div class="anchor-fact">${p.anchor_a} × ${p.anchor_b} = ?</div><div id="anchor-miss" class="anchor-miss ${anchorMissed ? 'show' : ''}">Not yet — ${p.anchor_a} × ${p.anchor_b} = ${p.anchor_answer}. Enter ${p.anchor_answer}.</div>${keypadMarkup()}</div>`;
+      const shownAnchor = anchorDisplay(item, p);
+      inner = `<div class="coach-question"><div class="your-turn">YOUR TURN 🎯</div><div class="micro-prompt">Easy fact first</div><div class="anchor-fact">${shownAnchor.a} × ${shownAnchor.b} = ?</div><div id="anchor-miss" class="anchor-miss ${anchorMissed ? 'show' : ''}">Not yet — ${shownAnchor.a} × ${shownAnchor.b} = ${p.anchor_answer}. Enter ${p.anchor_answer}.</div>${keypadMarkup()}</div>`;
     } else {
       inner = `<div class="coach-question"><div class="your-turn">PUT IT TOGETHER</div><div class="equation-stack"><div class="equation combine">${escapeHtml(p.combine_equation || p.final_equation || '')}</div><div class="equation final">${escapeHtml(p.final_equation || `${item.a} × ${item.b} = ${item.product}`)}</div></div><div class="combine-action"><button id="to-retry" class="continue" type="button">TRY AGAIN →</button></div></div>`;
     }
@@ -338,7 +357,8 @@
   function combineMarkup(item) {
     const p = coach(item);
     if (!p) return `<button id="to-retry" class="continue" type="button">TRY AGAIN →</button>`;
-    const anchorEq = p.needs_anchor ? `${p.anchor_a} × ${p.anchor_b} = ${p.anchor_answer}` : '';
+    const shownAnchor = anchorDisplay(item, p);
+    const anchorEq = p.needs_anchor ? `${shownAnchor.a} × ${shownAnchor.b} = ${p.anchor_answer}` : '';
     let eqs = '';
     if (anchorEq) eqs += `<div class="equation anchor">✓ ${escapeHtml(anchorEq)}</div>`;
     if (p.second_equation) eqs += `<div class="equation second">${escapeHtml(p.second_equation)}</div>`;

@@ -1,0 +1,18 @@
+Teal's Daily Fact Challenge v2.8.4 validation
+
+PASS - v2.8.4 take-away clarity regression: 10/10
+PASS - v2.8.3 click-to-remove Fact Coach regression: 20/20
+PASS - v2.8 Interactive Fact Coach regression: 32/32
+PASS - all 38 automated Python test suites (full pass completed; long-running classroom-scale suite also verified separately)
+PASS - v2 classroom-scale simulation: 3 classes × 30 students
+PASS - Python compilation
+PASS - JavaScript syntax for all 5 browser components
+PASS - no audio/speech synthesis added
+PASS - no new browser fetch/server calls added to the take-away interaction
+
+v2.8.4 behavior:
+- subtraction-style lessons now explain WHY the student is removing groups before the required tap
+- 7 × 9 example: START WITH 7 × 10 = 70 → TAP 1 GROUP OF 7 → THAT LEAVES 7 × 9
+- the anchor question uses the same orientation just shown to the student
+- 10−2 lessons use the same pattern with two equal groups removed
+- interaction remains silent, browser-local, and creates no extra mastery evidence

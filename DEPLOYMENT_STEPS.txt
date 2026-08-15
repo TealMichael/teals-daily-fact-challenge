@@ -1,18 +1,16 @@
-TEAL'S DAILY FACT CHALLENGE v2.8.3
+TEAL'S DAILY FACT CHALLENGE v2.8.4
 
-DAILY CONTINUITY HOTFIX
+CLEAR TAKE-AWAY FACT COACH
 
 1. There is NO new Supabase SQL step.
 2. There are NO new Streamlit Secrets.
 3. Upload every file/folder in UPLOAD_TO_GITHUB to the existing GitHub repository root.
 4. Let Streamlit redeploy automatically.
-5. Open Teacher → Today. Today's already-stored Daily should load normally instead of showing “Stored Daily Challenge does not match the local generator.”
-6. A student who already started/completed today's Daily should keep that same stored challenge and existing attempt.
-7. Tomorrow's Daily will still generate normally.
-8. Confirm the v2.8.2 Fact Coach still shows WATCH IT → staged array/relationship animation → anchor → TRY AGAIN.
+5. Test a ×9 miss such as 7 × 9. Before the removable row is tapped, the coach should explain the full relationship: start with 7 × 10 = 70, tap 1 group of 7 to take it away, and show that this leaves 7 × 9.
+6. Test a 10−2 / ×8 lesson. It should explain the ×10 anchor, ask the student to remove 2 equal groups, and name the original fact that remains.
+7. The staged animation, click-to-remove interaction, browser-local Guided Practice, teacher dashboard, Mystery planning, Daily continuity, and all current classroom features remain intact.
 
 Suggested GitHub commit:
-v2.8.3 - keep the stored Daily authoritative during live-day updates
+v2.8.4 - clarify why students remove groups in Fact Coach
 
-v2.8.3 is code-only. No Supabase SQL migration and no new Streamlit Secret are required.
-Test a ×9 miss (tap 1 group) and a ×8 miss (tap 2 groups) after deployment.
+v2.8.4 is code-only. No Supabase SQL migration and no new Streamlit Secret are required.
