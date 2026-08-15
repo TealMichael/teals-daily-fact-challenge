@@ -13,16 +13,16 @@ SQL = (ROOT / "RUN_THIS_ONCE_IN_SUPABASE_v2_6.sql").read_text(encoding="utf-8")
 
 def run():
     checks = {}
-    checks["version 2.6"] = APP_VERSION == "2.7.0"
+    checks["version 2.6"] = APP_VERSION == "2.8.0"
     checks["guided component declared"] = "GUIDED_PRACTICE_COMPONENT" in APP and "guided_practice_component" in APP
     checks["fix uses guided component"] = 'mode="fix"' in APP and 'step_label="Step 2 · Fix Your Misses"' in APP
     checks["focus uses guided component"] = 'mode="focus"' in APP and 'step_label="Step 3 · Your Focus Practice"' in APP
     checks["one batch save path"] = "def record_practice_batch(" in STORE and ".upsert(payloads, on_conflict=\"client_event_id\")" in STORE
     checks["migration adds event id"] = "client_event_id" in SQL and "practice_client_event_id_unique" in SQL
     checks["component stores local session"] = "sessionStorage.setItem" in GUIDED and "sessionStorage.getItem" in GUIDED
-    checks["component keeps array teaching"] = "arrayMarkup" in GUIDED and "rows of" in GUIDED
-    checks["component keeps strategy teaching"] = "A way to think about it" in GUIDED
-    checks["component requires correct retry"] = "if (correct)" in GUIDED and "phase = 'teach'" in GUIDED
+    checks["component keeps array teaching"] = "coachArrayMarkup" in GUIDED and "coach-cell" in GUIDED
+    checks["component keeps strategy teaching"] = "SEE IT · CONNECT IT · SOLVE IT" in GUIDED.upper() and "relationship" in GUIDED
+    checks["component requires correct retry"] = "if (correct)" in GUIDED and "phase='coach'" in GUIDED and "phase='retry'" in GUIDED
     checks["component records response time"] = "response_seconds" in GUIDED and "itemStartedAt" in GUIDED
     checks["component submits only at session end"] = "function submitSession()" in GUIDED and "setValue({submitted:true" in GUIDED
     # The only setComponentValue transport is the helper; answer taps never call it directly.

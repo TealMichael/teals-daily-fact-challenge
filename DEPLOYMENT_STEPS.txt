@@ -1,17 +1,18 @@
-TEAL'S DAILY FACT CHALLENGE v2.7.0
+TEAL'S DAILY FACT CHALLENGE v2.8.0
 
-UPDATING FROM v2.6.x
+UPDATING FROM v2.7.0
 
-1. There is NO new Supabase SQL step for v2.7.0.
+1. There is NO new Supabase SQL step for v2.8.0.
 2. Upload every file/folder in UPLOAD_TO_GITHUB to the existing GitHub repository root.
 3. Let Streamlit redeploy automatically.
-4. Teacher check: open Today, press Refresh data, then test Display Top 10.
-5. Mystery check: open Weekly Mystery and confirm This Week has five clues and Next Week's Mystery is editable.
-6. Mastery check: open Mastery & Focus and confirm Evidence coverage, Teaching Opportunities, class fact map, fact detail, and individual student sections appear.
+4. Student check: use a test account and intentionally miss 7 × 7 in Focus/Practice.
+5. Confirm Fact Coach shows the animated 5-groups + 2-groups model, asks 5 × 7 = ?, combines 35 + 14 = 49, then requires 7 × 7 again.
+6. Confirm Step 2/3 remain smooth with no full-page jump between coaching stages.
+7. Teacher check: Mastery & Focus and all v2.7 teacher tools remain available.
 
 No new Streamlit secrets are required.
 
 If updating from v2.5.x or earlier, first run any older migration you have not yet applied, including RUN_THIS_ONCE_IN_SUPABASE_v2_6.sql when needed. Do not rerun migrations already completed.
 
 Suggested GitHub commit:
-v2.7.0 - improve teacher data, Top 10 display, and Mystery planning
+v2.8.0 - add Interactive Fact Coach for multiplication relationships

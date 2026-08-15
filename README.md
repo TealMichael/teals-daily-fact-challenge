@@ -21,11 +21,17 @@ Every signed-in student follows the same learning path:
 
 ### 2. Fix Your Misses
 
-Every missed Daily fact is immediately taught with the correct equation, a multiplication array, repeated-addition meaning, a derived-fact strategy, and a required correct retry before moving on.
+Every missed Daily fact is now taught by the **Interactive Fact Coach**. Instead of only showing a static answer/array, the coach uses a short relationship-based sequence:
 
-Fix Your Misses now runs as one **browser-local guided session**. Arrays, strategy teaching, retry attempts, and movement from one missed fact to the next happen on the student's device with no Streamlit page rebuild between questions. When the step is complete, the full item-level evidence is saved to Supabase in one idempotent batch.
+**See it → Connect it → Solve it → Retry it**
 
-A correction retry is teaching—not a new mastery observation—so it does not artificially raise the student's profile. Teacher evidence still preserves each retry and whether it was correct.
+For example, a missed `7 × 7` becomes: see a 7-by-7 array split into 5 groups + 2 groups → answer the scaffolded anchor `5 × 7 = ?` → see `2 × 7 = 14` and `35 + 14 = 49` → retry `7 × 7`. The student must finish the correction before moving on.
+
+The coach chooses the relationship that best fits the fact: doubles for ×2/×4, 2+1 for ×3, 5+1 for ×6, 5+2 for ×7, 10−2 for ×8, 10−1 for ×9, and 10+1/10+2 for the occasional 11/12 extension. When a clearer strategy rotates the factors, the coach explicitly teaches the commutative connection before returning to the original orientation.
+
+Fix Your Misses remains one **browser-local guided session**. Array animation, anchor retrieval, combine/reveal, retry attempts, and movement from one missed fact to the next happen on the student's device with no Streamlit page rebuild between stages. When the step is complete, the full item-level evidence is saved to Supabase in one idempotent batch.
+
+The scaffolded anchor answer (for example `5 × 7 = 35`) is **teaching practice, not mastery evidence**. The original Daily miss remains the independent observation, and the final corrected retry remains correction evidence, so Fact Coach cannot artificially raise the student's mastery profile.
 
 ### 3. Your Focus Practice
 
@@ -37,9 +43,9 @@ Focus Practice mixes facts currently needing support, facts still building, a sm
 
 For new/mostly-unknown profiles, exploration is **relationship-aware**: 2s, 5s, and 10s are used as early anchor relationships, then derived facts move forward as their supporting anchors become Building/Fluent. There is still no placement test or giant opening assessment.
 
-If a Focus answer is missed, the student sees visual/strategy teaching and must retry correctly. The retry teaches the fact but does not count as independent retrieval evidence.
+If a Focus answer is missed, the same **Interactive Fact Coach** opens immediately inside the browser session. The student sees the relationship, answers one easier anchor when useful, watches the parts combine, then retries the original fact correctly. The original Focus attempt remains the mastery observation; scaffolded anchor work and corrected retries never masquerade as independent mastery.
 
-Focus Practice now runs the entire 8-retrieval session **browser-locally**. Question-to-question movement, touch-keypad input, immediate teaching after a miss, arrays, strategies, and required retries happen without Streamlit reruns. The app sends one detailed evidence batch only after the whole Focus step is complete, preserving first-try accuracy, response time, retries, and teacher/mastery data.
+Focus Practice still runs the entire 8-retrieval session **browser-locally**. Question-to-question movement, touch-keypad input, Fact Coach animation, anchor prompts, required retries, and spacing all happen without Streamlit reruns. The app sends one detailed evidence batch only after the whole Focus step is complete, preserving first-try accuracy, response time, retries, and teacher/mastery data.
 
 ### 4. ⭐ Day Complete
 
@@ -91,7 +97,7 @@ On an assigned Chromebook or iPad, a student can check **Keep me signed in on th
 
 Practice remains unlimited and lets students choose **My Focus Facts**, Mixed Facts, or 2s through 12s.
 
-Every Practice miss uses **teach → retry correctly → next**, with an array and derived-fact strategy. Extra/manual Practice is saved for history but does not currently change the formal mastery map; the formal profile is deliberately based on the common Daily Challenge and assigned Focus Practice.
+Every optional Practice miss now uses the same **Interactive Fact Coach** as the required learning routine, so students get one consistent teaching language everywhere: visual structure → anchor relationship → combine → retry. Extra/manual Practice is saved for history but does not change the formal mastery map; the formal profile remains deliberately based on the common Daily Challenge and assigned Focus Practice.
 
 ## Teacher Dashboard
 
@@ -125,7 +131,7 @@ Every existing teacher function remains available, but the dashboard is reorgani
 
 ## Daily fact generator
 
-The shared Daily generator remains versioned as `TDFC-DAILY-v1`, so the previously audited Daily sequence does not change in v2.7.
+The shared Daily generator remains versioned as `TDFC-DAILY-v1`, so the previously audited Daily sequence does not change in v2.8.
 
 Each Daily contains 10 unique underlying multiplication facts. Commutative mirrors cannot both appear. Normal core days contain 3 easier, 4 medium, and 3 harder facts. On selected extension days, one harder slot becomes one 11/12 fact.
 
@@ -151,9 +157,9 @@ TEACHER_PASSWORD = "CHOOSE-A-PRIVATE-TEACHER-PASSWORD"
 
 ## Updating an existing installation
 
-**Updating from v2.6.x:** v2.7.0 is **code only**. There is no new Supabase SQL migration and no new Streamlit Secret. Upload every file/folder in `UPLOAD_TO_GITHUB` and let Streamlit redeploy. The new next-week Mystery planning uses the existing private `app_settings` table that was added in v2.
+**Updating from v2.7.0:** v2.8.0 is **code only**. There is no new Supabase SQL migration and no new Streamlit Secret. Upload every file/folder in `UPLOAD_TO_GITHUB` and let Streamlit redeploy. The existing v2.6 browser-batch schema already stores every independent/correction event Fact Coach needs.
 
-**Updating from v2.5.x or earlier:** first apply any migration your installation has not yet run (including `RUN_THIS_ONCE_IN_SUPABASE_v2_6.sql` for Guided Practice), then upload the v2.7.0 app files. Do **not** rerun migrations you already completed.
+**Updating from v2.5.x or earlier:** first apply any migration your installation has not yet run (including `RUN_THIS_ONCE_IN_SUPABASE_v2_6.sql` for Guided Practice), then upload the v2.8.0 app files. Do **not** rerun migrations you already completed.
 
 Make sure all five browser-component folders are present in GitHub:
 
@@ -166,6 +172,20 @@ Make sure all five browser-component folders are present in GitHub:
 `SUPABASE_SCHEMA.sql` represents the current full schema for a brand-new installation.
 
 ## Version notes
+
+### v2.8.0 — Interactive Fact Coach
+
+- Adds one reusable **Interactive Fact Coach** across Fix Your Misses, assigned Focus Practice, and optional Practice.
+- Standardizes the corrective routine as **See it → Connect it → Solve it → Retry it** instead of a passive static explanation.
+- Animates multiplication arrays quickly to emphasize equal-group structure rather than slow counting.
+- Uses mathematically matched relationships: ×2 doubles; ×3 uses 2+1; ×4 doubles a ×2 anchor; ×6 uses 5+1; ×7 uses 5+2; ×8 uses 10−2; ×9 uses 10−1; 11/12 extensions use 10+1/10+2.
+- `7 × 7` now specifically asks the student to retrieve `5 × 7 = 35`, then shows `2 × 7 = 14`, combines `35 + 14 = 49`, and requires a final `7 × 7` retry.
+- When the clearest model rotates the factors (for example `7 × 4` → `4 × 7`), the coach explicitly names the commutative relationship and returns the final retry to the student's original fact.
+- Scaffolded anchor answers remain **coached practice only** and are never inserted into mastery evidence; Daily/Focus first attempts remain the independent data used by the adaptive profile.
+- Keeps the entire coach browser-local until the guided step ends, preserving v2.6 classroom-speed and no-page-jump behavior.
+- Aligns teacher-facing strategy connections with the same Fact Coach relationships students are actually taught.
+- Extends the same coach to optional Practice without letting optional Practice alter formal mastery.
+- No Supabase migration or new Streamlit secret is required when updating from v2.7.0.
 
 ### v2.7.0 — Teacher Intelligence & Weekly Planning
 

@@ -15,7 +15,7 @@ SCHEMA = (ROOT / "SUPABASE_SCHEMA.sql").read_text(encoding="utf-8").lower()
 
 def run():
     checks = {}
-    checks["version 2.6"] = APP_VERSION == "2.7.0"
+    checks["version 2.6"] = APP_VERSION == "2.8.0"
 
     # Touch keypad: digit taps are local browser state; Streamlit receives one
     # component value only when ✓ is submitted.
@@ -30,7 +30,7 @@ def run():
     checks["fix uses guided touch session"] = 'mode="fix"' in APP and 'guided_fix_' in APP
     checks["focus uses guided touch session"] = 'mode="focus"' in APP and 'guided_focus_' in APP
     checks["guided session preserves touch input"] = 'GUIDED_PRACTICE_COMPONENT' in APP
-    checks["optional practice uses pad"] = 'key=f"practice_first_pad_' in APP and 'key=f"practice_retry_pad_' in APP
+    checks["optional practice uses guided coach"] = 'guided_free_practice_' in APP and 'mode="practice"' in APP
     checks["answer forms removed"] = 'text_input("Answer"' not in APP and 'placeholder="Type your answer"' not in APP
 
     # Top 10 is displayed immediately using the already-cached context, then

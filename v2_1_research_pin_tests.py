@@ -7,6 +7,7 @@ from adaptive_engine import (
     STATUS_FLUENT,
 )
 from fact_store import InMemoryFactStore
+from fact_coach import coach_plan
 
 
 def run():
@@ -59,7 +60,7 @@ def run():
     assert "PIN {student.pin_code or 'reset once'}" in app
     assert '"PIN": student.pin_code or "Reset once"' in app
     assert "Generate visible PINs for older accounts" in app
-    assert "Use a double plus one more group" in app
+    assert coach_plan(3, 7).strategy_id == "double_plus_one"
     assert "pin_code text" in schema and "pin_code_shape" in schema
     assert "add column if not exists pin_code text" in migration
     checks += 6

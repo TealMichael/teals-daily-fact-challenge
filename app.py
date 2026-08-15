@@ -24,6 +24,7 @@ from fact_engine import (
     validate_daily_facts,
 )
 from fact_store import FactStoreError, NameTaken, generate_pin, utc_now
+from fact_coach import coach_plan_for_fact, coach_plan
 from adaptive_engine import (
     FOCUS_SESSION_LENGTH,
     STATUS_BUILDING,
@@ -601,46 +602,13 @@ def render_array(fact: Fact) -> None:
 
 
 def strategy_tip(fact: Fact) -> str:
-    a, b = fact.a, fact.b
-    pair = {a, b}
-    if 10 in pair:
-        other = b if a == 10 else a
-        return f"Think ×10: {other} tens = {fact.product}."
-    if 5 in pair:
-        other = b if a == 5 else a
-        return f"Count by 5s {other} times, or take half of {other} × 10."
-    if 2 in pair:
-        other = b if a == 2 else a
-        return f"×2 means double: {other} + {other} = {fact.product}."
-    if a == b:
-        return f"This is a square fact: {a} × {a} = {fact.product}."
-    if 9 in pair:
-        other = b if a == 9 else a
-        return f"Use ×10 and subtract one group: {other * 10} − {other} = {fact.product}."
-    if 11 in pair:
-        other = b if a == 11 else a
-        return f"Break 11 apart: 10 × {other} + 1 × {other} = {other * 10} + {other} = {fact.product}."
-    if 12 in pair:
-        other = b if a == 12 else a
-        return f"Break 12 apart: 10 × {other} + 2 × {other} = {other * 10} + {other * 2} = {fact.product}."
-    if 4 in pair:
-        other = b if a == 4 else a
-        return f"Double twice: {other} × 2 = {other * 2}, then double {other * 2} to get {fact.product}."
-    if 3 in pair:
-        other = b if a == 3 else a
-        return f"Use a double plus one more group: 2 × {other} = {2 * other}, then + {other} = {fact.product}."
-    if 6 in pair:
-        other = b if a == 6 else a
-        return f"Use 5 groups plus 1 more: 5 × {other} = {5 * other}, then + {other} = {fact.product}."
-    if 7 in pair:
-        other = b if a == 7 else a
-        return f"Use 5 groups plus 2 more: 5 × {other} = {5 * other} and 2 × {other} = {2 * other}; together = {fact.product}."
-    if 8 in pair:
-        other = b if a == 8 else a
-        return f"Use 10 groups minus 2 groups: {10 * other} − {2 * other} = {fact.product}."
-    larger = max(a, b)
-    smaller = min(a, b)
-    return f"Break it into an easier fact you know, then put the groups back together: {smaller} × {larger} = {fact.product}."
+    """Teacher/student text aligned to the same relationships used by Fact Coach."""
+    plan = coach_plan(fact.a, fact.b)
+    if plan.needs_anchor:
+        anchor = f"{plan.anchor_a} × {plan.anchor_b} = {plan.anchor_answer}"
+        second = f" Then use {plan.second_equation}." if plan.second_equation else ""
+        return f"{plan.relationship} Start with {anchor}.{second} Put it together: {plan.combine_equation}."
+    return f"{plan.relationship} {plan.direct_message or plan.combine_equation}".strip()
 
 
 def render_header() -> str:
@@ -1120,12 +1088,14 @@ def _missed_daily_items(facts: list[Fact], answers) -> list[tuple[int, Fact, obj
 
 
 def _guided_item(fact: Fact, *, activity_index: int, start_state: str, original_answer: int | None = None, first_already_recorded: bool = False) -> dict:
+    normalized_state = "coach" if start_state == "teach" else start_state
     return {
         "activity_index": int(activity_index),
         "a": fact.a, "b": fact.b, "product": fact.product,
         "strategy": strategy_tip(fact),
         "repeated_addition": repeated_addition_text(fact),
-        "start_state": start_state,
+        "coach": coach_plan_for_fact(fact),
+        "start_state": normalized_state,
         "original_answer": original_answer,
         "first_already_recorded": bool(first_already_recorded),
     }
@@ -1147,7 +1117,7 @@ def render_fix_misses(store: SupabaseFactStore, challenge, facts: list[Fact], an
     item_by_index = {q: fact for q, fact, _ in remaining}
     items = [
         _guided_item(
-            fact, activity_index=q, start_state="teach",
+            fact, activity_index=q, start_state="coach",
             original_answer=int(ans.student_answer), first_already_recorded=True,
         )
         for q, fact, ans in remaining
@@ -1256,7 +1226,7 @@ def render_focus_practice(store: SupabaseFactStore, day, challenge, answers, pro
         first, _ = state_by_index[index]
         items.append(_guided_item(
             fact, activity_index=index,
-            start_state="teach" if first is not None and not first.correct else "question",
+            start_state="coach" if first is not None and not first.correct else "question",
             first_already_recorded=first is not None,
         ))
 
@@ -1596,76 +1566,58 @@ def render_practice(store: SupabaseFactStore | None) -> None:
     if focus == "🎯 My Focus Facts":
         st.caption("These facts come from your growing mastery profile. The profile learns slowly from your normal Daily + assigned Focus Practice — never from a giant pretest.")
 
-    st.markdown(f'<div class="fact-big">{fact.a} × {fact.b}</div>', unsafe_allow_html=True)
-
     if st.session_state.practice_result is None:
-        pad_result = render_number_pad(
-            key=f"practice_first_pad_{st.session_state.practice_question_serial}_{fact.a}_{fact.b}"
+        practice_identity = st.session_state.student_id if signed_in else "guest"
+        items = [_guided_item(fact, activity_index=0, start_state="question")]
+        events = render_guided_practice(
+            key=f"guided_free_practice_{st.session_state.practice_question_serial}_{fact.a}_{fact.b}",
+            mode="practice",
+            session_key=f"{practice_identity}:free-practice:{st.session_state.practice_question_serial}:{fact.a}:{fact.b}",
+            items=items,
+            step_label="Extra Practice",
+            done_title="Practice fact complete!",
         )
-        if pad_result is not None:
-            value, response_seconds = pad_result
-            correct = value == fact.product
-            st.session_state.practice_result = {
-                "answer": value,
-                "correct": correct,
-                "fact": fact.as_dict(),
-            }
-            st.session_state.practice_recent.append(fact.key)
-            st.session_state.practice_recent = st.session_state.practice_recent[-8:]
-            if store is not None and student_signed_in():
-                try:
-                    store.record_practice(
-                        st.session_state.student_id,
-                        focus,
-                        fact,
-                        value,
-                        response_seconds=response_seconds,
-                        activity_type="free_practice",
-                        count_for_mastery=False,
-                    )
-                except Exception:
-                    pass
-            st.rerun()
+        if events is None:
+            return
+
+        first = next((event for event in events if not event["is_retry"]), None)
+        final_correct = any(
+            int(event["student_answer"]) == fact.product
+            for event in events
+        )
+        if first is None or not final_correct:
+            st.error("That Practice round did not finish cleanly. Try the fact again.")
+            return
+
+        if signed_in:
+            try:
+                store.record_practice_batch(
+                    st.session_state.student_id,
+                    focus,
+                    "free-practice",
+                    "free_practice",
+                    events,
+                )
+            except Exception:
+                pass
+
+        st.session_state.practice_result = {
+            "answer": int(first["student_answer"]),
+            "correct": int(first["student_answer"]) == fact.product,
+            "fact": fact.as_dict(),
+            "used_coach": any(bool(event["is_retry"]) for event in events),
+        }
+        st.session_state.practice_recent.append(fact.key)
+        st.session_state.practice_recent = st.session_state.practice_recent[-8:]
+        st.rerun()
         return
 
     result = st.session_state.practice_result
     if result["correct"]:
         st.success(f"✅ Yes! {fact.a} × {fact.b} = {fact.product}")
     else:
-        st.error(f"Not yet — {fact.a} × {fact.b} = {fact.product}. You answered {result['answer']}.")
-
-    st.markdown("### See the multiplication")
-    render_array(fact)
-    st.markdown(f"<div class='soft-card'><strong>💡 A way to think about it:</strong><br>{html.escape(strategy_tip(fact))}</div>", unsafe_allow_html=True)
-
-    if not result["correct"] and not st.session_state.practice_retry_correct:
-        st.markdown(f"### Now try it again: {fact.label} = ?")
-        pad_result = render_number_pad(
-            key=f"practice_retry_pad_{st.session_state.practice_question_serial}_{st.session_state.practice_retry_count}"
-        )
-        if pad_result is not None:
-            retry_value, _ = pad_result
-            if store is not None and student_signed_in():
-                try:
-                    store.record_practice(
-                        st.session_state.student_id, focus, fact, retry_value,
-                        activity_type="free_practice", is_retry=True, count_for_mastery=False,
-                    )
-                except Exception:
-                    pass
-            if retry_value == fact.product:
-                st.session_state.practice_retry_correct = True
-                st.rerun()
-            else:
-                st.session_state.practice_retry_count = int(st.session_state.get("practice_retry_count", 0)) + 1
-                st.session_state.practice_retry_message = True
-                st.rerun()
-        if st.session_state.pop("practice_retry_message", False):
-            st.error("Not yet — look at the array and strategy, then try that same fact again.")
-        return
-
-    if not result["correct"] and st.session_state.practice_retry_correct:
-        st.success(f"✅ Got it — {fact.a} × {fact.b} = {fact.product}.")
+        st.success(f"✅ You worked it out — {fact.a} × {fact.b} = {fact.product}.")
+        st.caption("Your first try stays recorded as a miss; the Fact Coach correction is teaching practice, not instant mastery.")
 
     if st.button("Next Practice Fact →", use_container_width=True, type="primary", on_click=next_practice_question):
         pass
