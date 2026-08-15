@@ -6,7 +6,7 @@ HTML = (ROOT / "guided_practice_component" / "index.html").read_text()
 APP = (ROOT / "app.py").read_text()
 
 checks = {
-    "version 2.8.2.1": APP_VERSION == "2.8.2.1",
+    "version 2.8.3": APP_VERSION == "2.8.3",
     "explicit WATCH IT gate": "▶ WATCH IT" in HTML and 'id="watch-coach"' in HTML,
     "student can replay": "↻ REPLAY" in HTML and 'id="replay-coach"' in HTML,
     "teach sequence is JS staged": "function startTeachSequence()" in HTML,
@@ -32,4 +32,4 @@ for name, ok in checks.items():
     print(("PASS" if ok else "FAIL") + ": " + name)
 if failed:
     raise AssertionError(f"{len(failed)} staged-animation checks failed: {failed}")
-print(f"v2.8.2.1 staged animation regression: {len(checks)}/{len(checks)} checks passed")
+print(f"v2.8.3 staged animation regression: {len(checks)}/{len(checks)} checks passed")

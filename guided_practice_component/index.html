@@ -81,6 +81,29 @@
   .part-pill.r { color:#4b5563; background:#f3f4f6; }
   .coach-card.seq-break .part-pill { opacity:1; transform:translateY(0); }
 
+  /* v2.8.3: one meaningful touch for take-away strategies. */
+  .remove-action {
+    display:none; margin:7px auto 3px; max-width:390px; border:2px dashed #c4b5fd;
+    background:#faf5ff; color:#5b21b6; border-radius:16px; padding:10px 12px;
+    font-size:14px; font-weight:950; letter-spacing:.01em;
+  }
+  .coach-card.remove-ready .remove-action { display:block; animation:removePromptPop .28s ease both; }
+  .remove-action.done { border-style:solid; border-color:#86efac; background:#f0fdf4; color:#166534; }
+  @keyframes removePromptPop { from{opacity:0;transform:scale(.96)} to{opacity:1;transform:scale(1)} }
+  .coach-card.remove-ready .coach-cell.removed {
+    background:#8b5cf6; opacity:1; transform:scale(1.08); cursor:pointer; position:relative;
+    box-shadow:0 0 0 2px rgba(124,58,237,.20); touch-action:manipulation;
+  }
+  .coach-card.remove-ready .coach-cell.removed::after {
+    content:""; position:absolute; inset:-5px; border-radius:7px;
+  }
+  .coach-cell.removed.removed-by-tap {
+    opacity:.08 !important; transform:translateX(22px) scale(.72) !important; filter:grayscale(1);
+    pointer-events:none; box-shadow:none !important;
+  }
+  .coach-card.remove-ready .part-pill.r { outline:2px solid #c4b5fd; outline-offset:1px; }
+  .coach-card.user-removed .part-pill.r { opacity:.45; text-decoration:line-through; }
+
   .coach-question { display:none; border-top:1px solid #ccfbf1; padding-top:11px; margin-top:7px; text-align:center; opacity:0; transform:translateY(8px); pointer-events:none; transition:opacity .3s ease, transform .3s ease; }
   .coach-card.seq-turn .coach-question,
   .coach-card.combine-view .coach-question { display:block; opacity:1; transform:translateY(0); pointer-events:auto; }
@@ -180,6 +203,7 @@
   let retryMissed = false;
   let coachSequenceReady = true;
   let coachSequenceTimers = [];
+  let removedRowsTapped = new Set();
 
   function post(type, extra={}) { window.parent.postMessage(Object.assign({isStreamlitMessage:true, type}, extra), '*'); }
   function ready() { post('streamlit:componentReady', {apiVersion:1}); }
@@ -259,14 +283,17 @@
         if (modeName === 'split_add') cls += r < Number(p.first_groups || 0) ? ' part-a' : ' part-b';
         else if (modeName === 'split_subtract') cls += r < Number(p.groups || 0) ? ' part-a' : ' removed';
         const delay = Math.min(420, r * 42 + c * 3);
-        cells += `<span class="${cls}" style="--delay:${delay}ms"></span>`;
+        const removeAttr = (modeName === 'split_subtract' && r >= Number(p.groups || 0)) ? ` data-remove-row="${r}"` : '';
+        cells += `<span class="${cls}"${removeAttr} style="--delay:${delay}ms"></span>`;
       }
     }
     let parts = '';
     if (modeName === 'split_add') {
       parts = `<div class="group-equation"><span class="part-pill a">${p.first_groups} groups</span><span class="part-pill b">${p.second_groups} ${Number(p.second_groups) === 1 ? 'group' : 'groups'}</span></div>`;
     } else if (modeName === 'split_subtract') {
-      parts = `<div class="group-equation"><span class="part-pill a">${p.groups} keep</span><span class="part-pill r">${p.second_groups} take away</span></div>`;
+      const removeCount = Number(p.second_groups || 1);
+      const noun = removeCount === 1 ? 'GROUP' : 'GROUPS';
+      parts = `<div class="group-equation"><span class="part-pill a">${p.groups} keep</span><span class="part-pill r">${p.second_groups} take away</span></div><div id="remove-action" class="remove-action">👆 TAP ${removeCount} ${noun} TO TAKE ${removeCount === 1 ? 'IT' : 'THEM'} AWAY</div>`;
     }
     return `<div class="coach-array-shell"><div class="coach-array" style="grid-template-columns:repeat(${cols},12px)">${cells}</div></div>${parts}`;
   }
@@ -334,7 +361,11 @@
   }
   function later(ms, fn) { coachSequenceTimers.push(setTimeout(fn, ms)); }
   function resetTeachClasses(card) {
-    ['seq-see','seq-break','seq-turn','sequence-playing','sequence-complete','direct-step-1','direct-step-2','action-ready'].forEach(c => card.classList.remove(c));
+    ['seq-see','seq-break','seq-turn','sequence-playing','sequence-complete','direct-step-1','direct-step-2','action-ready','remove-ready','user-removed'].forEach(c => card.classList.remove(c));
+    removedRowsTapped = new Set();
+    card.querySelectorAll('.removed-by-tap').forEach(cell => cell.classList.remove('removed-by-tap'));
+    const removeAction = card.querySelector('#remove-action');
+    if (removeAction) removeAction.classList.remove('done');
   }
   function startTeachSequence() {
     const card = document.querySelector('.coach-card.teach-view');
@@ -342,11 +373,22 @@
     clearCoachSequenceTimers();
     resetTeachClasses(card);
     coachSequenceReady = false;
+    const item = currentItem();
+    const p = coach(item);
     const needsAnchor = !!card.querySelector('.anchor-fact');
+    const needsRemovalTap = !!(p && String(p.visual_mode || '') === 'split_subtract' && Number(p.second_groups || 0) > 0);
     card.classList.add('sequence-playing');
     setHeight();
     later(120, () => { card.classList.add('seq-see'); setHeight(); });
-    later(1050, () => { card.classList.add('seq-break'); setHeight(); });
+    later(1050, () => {
+      card.classList.add('seq-break');
+      if (needsRemovalTap) {
+        card.classList.add('remove-ready');
+        card.classList.remove('sequence-playing');
+      }
+      setHeight();
+    });
+    if (needsRemovalTap) return;
     if (needsAnchor) {
       later(2050, () => {
         card.classList.add('seq-turn','sequence-complete');
@@ -365,6 +407,35 @@
       });
     }
   }
+
+  function tapRemoveRow(rowValue) {
+    const card = document.querySelector('.coach-card.teach-view');
+    const item = currentItem();
+    const p = coach(item);
+    if (!card || !p || !card.classList.contains('remove-ready')) return;
+    const row = String(rowValue);
+    if (removedRowsTapped.has(row)) return;
+    removedRowsTapped.add(row);
+    card.querySelectorAll(`[data-remove-row="${row}"]`).forEach(cell => cell.classList.add('removed-by-tap'));
+    const needed = Number(p.second_groups || 1);
+    const remaining = Math.max(0, needed - removedRowsTapped.size);
+    const prompt = card.querySelector('#remove-action');
+    if (prompt) {
+      if (remaining > 0) prompt.textContent = `👆 ${remaining} MORE ${remaining === 1 ? 'GROUP' : 'GROUPS'}`;
+      else { prompt.textContent = '✅ NICE — GROUPS REMOVED!'; prompt.classList.add('done'); }
+    }
+    setHeight();
+    if (removedRowsTapped.size >= needed) {
+      card.classList.add('user-removed');
+      later(520, () => {
+        card.classList.remove('remove-ready');
+        card.classList.add('seq-turn','sequence-complete');
+        coachSequenceReady = true;
+        setHeight();
+      });
+    }
+  }
+
   function startCombineSequence() {
     const card = document.querySelector('.coach-card.combine-view');
     if (!card) return;
@@ -414,6 +485,7 @@
     const next = document.getElementById('to-retry'); if (next) next.addEventListener('click', () => { phase='retry'; digits=''; retryMissed=false; itemStartedAt=Date.now(); saveLocal(); render(); });
     const watch = document.getElementById('watch-coach'); if (watch) watch.addEventListener('click', startTeachSequence);
     const replay = document.getElementById('replay-coach'); if (replay) replay.addEventListener('click', startTeachSequence);
+    document.querySelectorAll('[data-remove-row]').forEach(cell => cell.addEventListener('click', () => tapRemoveRow(cell.dataset.removeRow)));
   }
   function addDigit(d) {
     if (submitted || digits.length >= 3) return;

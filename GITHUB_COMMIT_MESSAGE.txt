@@ -1,1 +1,1 @@
-v2.8.2.1 - keep the stored Daily authoritative during live-day updates
+v2.8.3 - add click-to-remove Fact Coach interaction

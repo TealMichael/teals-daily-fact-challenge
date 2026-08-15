@@ -26,7 +26,7 @@ def run():
     ui = open("app.py", encoding="utf-8").read()
     engine = open("fact_engine.py", encoding="utf-8").read()
 
-    assert 'APP_VERSION = "2.8.2.1"' in engine
+    assert 'APP_VERSION = "2.8.3"' in engine
     assert 'def delete_students(' in backend
     assert '.delete().in_("student_id", ids).execute()' in backend
     assert 'def delete_class_students(' in backend

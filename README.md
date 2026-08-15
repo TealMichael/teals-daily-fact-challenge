@@ -1,13 +1,14 @@
 # Teal's Daily Fact Challenge
 
-### v2.8.2.1 Daily continuity hotfix
+### v2.8.3 — Click-to-Remove Fact Coach
 
-- Fixes a live-day crash where Supabase already had today's Daily Challenge saved but the app rejected it because a locally regenerated copy did not match exactly.
-- Once a Daily Challenge is stored for a calendar date, that stored challenge is now the **source of truth for the rest of the day**.
-- Later UI/teaching deployments can no longer invalidate students' already-started or already-completed Daily Challenge.
-- Tomorrow's Daily still generates normally from the deterministic generator.
-- Includes the complete v2.8.2 staged Silent Visual Fact Coach and v2.7 teacher-dashboard features.
-- Code-only hotfix: no Supabase migration and no new Streamlit Secret.
+- Take-away strategies now include one meaningful student touch before the anchor question.
+- ×9 lessons show 10 groups and require the student to tap the 1 group being removed.
+- Take-away ×8 lessons require the student to tap both removable groups when the coach selects the 10−2 strategy.
+- The anchor keypad stays locked until the required group(s) have been removed.
+- The interaction is browser-local, silent, and creates no extra Streamlit/Supabase traffic or mastery evidence.
+- Includes the v2.8.2.1 live-day Daily continuity protection and all v2.7 teacher tools.
+
 
 A classroom-first multiplication fact fluency game built around one short shared competition, a private adaptive learning routine, and a just-for-fun weekly curiosity reward.
 

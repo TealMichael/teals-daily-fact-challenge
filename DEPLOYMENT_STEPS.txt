@@ -1,4 +1,4 @@
-TEAL'S DAILY FACT CHALLENGE v2.8.2.1
+TEAL'S DAILY FACT CHALLENGE v2.8.3
 
 DAILY CONTINUITY HOTFIX
 
@@ -12,4 +12,7 @@ DAILY CONTINUITY HOTFIX
 8. Confirm the v2.8.2 Fact Coach still shows WATCH IT → staged array/relationship animation → anchor → TRY AGAIN.
 
 Suggested GitHub commit:
-v2.8.2.1 - keep the stored Daily authoritative during live-day updates
+v2.8.3 - keep the stored Daily authoritative during live-day updates
+
+v2.8.3 is code-only. No Supabase SQL migration and no new Streamlit Secret are required.
+Test a ×9 miss (tap 1 group) and a ×8 miss (tap 2 groups) after deployment.
