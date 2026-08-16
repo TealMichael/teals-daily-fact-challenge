@@ -80,8 +80,18 @@
   .part-pill.b { color:#6d28d9; background:var(--purple-bg); }
   .part-pill.r { color:#4b5563; background:#f3f4f6; }
   .coach-card.seq-break .part-pill { opacity:1; transform:translateY(0); }
+  .build-explain, .direct-cue {
+    opacity:0; transform:translateY(5px); transition:opacity .3s ease, transform .3s ease;
+    margin:5px auto 2px; max-width:420px; text-align:center; font-size:14px; font-weight:900; color:#374151;
+  }
+  .build-explain strong { color:var(--teal); }
+  .direct-cue { background:#f8fafc; border-radius:12px; padding:7px 9px; }
+  .coach-card.seq-break .build-explain, .coach-card.seq-break .direct-cue,
+  .coach-card.combine-view .build-explain, .coach-card.combine-view .direct-cue {
+    opacity:1; transform:translateY(0);
+  }
 
-  /* v2.8.3: one meaningful touch for take-away strategies. */
+  /* v2.8.3+: one meaningful touch for take-away strategies. */
   .remove-explain { display:none; margin:8px auto 3px; max-width:420px; text-align:center; }
   .coach-card.remove-ready .remove-explain { display:block; animation:removePromptPop .28s ease both; }
   .remove-start { font-size:18px; font-weight:950; color:#0f766e; margin-bottom:5px; }
@@ -292,17 +302,21 @@
     }
     let parts = '';
     if (modeName === 'split_add') {
-      parts = `<div class="group-equation"><span class="part-pill a">${p.first_groups} groups</span><span class="part-pill b">${p.second_groups} ${Number(p.second_groups) === 1 ? 'group' : 'groups'}</span></div>`;
+      parts = `<div class="group-equation"><span class="part-pill a">${p.first_groups} groups</span><span class="part-pill b">${p.second_groups} ${Number(p.second_groups) === 1 ? 'group' : 'groups'}</span></div><div class="build-explain">BUILD ${p.groups} GROUPS: <strong>${p.first_groups} + ${p.second_groups}</strong></div>`;
     } else if (modeName === 'split_subtract') {
       const removeCount = Number(p.second_groups || 1);
       const noun = removeCount === 1 ? 'GROUP' : 'GROUPS';
       const size = Number(p.size || item.b);
+      const removedValue = removeCount * size;
       const anchorFirst = (Number(item.a) === size && Number(item.b) === Number(p.groups)) ? size : Number(p.anchor_a);
       const anchorSecond = (anchorFirst === size) ? 10 : Number(p.anchor_b);
       const anchorLine = `${anchorFirst} × ${anchorSecond} = ${p.anchor_answer}`;
       const actionLine = `👆 TAP ${removeCount} ${noun} OF ${size} TO TAKE ${removeCount === 1 ? 'IT' : 'THEM'} AWAY`;
       const leavesLine = `THAT LEAVES ${item.a} × ${item.b}`;
-      parts = `<div class="group-equation"><span class="part-pill a">${p.groups} keep</span><span class="part-pill r">${p.second_groups} take away</span></div><div class="remove-explain"><div class="remove-start">START WITH ${anchorLine}</div><div id="remove-action" class="remove-action">${actionLine}</div><div class="remove-leaves">${leavesLine}</div></div>`;
+      parts = `<div class="group-equation"><span class="part-pill a">${p.groups} keep</span><span class="part-pill r">${p.second_groups} take away</span></div><div class="remove-explain"><div class="remove-start">START WITH ${anchorLine}</div><div id="remove-action" class="remove-action" data-removed-value="${removedValue}">${actionLine}</div><div id="remove-leaves" class="remove-leaves">${leavesLine}</div></div>`;
+    } else {
+      const cue = p.direct_message || p.relationship || '';
+      if (cue) parts = `<div class="direct-cue">${escapeHtml(cue)}</div>`;
     }
     return `<div class="coach-array-shell"><div class="coach-array" style="grid-template-columns:repeat(${cols},12px)">${cells}</div></div>${parts}`;
   }
@@ -346,7 +360,7 @@
     let inner = '';
     if (p.needs_anchor) {
       const shownAnchor = anchorDisplay(item, p);
-      inner = `<div class="coach-question"><div class="your-turn">YOUR TURN 🎯</div><div class="micro-prompt">Easy fact first</div><div class="anchor-fact">${shownAnchor.a} × ${shownAnchor.b} = ?</div><div id="anchor-miss" class="anchor-miss ${anchorMissed ? 'show' : ''}">Not yet — ${shownAnchor.a} × ${shownAnchor.b} = ${p.anchor_answer}. Enter ${p.anchor_answer}.</div>${keypadMarkup()}</div>`;
+      inner = `<div class="coach-question"><div class="your-turn">YOUR TURN 🎯</div><div class="micro-prompt">Start with a fact you know</div><div class="anchor-fact">${shownAnchor.a} × ${shownAnchor.b} = ?</div><div id="anchor-miss" class="anchor-miss ${anchorMissed ? 'show' : ''}">Not yet — ${shownAnchor.a} × ${shownAnchor.b} = ${p.anchor_answer}. Enter ${p.anchor_answer}.</div>${keypadMarkup()}</div>`;
     } else {
       inner = `<div class="coach-question"><div class="your-turn">PUT IT TOGETHER</div><div class="equation-stack"><div class="equation combine">${escapeHtml(p.combine_equation || p.final_equation || '')}</div><div class="equation final">${escapeHtml(p.final_equation || `${item.a} × ${item.b} = ${item.product}`)}</div></div><div class="combine-action"><button id="to-retry" class="continue" type="button">TRY AGAIN →</button></div></div>`;
     }
@@ -399,8 +413,8 @@
     const needsRemovalTap = !!(p && String(p.visual_mode || '') === 'split_subtract' && Number(p.second_groups || 0) > 0);
     card.classList.add('sequence-playing');
     setHeight();
-    later(120, () => { card.classList.add('seq-see'); setHeight(); });
-    later(1050, () => {
+    later(180, () => { card.classList.add('seq-see'); setHeight(); });
+    later(1350, () => {
       card.classList.add('seq-break');
       if (needsRemovalTap) {
         card.classList.add('remove-ready');
@@ -410,16 +424,16 @@
     });
     if (needsRemovalTap) return;
     if (needsAnchor) {
-      later(2050, () => {
+      later(2650, () => {
         card.classList.add('seq-turn','sequence-complete');
         card.classList.remove('sequence-playing');
         coachSequenceReady = true;
         setHeight();
       });
     } else {
-      later(1750, () => { card.classList.add('seq-turn','direct-step-1'); setHeight(); });
-      later(2250, () => { card.classList.add('direct-step-2'); setHeight(); });
-      later(2700, () => {
+      later(2200, () => { card.classList.add('seq-turn','direct-step-1'); setHeight(); });
+      later(2950, () => { card.classList.add('direct-step-2'); setHeight(); });
+      later(3600, () => {
         card.classList.add('action-ready','sequence-complete');
         card.classList.remove('sequence-playing');
         coachSequenceReady = true;
@@ -440,14 +454,19 @@
     const needed = Number(p.second_groups || 1);
     const remaining = Math.max(0, needed - removedRowsTapped.size);
     const prompt = card.querySelector('#remove-action');
+    const size = Number(p.size || item.b);
+    const removedValue = needed * size;
+    const leaves = card.querySelector('#remove-leaves');
     if (prompt) {
-      if (remaining > 0) prompt.textContent = `👆 ${remaining} MORE ${remaining === 1 ? 'GROUP' : 'GROUPS'}`;
-      else { prompt.textContent = '✅ NICE — GROUPS REMOVED!'; prompt.classList.add('done'); }
+      if (remaining > 0) prompt.textContent = `👆 ${remaining} MORE ${remaining === 1 ? `GROUP OF ${size}` : `GROUPS OF ${size}`}`;
+      else { prompt.textContent = `✅ YOU TOOK AWAY ${removedValue}`; prompt.classList.add('done'); }
     }
+    if (remaining === 0 && leaves) leaves.textContent = `${p.anchor_answer} − ${removedValue} LEAVES ${item.a} × ${item.b}`;
     setHeight();
     if (removedRowsTapped.size >= needed) {
       card.classList.add('user-removed');
-      later(520, () => {
+      // Give a struggling learner time to notice the removed quantity before the next question appears.
+      later(1150, () => {
         card.classList.remove('remove-ready');
         card.classList.add('seq-turn','sequence-complete');
         coachSequenceReady = true;
@@ -462,14 +481,14 @@
     clearCoachSequenceTimers();
     card.classList.add('seq-see','seq-break','seq-turn');
     coachSequenceReady = true;
-    later(180, () => card.classList.add('pulse-a'));
-    later(570, () => card.classList.remove('pulse-a'));
-    later(620, () => card.classList.add('eq-step-1'));
-    later(960, () => card.classList.add('pulse-b'));
-    later(1310, () => { card.classList.remove('pulse-b'); card.classList.add('eq-step-2'); });
-    later(1720, () => card.classList.add('eq-step-3'));
-    later(2170, () => card.classList.add('eq-step-4'));
-    later(2700, () => { card.classList.add('action-ready'); setHeight(); });
+    later(250, () => card.classList.add('pulse-a'));
+    later(760, () => card.classList.remove('pulse-a'));
+    later(820, () => card.classList.add('eq-step-1'));
+    later(1250, () => card.classList.add('pulse-b'));
+    later(1750, () => { card.classList.remove('pulse-b'); card.classList.add('eq-step-2'); });
+    later(2450, () => card.classList.add('eq-step-3'));
+    later(3150, () => card.classList.add('eq-step-4'));
+    later(3850, () => { card.classList.add('action-ready'); setHeight(); });
   }
   function prepareCoachSequence() {
     clearCoachSequenceTimers();

@@ -15,7 +15,7 @@ def section(name: str, next_name: str | None = None) -> str:
 
 def run():
     checks = {}
-    checks["version 2.9.1"] = APP_VERSION == "2.9.1"
+    checks["version 2.9.2"] = APP_VERSION == "2.9.2"
 
     teacher = section("render_teacher", "maybe_render_db_diagnostic")
     checks["teacher dashboard is lazy"] = "st.tabs(" not in teacher and 'section = st.radio(' in teacher
@@ -38,7 +38,7 @@ def run():
 
     mastery = section("render_teacher_mastery_focus", "render_teacher_classes")
     checks["mastery uses one detail dataset"] = "class_mastery_summary" not in mastery and "class_mastery_detail(selected.class_id, students=students)" in mastery
-    checks["manual focus controls truly lazy"] = 'st.toggle("⚙️ Show Manual Focus Controls"' in mastery and "if show_manual_focus:" in mastery
+    checks["manual focus controls truly lazy"] = 'st.checkbox("Show advanced fact map & class-wide Focus controls"' in mastery and "if show_advanced:" in mastery
 
     practice = section("render_practice", "teacher_login")
     checks["practice lifetime summary query removed"] = "practice_summary(" not in practice
@@ -76,7 +76,7 @@ def run():
         print(f"{'PASS' if ok else 'FAIL'}: {name}")
     if failed:
         raise AssertionError("Failed: " + ", ".join(failed))
-    print(f"v2.9.1 performance + student clarity regression: {len(checks)}/{len(checks)} checks passed")
+    print(f"v2.9.2 performance + student clarity regression: {len(checks)}/{len(checks)} checks passed")
 
 
 if __name__ == "__main__":

@@ -15,7 +15,7 @@ leader_context = function_body("load_leaderboard_context", "_leaderboard_cache_k
 leader_render = function_body("render_leaderboard", "render_daily_review")
 
 a = {
-    "version 2.6": 'APP_VERSION = "2.9.1"' in ENGINE,
+    "version 2.6": 'APP_VERSION = "2.9.2"' in ENGINE,
     "four-step routine strip": 'def render_routine_strip(stage: str)' in APP and '1 · Daily 10' in APP and '4 · Mystery' in APP,
     "daily shows routine strip": 'render_routine_strip("daily")' in APP,
     "done screen is unmistakable": "YOU'RE DONE FOR TODAY!" in APP,
@@ -43,7 +43,7 @@ a = {
     "student support keeps visible PIN": "Current classroom PIN" in APP,
     "student support keeps PIN reset": "Generate new PIN" in APP,
     "student support keeps daily reset": "Reset today's Daily attempt" in APP,
-    "student support keeps focus override": "Personal Focus override" in APP,
+    "student support keeps focus override": "Adjust Focus Practice" in APP and "Student Focus" in APP,
     "student support keeps move": "Move student" in APP,
     "student support keeps deactivate/reactivate": "Deactivate student" in APP and "Reactivate student" in APP,
     "student support keeps permanent delete": "Delete student permanently" in APP,

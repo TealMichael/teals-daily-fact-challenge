@@ -6,7 +6,7 @@ ROOT = Path(__file__).resolve().parent
 HTML = (ROOT / "guided_practice_component" / "index.html").read_text()
 
 checks = {
-    "version 2.8.3": APP_VERSION == "2.9.1",
+    "version 2.8.3": APP_VERSION == "2.9.2",
     "removable rows are marked": 'data-remove-row=' in HTML,
     "student remove prompt exists": 'TAP ${removeCount} ${noun} OF ${size} TO TAKE' in HTML,
     "remove-ready state exists": 'remove-ready' in HTML,
@@ -15,8 +15,8 @@ checks = {
     "removed row fades after tap": 'removed-by-tap' in HTML,
     "anchor waits for removal": 'if (needsRemovalTap) return;' in HTML,
     "coach unlocks after required taps": "card.classList.add('seq-turn','sequence-complete')" in HTML,
-    "one more group feedback exists": 'MORE ${remaining === 1 ? \'GROUP\' : \'GROUPS\'}' in HTML,
-    "interaction gives positive visual feedback": 'NICE — GROUPS REMOVED' in HTML,
+    "one more group feedback exists": "MORE ${remaining === 1 ? `GROUP OF ${size}` : `GROUPS OF ${size}`}" in HTML,
+    "interaction gives positive visual feedback": 'YOU TOOK AWAY ${removedValue}' in HTML,
     "no fetch calls added": 'fetch(' not in HTML,
     "no audio element": '<audio' not in HTML.lower(),
     "no speech synthesis": 'speechSynthesis' not in HTML,

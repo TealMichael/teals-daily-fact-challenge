@@ -6,12 +6,12 @@ HTML = (ROOT / "guided_practice_component" / "index.html").read_text()
 APP = (ROOT / "app.py").read_text()
 
 checks = {
-    "version 2.8.3": APP_VERSION == "2.9.1",
+    "version 2.8.3": APP_VERSION == "2.9.2",
     "explicit WATCH IT gate": "▶ WATCH IT" in HTML and 'id="watch-coach"' in HTML,
     "student can replay": "↻ REPLAY" in HTML and 'id="replay-coach"' in HTML,
     "teach sequence is JS staged": "function startTeachSequence()" in HTML,
-    "whole array stage": "seq-see" in HTML and "later(120" in HTML,
-    "relationship transform stage": "seq-break" in HTML and "later(1050" in HTML,
+    "whole array stage": "seq-see" in HTML and "later(180" in HTML,
+    "relationship transform stage": "seq-break" in HTML and "later(1350" in HTML,
     "anchor question waits": "coachSequenceReady = false" in HTML and "seq-turn" in HTML,
     "question hidden before stage": ".coach-question { display:none" in HTML,
     "keypad blocked before animation": "&& !coachSequenceReady) return" in HTML,

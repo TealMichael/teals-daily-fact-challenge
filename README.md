@@ -1,5 +1,18 @@
 # Teal's Daily Fact Challenge
 
+### v2.9.2 — Teacher Usability + Fact Coach Quality Pass
+
+- **Mastery & Focus is rebuilt around four teacher questions:** What Should I Teach?, Who Needs Help?, Look Up a Fact, and Look Up a Student. Only the chosen view is shown; the giant analytics wall is gone.
+- The default teaching view ranks practical fact-family targets, suggests a specific fact/strategy to start with, and lists students to pull for a small group.
+- The full class fact matrix and class-wide Focus overrides are still available, but now live behind a clearly labeled **advanced** control instead of crowding the normal page.
+- **Student Support is rebuilt around four action buttons:** Account & PIN, Fix today's Daily, Adjust Focus Practice, and Move / Status. The old switch/accordion stack and duplicate Bulk Move shortcut are removed from this page; bulk roster tools remain in Classes & Rosters. Permanent deletion is isolated in a clear Danger Zone.
+- **Weekly Mystery raffle is now per class.** Each active class gets its own Friday winner, its own eligible pool, its own saved winner, and its own confirmed redraw. Test Student remains excluded.
+- Fact Coach wording now says **Start with a fact you know** everywhere; the old “Easy fact first” label is gone.
+- The **struggling-student Fact Coach quality pass** slows the teaching beats slightly, makes additive splits explicit (for example, BUILD 7 GROUPS: 5 + 2), and gives direct strategies a visible one-line cue.
+- Take-away strategies now name the exact removed quantity and pause long enough to see it. For `9 × 9`, students see `9 × 10 = 90`, tap one full group of 9, then see **YOU TOOK AWAY 9** and `90 − 9` before moving on. ×8 uses the same clarity with two removed groups.
+- Fact Coach remains silent, browser-local, and unchanged as mastery evidence: scaffolded anchors and correction retries still do not count as independent mastery.
+- No Daily generator, mastery threshold, Top 10 privacy, PIN/login, or database-schema behavior changed. **No SQL migration and no new Streamlit Secret are required.**
+
 ### v2.9.1 — Performance + Student Clarity Pass
 
 - **Teacher Dashboard loads only the section you open.** The old Streamlit tab layout executed Today, Rosters, Mastery, Mystery, Student Support, and Test Student on every teacher rerun. v2.9.1 uses one section selector and renders only the chosen area.
@@ -89,7 +102,7 @@ Focus Practice mixes facts currently needing support, facts still building, a sm
 
 For new/mostly-unknown profiles, exploration is **relationship-aware**: 2s, 5s, and 10s are used as early anchor relationships, then derived facts move forward as their supporting anchors become Building/Fluent. There is still no placement test or giant opening assessment.
 
-If a Focus answer is missed, the same **Interactive Fact Coach** opens immediately inside the browser session. The student sees the relationship, answers one easier anchor when useful, watches the parts combine, then retries the original fact correctly. The original Focus attempt remains the mastery observation; scaffolded anchor work and corrected retries never masquerade as independent mastery.
+If a Focus answer is missed, the same **Interactive Fact Coach** opens immediately inside the browser session. The student sees the relationship, answers one familiar anchor when useful, watches the parts combine, then retries the original fact correctly. The original Focus attempt remains the mastery observation; scaffolded anchor work and corrected retries never masquerade as independent mastery.
 
 Focus Practice still runs the entire 8-retrieval session **browser-locally**. Question-to-question movement, touch-keypad input, Fact Coach animation, anchor prompts, required retries, and spacing all happen without Streamlit reruns. The app sends one detailed evidence batch only after the whole Focus step is complete, preserving first-try accuracy, response time, retries, and teacher/mastery data.
 
@@ -157,9 +170,11 @@ PINs and routine status remain visible in the private teacher table; accuracy an
 
 ### Mastery & Focus
 
-The Mastery page is organized around teacher decisions rather than raw counts. It includes **evidence coverage**, **Best Teaching Opportunities**, **Students Who May Need Support**, **Students Showing Momentum**, a filterable 45-fact class matrix, detailed fact inspection, teaching-strategy connections, quick family Focus assignment, and a richer individual-student explanation of why a fact is Learning/Focus/Building/Fluent.
+The normal Mastery page now asks the teacher one question at a time: **📚 What Should I Teach? · 👥 Who Needs Help? · 🔍 Look Up a Fact · 👤 Look Up a Student**. The default teaching view ranks the most useful fact-family targets, names a specific fact/strategy to start with, and identifies students who may benefit from a small group.
 
-The page explicitly distinguishes observed evidence from **⚪ Learning/unknown**, so early incomplete data is not mistaken for lack of knowledge. A collapsed **How the app teaches & uses data** section explains the Daily → correction → adaptive retrieval model and the exact mastery thresholds.
+Fact lookup shows one fact's Fluent/Building/Focus/Learning counts, independent accuracy, strategy connection, and students to pull. Student lookup shows the student's current status counts, most important Focus facts, today's Focus plan, recent momentum, and optional evidence details. **⚪ Learning** remains neutral: it means the app does not yet have enough independent evidence.
+
+The filterable 45-fact class map and class/global Focus overrides remain available under **Show advanced fact map & class-wide Focus controls**, so the data is preserved without making the everyday page hard to use. Student-specific Focus overrides remain in Student Support.
 
 Override priority remains:
 
@@ -169,15 +184,19 @@ Override priority remains:
 
 Teachers can preview the current week's answer and all five clues, see unlock/guess/solve counts, and swap the current mystery only before the first student earns a clue. Once the first clue is earned, the current week remains locked.
 
-A new **Next Week's Mystery** planning area lets the teacher preview the automatic selection, choose another curated mystery, or customize the answer, all five daily clues, learning paragraph, fun fact, and accepted aliases before Monday. The saved plan uses the existing private `app_settings` table and automatically becomes the active mystery when the new school week begins; it never changes the current week.
+Correct solvers receive one equal entry in **their own class's Friday prize raffle**. Teacher → Weekly Mystery shows one raffle card per active class, so Block 1, Block 2, Block 3, and any future class each draw and save an independent winner. Thursday and Friday solvers remain equally weighted, typo-tolerant accepted answers still apply, and the hidden Test Student is excluded.
+
+A **Next Week's Mystery** planning area lets the teacher preview the automatic selection, choose another curated mystery, or customize the answer, all five daily clues, learning paragraph, fun fact, and accepted aliases before Monday. The saved plan uses the existing private `app_settings` table and automatically becomes the active mystery when the new school week begins; it never changes the current week.
 
 ### Classes & Rosters / Student Support
 
-Every existing teacher function remains available. The dashboard uses a section selector so only **Today, Classes & Rosters, Mastery & Focus, Weekly Mystery, Student Support, or Test Student** loads at a time. Whole-class setup and roster management live together; one-student troubleshooting groups nickname/PIN, Daily reset, Focus override, move/status, and permanent-delete tools into clearly labeled sections.
+Every existing teacher function remains available. The dashboard uses a section selector so only **Today, Classes & Rosters, Mastery & Focus, Weekly Mystery, Student Support, or Test Student** loads at a time. Whole-class setup, bulk move, bulk delete, and roster management stay in Classes & Rosters.
+
+Student Support now starts with one selected student and four clear actions: **Account & PIN, Fix today's Daily, Adjust Focus Practice, and Move / Status**. Permanent deletion is separated into a Danger Zone instead of appearing beside routine classroom tools.
 
 ## Daily fact generator
 
-The shared Daily generator remains versioned as `TDFC-DAILY-v1`, so the previously audited Daily sequence does not change in v2.8.
+The shared Daily generator remains versioned as `TDFC-DAILY-v1`, so the previously audited Daily sequence does not change in v2.9.2.
 
 Each Daily contains 10 unique underlying multiplication facts. Commutative mirrors cannot both appear. Normal core days contain 3 easier, 4 medium, and 3 harder facts. On selected extension days, one harder slot becomes one 11/12 fact.
 

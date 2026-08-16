@@ -6,7 +6,7 @@ The Fact Coach does not decide mastery and does not create new independent
 assessment evidence. It translates a missed multiplication fact into a short,
 relationship-based teaching sequence that runs in the student's browser:
 
-    see the structure -> retrieve one easier anchor when useful ->
+    see the structure -> retrieve one familiar anchor when useful ->
     combine the parts -> retry the original fact.
 
 Plans are deterministic so the same fact is taught consistently.  The
@@ -100,7 +100,7 @@ def _additive_plan(groups: int, size: int, first: int, second: int, strategy_id:
         anchor_a=first,
         anchor_b=size,
         anchor_answer=first_answer,
-        anchor_prompt="Start with an easier anchor fact",
+        anchor_prompt="Start with a fact you know",
         second_equation=f"{second} × {size} = {second_answer}" if second != 1 else f"1 × {size} = {size}",
         combine_equation=f"{first_answer} + {second_answer} = {product}",
         final_equation=f"{groups} × {size} = {product}",
@@ -124,7 +124,7 @@ def _subtractive_plan(groups: int, size: int, remove: int, strategy_id: str) -> 
         anchor_a=10,
         anchor_b=size,
         anchor_answer=full,
-        anchor_prompt="Start with the ×10 anchor fact",
+        anchor_prompt="Start with the ×10 fact you know",
         second_equation=f"{remove} × {size} = {removed}" if remove != 1 else f"1 × {size} = {size}",
         combine_equation=f"{full} − {removed} = {product}",
         final_equation=f"{groups} × {size} = {product}",
@@ -187,7 +187,7 @@ def coach_plan(a: int, b: int) -> CoachPlan:
             first_groups=2, second_groups=2, operation="+",
             relationship="Make 4 groups by doubling 2 groups.",
             anchor_a=2, anchor_b=size, anchor_answer=anchor,
-            anchor_prompt="Start with the double",
+            anchor_prompt="Start with a double you know",
             second_equation=f"Another 2 × {size} = {anchor}",
             combine_equation=f"{anchor} + {anchor} = {product}",
             final_equation=f"4 × {size} = {product}",
