@@ -877,8 +877,10 @@ class SupabaseFactStore:
         rows = self.completed_attempts_for_class(class_id, challenge_id)[:limit]
         return [dict(row, rank=index) for index, row in enumerate(rows, start=1)]
 
-    def daily_status(self, class_id: str, challenge_id: str) -> list[dict]:
-        students = self.list_students(class_id)
+    def daily_status(
+        self, class_id: str, challenge_id: str, *, students: Sequence[StudentRecord] | None = None
+    ) -> list[dict]:
+        students = list(students) if students is not None else self.list_students(class_id)
         if not students:
             return []
         student_map = {student.student_id: student for student in students}
@@ -904,6 +906,7 @@ class SupabaseFactStore:
                 "correct_count": None if not row or row.get("correct_count") is None else int(row["correct_count"]),
                 "timed_seconds": None if not row or row.get("timed_seconds") is None else float(row["timed_seconds"]),
                 "attempt_id": str(row["attempt_id"]) if row else None,
+                "completed_at": _dt(row.get("completed_at")) if row else None,
             })
         return result
 
@@ -1037,9 +1040,11 @@ class SupabaseFactStore:
                 result.append({"a": a, "b": b, "fact": f"{a} × {b}", **counts, "students": len(students)})
         return result
 
-    def class_mastery_detail(self, class_id: str) -> dict[str, list[MasterySnapshot]]:
+    def class_mastery_detail(
+        self, class_id: str, *, students: Sequence[StudentRecord] | None = None
+    ) -> dict[str, list[MasterySnapshot]]:
         """Return all persisted mastery rows for a class in one database read."""
-        students = self.list_students(class_id)
+        students = list(students) if students is not None else self.list_students(class_id)
         student_ids = [student.student_id for student in students]
         result: dict[str, list[MasterySnapshot]] = {student_id: [] for student_id in student_ids}
         if not student_ids:
@@ -1356,12 +1361,16 @@ class SupabaseFactStore:
             str(student_id), {"current_streak": 0, "longest_streak": 0, "stars": 0}
         )
 
-    def class_learning_stats(self, class_id: str, through_date: date | str) -> dict[str, dict[str, int]]:
-        students = self.list_students(class_id)
+    def class_learning_stats(
+        self, class_id: str, through_date: date | str, *, students: Sequence[StudentRecord] | None = None
+    ) -> dict[str, dict[str, int]]:
+        students = list(students) if students is not None else self.list_students(class_id)
         return self._learning_stats_for_students([student.student_id for student in students], through_date)
 
-    def class_learning_progress(self, class_id: str, challenge_id: str) -> dict[str, LearningProgressRecord]:
-        students = self.list_students(class_id)
+    def class_learning_progress(
+        self, class_id: str, challenge_id: str, *, students: Sequence[StudentRecord] | None = None
+    ) -> dict[str, LearningProgressRecord]:
+        students = list(students) if students is not None else self.list_students(class_id)
         ids = [student.student_id for student in students]
         if not ids:
             return {}

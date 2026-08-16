@@ -6,7 +6,7 @@ def run():
     required = [
         "Teal's Daily Fact Challenge",
         "10 facts a day · accuracy first · speed breaks ties",
-        "The clock starts the instant you submit Fact 1",
+        "Fact 1 is untimed.",
         "DAILY_SPRINT_COMPONENT",
         "standings may change as more classmates finish · accuracy ranks first, with time used privately as the tiebreaker",
         "Only the Top 10 is shown",

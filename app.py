@@ -413,6 +413,10 @@ def init_state() -> None:
         "practice_result": None,
         "practice_recent": [],
         "practice_focus_last": None,
+        "practice_focus_queue": [],
+        "practice_focus_queue_batch": 0,
+        "student_nav": "Today",
+        "teacher_section": "📊 Today",
         "bulk_created_credentials": None,
         "practice_retry_correct": False,
         "practice_retry_count": 0,
@@ -435,6 +439,15 @@ init_state()
 
 def switch_mode(mode: str) -> None:
     st.session_state.app_mode = mode
+    if mode == "Daily Challenge":
+        st.session_state.student_nav = "Today"
+    elif mode == "Practice":
+        st.session_state.student_nav = "Practice"
+
+
+def switch_student_nav() -> None:
+    """Keep the fifth-grade navigation simple while preserving the internal mode names."""
+    st.session_state.app_mode = "Daily Challenge" if st.session_state.student_nav == "Today" else "Practice"
 
 
 def sign_out() -> None:
@@ -567,7 +580,8 @@ def render_routine_strip(stage: str) -> None:
         "daily": "1 · Daily 10",
         "fix": "2 · Fix Misses",
         "focus": "3 · Focus",
-        "mystery": "4 · Mystery",
+        # v2.3 legacy label was "4 · Mystery"; v2.9.1 makes clear it is a reward, not Step 4.
+        "mystery": "Mystery Reward",
     }
     current_index = stages.index(stage) if stage in stages else 0
     cells = []
@@ -615,13 +629,20 @@ def strategy_tip(fact: Fact) -> str:
 def render_header() -> str:
     st.markdown("<h1 class='top-title'>Teal's Daily Fact Challenge</h1>", unsafe_allow_html=True)
     st.markdown("<div class='subtitle'>10 facts a day · accuracy first · speed breaks ties</div>", unsafe_allow_html=True)
-    mode = st.radio(
-        "App mode",
-        ["Daily Challenge", "Practice", "Teacher"],
-        horizontal=True,
-        label_visibility="collapsed",
-        key="app_mode",
-    )
+
+    # Student choices stay visually primary. Teacher access is intentionally smaller.
+    nav_col, teacher_col = st.columns([5.2, 1.35])
+    with nav_col:
+        st.radio(
+            "Student navigation", ["Today", "Practice"], horizontal=True,
+            label_visibility="collapsed", key="student_nav", on_change=switch_student_nav,
+        )
+    with teacher_col:
+        if st.button("🔒 Teacher", use_container_width=True, key="open_teacher_nav"):
+            st.session_state.app_mode = "Teacher"
+            st.rerun()
+
+    mode = st.session_state.app_mode
     if student_signed_in() and mode != "Teacher":
         left, right = st.columns([5, 1.4])
         with left:
@@ -1151,7 +1172,7 @@ def render_fix_misses(store: SupabaseFactStore, challenge, facts: list[Fact], an
         if int(event["student_answer"]) == fact.product:
             correct_indices.add(int(event["activity_index"]))
     if set(item_by_index) - correct_indices:
-        st.error("That correction session did not finish cleanly. Please try the remaining fact again.")
+        st.error("Oops — that didn’t save correctly. Try this step again. If it happens again, show your teacher.")
         return False
 
     if valid:
@@ -1198,7 +1219,7 @@ def render_focus_practice(store: SupabaseFactStore, day, challenge, answers, pro
     progress = ensure_focus_plan(store, day, challenge, answers, progress=progress)
     plan = list(progress.focus_plan)
     if len(plan) != FOCUS_SESSION_LENGTH:
-        st.error("Your Focus Practice plan could not be prepared. Ask your teacher to refresh the app.")
+        st.error("Oops — your Focus Practice isn’t ready yet. Show your teacher and they can refresh it.")
         return False
 
     rows = get_cached_focus_rows(store, challenge)
@@ -1238,10 +1259,10 @@ def render_focus_practice(store: SupabaseFactStore, day, challenge, answers, pro
     override = get_cached_focus_override(store, challenge)
     st.markdown("## Learning Step 3 of 3 · 🎯 Your Focus Practice")
     if override:
-        st.caption(f"8 short retrievals · your teacher has temporarily focused this practice on the {override}s")
+        st.caption(f"8 facts picked for you · your teacher has you practicing the {override}s today.")
     else:
-        st.caption("8 short retrievals picked from what the app is gradually learning about you — no placement test.")
-    st.caption("Answer all 8. If one is tricky, the app will teach it and let you try again.")
+        st.caption("8 facts picked just for you.")
+    st.caption("Try all 8. If one is tricky, the app will teach it and let you try again.")
 
     events = render_guided_practice(
         key=f"guided_focus_{challenge.challenge_id}",
@@ -1270,13 +1291,13 @@ def render_focus_practice(store: SupabaseFactStore, day, challenge, answers, pro
         fact = allowed[idx]
         item_events = by_index[idx]
         if not item_events:
-            st.error("That Focus session did not finish cleanly. Please try the remaining fact again.")
+            st.error("Oops — that didn’t save correctly. Try this step again. If it happens again, show your teacher.")
             return False
         if idx not in existing_first and item_events[0]["is_retry"]:
-            st.error("That Focus session could not verify the first attempt. Please try again.")
+            st.error("Oops — that didn’t save correctly. Try this step again. If it happens again, show your teacher.")
             return False
         if idx in existing_first and any(not event["is_retry"] for event in item_events):
-            st.error("That Focus session duplicated a first attempt. Please try again.")
+            st.error("Oops — that didn’t save correctly. Try this step again. If it happens again, show your teacher.")
             return False
         if not any(int(event["student_answer"]) == fact.product for event in item_events):
             st.error("Finish the correction before moving on.")
@@ -1300,7 +1321,7 @@ def render_mastery_card(store: SupabaseFactStore) -> None:
     """Render the student's private mastery summary from saved Daily/Focus evidence."""
     summary = store.mastery_summary(st.session_state.student_id)
     st.markdown("### 🌱 My Growth")
-    st.caption("Your fact map grows from normal Daily and Focus work. It starts blank — there is no placement test.")
+    st.caption("Your fact map grows as you practice. New facts start as Learning.")
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("🟢 Fluent", summary.get(STATUS_FLUENT, 0))
     c2.metric("🟡 Building", summary.get(STATUS_BUILDING, 0))
@@ -1331,7 +1352,8 @@ def render_day_complete(store: SupabaseFactStore, day, facts: list[Fact], challe
 
     st.markdown("### ✅ That's it — see you next Challenge day! 👋")
     st.caption("Everything below is optional. Your required work is complete.")
-    with st.expander("🌱 See My Growth", expanded=False):
+    show_growth = st.toggle("🌱 See My Growth", value=False, key=f"show_growth_{challenge.challenge_id}")
+    if show_growth:
         render_mastery_card(store)
     with st.expander("📝 Review My Daily 10", expanded=False):
         for fact, answer in zip(facts, answers):
@@ -1442,7 +1464,7 @@ def render_completed_daily(store: SupabaseFactStore, day, facts: list[Fact], cha
 
 def render_daily(store: SupabaseFactStore | None) -> None:
     st.markdown("## Daily Challenge")
-    st.caption("The same balanced 10 facts for everyone today. No right/wrong feedback until the end.")
+    st.caption("10 facts. Do your best. You’ll see your results after all 10.")
 
     if not render_student_sign_in(store):
         return
@@ -1465,8 +1487,7 @@ def render_daily(store: SupabaseFactStore | None) -> None:
     render_routine_strip("daily")
     st.caption("Finish the three learning steps to earn today's Mystery reward.")
     st.markdown(
-        "<div class='private-note'><strong>How today's timing works:</strong> Fact 1 counts toward accuracy, but it is untimed. "
-        "The clock starts the instant you submit Fact 1 and runs quietly in the background. Facts 2–10 then appear one at a time. Accuracy always ranks before speed.</div>",
+        "<div class='private-note'><strong>Fact 1 is untimed.</strong> After you submit it, the hidden timer starts. Accuracy comes first.</div>",
         unsafe_allow_html=True,
     )
 
@@ -1504,19 +1525,21 @@ def render_daily(store: SupabaseFactStore | None) -> None:
             if str(st.query_params.get("dbcheck", "0")) == "1":
                 st.exception(exc)
 
-    st.caption("A refresh on this device resumes the same Daily run. If a real technology problem occurs, your teacher can reset today's attempt from Student Tools.")
+    st.caption("Your work stays with you on this device. If something goes wrong, show your teacher.")
 
 
 # ---------------------------------------------------------------------------
 # Practice
 # ---------------------------------------------------------------------------
-def reset_practice_question() -> None:
+def reset_practice_question(*, clear_focus_queue: bool = False) -> None:
     st.session_state.practice_fact = None
     st.session_state.practice_result = None
     st.session_state.practice_retry_correct = False
     st.session_state.practice_retry_count = 0
     st.session_state.practice_question_serial = int(st.session_state.get("practice_question_serial", 0)) + 1
     st.session_state.practice_started_at = None
+    if clear_focus_queue:
+        st.session_state.practice_focus_queue = []
 
 
 def next_practice_question() -> None:
@@ -1533,35 +1556,33 @@ def render_practice(store: SupabaseFactStore | None) -> None:
     st.caption("Choose your area of need · unlimited facts · instant teaching after every answer")
 
     signed_in = student_signed_in() and store is not None
-    if signed_in:
-        try:
-            summary = store.practice_summary(st.session_state.student_id)
-            if summary["attempts"]:
-                st.caption(f"👤 {st.session_state.student_nickname} · {summary['correct']}/{summary['attempts']} correct in saved Practice rounds")
-        except Exception:
-            pass
-    elif not student_signed_in():
+    if not student_signed_in():
         st.info("You can Practice as a guest. Sign in from Daily Challenge to unlock 🎯 My Focus Facts and save your Practice rounds.")
 
     options = (["🎯 My Focus Facts"] if signed_in else []) + fact_family_options()
     focus = st.selectbox("What do you want to practice?", options, key="practice_focus")
     if st.session_state.practice_focus_last != focus:
         st.session_state.practice_focus_last = focus
-        reset_practice_question()
+        reset_practice_question(clear_focus_queue=True)
 
     if st.session_state.practice_fact is None:
         recent = st.session_state.practice_recent[-4:]
         if focus == "🎯 My Focus Facts" and signed_in:
-            mastery = store.get_mastery(st.session_state.student_id)
-            override = store.get_effective_focus_override(st.session_state.student_id)
-            plan = build_focus_plan(
-                mastery,
-                student_id=st.session_state.student_id,
-                date_key=f"manual-{current_daily_date().isoformat()}",
-                override_family=override,
-            )
-            candidates = [fact for fact in plan if fact.key not in set(recent)] or plan
-            fact = random.choice(candidates)
+            queue = list(st.session_state.get("practice_focus_queue") or [])
+            if not queue:
+                mastery = store.get_mastery(st.session_state.student_id)
+                override = store.get_effective_focus_override(st.session_state.student_id)
+                batch = int(st.session_state.get("practice_focus_queue_batch", 0))
+                plan = build_focus_plan(
+                    mastery,
+                    student_id=st.session_state.student_id,
+                    date_key=f"manual-{current_daily_date().isoformat()}-{batch}",
+                    override_family=override,
+                )
+                queue = [item.as_dict() for item in plan]
+                st.session_state.practice_focus_queue_batch = batch + 1
+            fact = Fact.from_dict(queue.pop(0))
+            st.session_state.practice_focus_queue = queue
         else:
             fact = practice_fact(focus, random.Random(), avoid=recent)
         st.session_state.practice_fact = fact.as_dict()
@@ -1569,7 +1590,7 @@ def render_practice(store: SupabaseFactStore | None) -> None:
     fact = Fact.from_dict(st.session_state.practice_fact)
 
     if focus == "🎯 My Focus Facts":
-        st.caption("These facts come from your growing mastery profile. The profile learns slowly from your normal Daily + assigned Focus Practice — never from a giant pretest.")
+        st.caption("These are facts picked for you based on your recent work.")
 
     if st.session_state.practice_result is None:
         practice_identity = st.session_state.student_id if signed_in else "guest"
@@ -1591,7 +1612,7 @@ def render_practice(store: SupabaseFactStore | None) -> None:
             for event in events
         )
         if first is None or not final_correct:
-            st.error("That Practice round did not finish cleanly. Try the fact again.")
+            st.error("Oops — that didn’t save correctly. Try this fact again. If it happens again, show your teacher.")
             return
 
         if signed_in:
@@ -1663,6 +1684,17 @@ def _leaderboard_is_final(store: SupabaseFactStore, day, class_id: str, *, compl
     return bool(store.get_app_setting(_leaderboard_final_key(day, class_id), False))
 
 
+def _leaderboard_from_status(status: list[dict], *, limit: int = 10) -> list[dict]:
+    """Derive standings from the already-loaded teacher status snapshot."""
+    completed = [row for row in status if row.get("status") == "Complete"]
+    completed.sort(key=lambda row: (
+        -int(row.get("correct_count") or 0),
+        float(row.get("timed_seconds") or 0.0),
+        row.get("completed_at") or datetime.max.replace(tzinfo=timezone.utc),
+    ))
+    return [dict(row, rank=index) for index, row in enumerate(completed[:limit], start=1)]
+
+
 def _set_teacher_refresh_stamp() -> None:
     st.session_state["teacher_last_refresh_at"] = datetime.now().strftime("%I:%M:%S %p").lstrip("0")
 
@@ -1685,11 +1717,12 @@ def render_teacher_projector(store: SupabaseFactStore) -> None:
         return
 
     day, _, challenge = ensure_today(store)
-    status = store.daily_status(class_id, challenge.challenge_id)
+    students = store.list_students(class_id)
+    status = store.daily_status(class_id, challenge.challenge_id, students=students)
     completed = sum(row["status"] == "Complete" for row in status)
     total = len(status)
     final = _leaderboard_is_final(store, day, class_id, completed=completed, total=total)
-    board = store.leaderboard(class_id, challenge.challenge_id, limit=10)
+    board = _leaderboard_from_status(status, limit=10)
 
     top_a, top_b = st.columns([1, 1])
     with top_a:
@@ -1722,7 +1755,6 @@ def render_teacher_projector(store: SupabaseFactStore) -> None:
     st.markdown("<div class='soft-card'>" + "".join(rows) + "</div>", unsafe_allow_html=True)
     st.caption("Student-safe display: rank + nickname only. Scores, times, PINs, and teacher data are hidden.")
 
-
 def render_teacher_today(store: SupabaseFactStore) -> None:
     header_left, header_right = st.columns([4.2, 1.4])
     with header_left:
@@ -1739,10 +1771,14 @@ def render_teacher_today(store: SupabaseFactStore) -> None:
     selected_name = st.selectbox("Class", list(class_by_name), key="teacher_today_class")
     selected = class_by_name[selected_name]
     day, facts, challenge = ensure_today(store)
-    status = store.daily_status(selected.class_id, challenge.challenge_id)
-    completed_rows = store.completed_attempts_for_class(selected.class_id, challenge.challenge_id)
-    progress_map = store.class_learning_progress(selected.class_id, challenge.challenge_id)
-    learning_stats = store.class_learning_stats(selected.class_id, day)
+
+    # One roster read feeds every Today section. The remaining reads are the
+    # actual data sets we need rather than reloading the roster for each one.
+    students = store.list_students(selected.class_id)
+    status = store.daily_status(selected.class_id, challenge.challenge_id, students=students)
+    progress_map = store.class_learning_progress(selected.class_id, challenge.challenge_id, students=students)
+    learning_stats = store.class_learning_stats(selected.class_id, day, students=students)
+    completed_rows = [row for row in status if row.get("status") == "Complete"]
 
     total = len(status)
     full_complete = sum(
@@ -1751,7 +1787,7 @@ def render_teacher_today(store: SupabaseFactStore) -> None:
     )
     not_started = sum(row["status"] == "Not started" for row in status)
     working = max(0, total - full_complete - not_started)
-    daily_complete = sum(row["status"] == "Complete" for row in status)
+    daily_complete = len(completed_rows)
     average_accuracy = (
         sum(int(row["correct_count"]) for row in completed_rows) / len(completed_rows)
         if completed_rows else 0
@@ -1768,7 +1804,7 @@ def render_teacher_today(store: SupabaseFactStore) -> None:
     c4.metric("Daily 10 finished", f"{daily_complete}/{total}")
 
     st.markdown("#### 🏆 Class Top 10")
-    board = store.leaderboard(selected.class_id, challenge.challenge_id, limit=10)
+    board = _leaderboard_from_status(status, limit=10)
     final = _leaderboard_is_final(store, day, selected.class_id, completed=daily_complete, total=total)
     if final:
         st.success("**Final Top 10** · final standings for today")
@@ -1799,7 +1835,7 @@ def render_teacher_today(store: SupabaseFactStore) -> None:
         else:
             st.caption("Everyone has finished the Daily 10, so standings are automatically Final.")
 
-    teacher_students = {student.student_id: student for student in store.list_students(selected.class_id)}
+    teacher_students = {student.student_id: student for student in students}
     summary_rows = []
     performance_rows = []
     for row in status:
@@ -1849,7 +1885,6 @@ def render_teacher_today(store: SupabaseFactStore) -> None:
         )
         for index, fact in enumerate(facts, start=1):
             st.write(f"{index}. **{fact.label} = {fact.product}** · {fact.tier}")
-
 
 def _override_label(value: int | None) -> str:
     return "Automatic" if value is None else f"{value}s"
@@ -1911,13 +1946,25 @@ def render_teacher_mastery_focus(store: SupabaseFactStore) -> None:
         st.info("No students are in this class yet.")
         return
 
-    summary_rows = store.class_mastery_summary(selected.class_id)
-    raw_by_student = store.class_mastery_detail(selected.class_id)
+    # Load mastery once for the class, then derive the summary and map locally.
+    raw_by_student = store.class_mastery_detail(selected.class_id, students=students)
     full_by_student = {
         student.student_id: complete_mastery_map(raw_by_student.get(student.student_id, []))
         for student in students
     }
     student_by_id = {student.student_id: student for student in students}
+    summary_rows = []
+    for a in range(2, 11):
+        for b in range(a, 11):
+            counts = {STATUS_FLUENT: 0, STATUS_BUILDING: 0, STATUS_FOCUS: 0, STATUS_UNKNOWN: 0}
+            for student in students:
+                counts[full_by_student[student.student_id][(a, b)].status] += 1
+            summary_rows.append({
+                "a": a, "b": b, "fact": f"{a} × {b}",
+                "Fluent": counts[STATUS_FLUENT], "Building": counts[STATUS_BUILDING],
+                "Focus": counts[STATUS_FOCUS], "Unknown": counts[STATUS_UNKNOWN],
+                "students": len(students),
+            })
 
     frame = pd.DataFrame(summary_rows)
     frame["Observed"] = frame["students"] - frame["Unknown"]
@@ -2078,7 +2125,7 @@ def render_teacher_mastery_focus(store: SupabaseFactStore) -> None:
     st.write(f"**Strongest current need:** {_family_need_text(focus_rows)}")
     try:
         _, _, today_challenge = ensure_today(store)
-        today_progress = store.class_learning_progress(selected.class_id, today_challenge.challenge_id).get(student.student_id)
+        today_progress = store.get_learning_progress(student.student_id, today_challenge.challenge_id)
     except Exception:
         today_progress = None
     if today_progress and today_progress.focus_plan:
@@ -2130,7 +2177,8 @@ def render_teacher_mastery_focus(store: SupabaseFactStore) -> None:
     with st.expander("View all 45 facts", expanded=False):
         st.dataframe(pd.DataFrame(individual_table), hide_index=True, use_container_width=True)
 
-    with st.expander("⚙️ Manual Focus Controls", expanded=False):
+    show_manual_focus = st.toggle("⚙️ Show Manual Focus Controls", value=False, key="show_manual_focus_controls")
+    if show_manual_focus:
         st.caption("Leave these on Automatic unless you intentionally want to steer Focus Practice. Student override > class override > everyone > Automatic.")
         override_options = ["Automatic"] + [f"{value}s" for value in range(2, 11)]
         current_global = store.get_global_focus_override()
@@ -2172,7 +2220,6 @@ def render_teacher_classes(store: SupabaseFactStore) -> None:
             except Exception:
                 st.error("That class could not be created.")
 
-    classes = store.list_classes(include_inactive=True)
     if not classes:
         return
     class_by_name = {item.class_name: item for item in classes}
@@ -2181,8 +2228,14 @@ def render_teacher_classes(store: SupabaseFactStore) -> None:
     st.caption(f"Class code: {selected.class_code} · {'Active' if selected.active else 'Inactive'}")
 
     roster = store.list_students(selected.class_id, include_inactive=True)
+    created_info = st.session_state.bulk_created_credentials
+    show_new_pins = bool(
+        isinstance(created_info, dict)
+        and created_info.get("class_id") == selected.class_id
+        and created_info.get("rows")
+    )
 
-    with st.expander("➕ Add students", expanded=not bool(roster)):
+    with st.expander("➕ Add students", expanded=(not bool(roster) or show_new_pins)):
         st.caption("Paste nicknames one per line. Each student receives a 4-digit classroom PIN that stays visible to you.")
         with st.form("bulk_student_form", clear_on_submit=True):
             pasted = st.text_area("Nicknames", height=180, placeholder="FalconFox\nMathMaster\nBlueSky")
@@ -2212,7 +2265,11 @@ def render_teacher_classes(store: SupabaseFactStore) -> None:
                         errors.append(f"{name}: {exc}")
                 st.session_state.bulk_created_credentials = {"class_id": selected.class_id, "rows": created}
                 if created:
-                    st.success(f"Created {len(created)} student account{'s' if len(created) != 1 else ''}.")
+                    message = f"Created {len(created)} student account{'s' if len(created) != 1 else ''}."
+                    if errors:
+                        message += " Some nicknames were skipped: " + " | ".join(errors[:8])
+                    st.session_state["teacher_roster_flash"] = ("warning" if errors else "success", message)
+                    st.rerun()
                 if errors:
                     st.warning("Some nicknames were skipped: " + " | ".join(errors[:8]))
 
@@ -2233,7 +2290,6 @@ def render_teacher_classes(store: SupabaseFactStore) -> None:
                 st.session_state.bulk_created_credentials = None
                 st.rerun()
 
-    roster = store.list_students(selected.class_id, include_inactive=True)
     st.markdown(f"#### Roster · {len(roster)} students")
     if not roster:
         st.info("No students in this class yet.")
@@ -2415,7 +2471,10 @@ def render_teacher_student_tools(store: SupabaseFactStore) -> None:
                 st.session_state.pop("last_reset_pin", None)
                 st.rerun()
 
-    with st.expander("🧰 Today's Daily troubleshooting", expanded=False):
+    show_daily_troubleshooting = st.toggle(
+        "🧰 Show today's Daily troubleshooting", value=False, key=f"show_daily_tools_{student.student_id}"
+    )
+    if show_daily_troubleshooting:
         try:
             _, _, challenge = ensure_today(store)
             attempt = store.get_attempt_for_student(student.student_id, challenge.challenge_id)
@@ -2433,7 +2492,10 @@ def render_teacher_student_tools(store: SupabaseFactStore) -> None:
                 st.success("Today's attempt was reset.")
                 st.rerun()
 
-    with st.expander("🎯 Personal Focus override", expanded=False):
+    show_personal_focus = st.toggle(
+        "🎯 Show Personal Focus override", value=False, key=f"show_student_focus_{student.student_id}"
+    )
+    if show_personal_focus:
         st.caption("Automatic follows this student's evolving mastery. A student setting overrides class/everyone settings.")
         override_options = ["Automatic"] + [f"{value}s" for value in range(2, 11)]
         current_override = store.get_student_focus_override(student.student_id)
@@ -2466,7 +2528,8 @@ def render_teacher_student_tools(store: SupabaseFactStore) -> None:
             store.set_student_active(student.student_id, target_active)
             st.rerun()
 
-    with st.expander("📦 Bulk move shortcut", expanded=False):
+    show_bulk_move = st.toggle("📦 Show Bulk move shortcut", value=False, key="show_support_bulk_move")
+    if show_bulk_move:
         st.caption("The same bulk move tool also lives in Classes & Rosters → Roster Management.")
         if len(classes) >= 2:
             source_by_name = {item.class_name: item for item in classes}
@@ -2823,21 +2886,25 @@ def render_teacher(store: SupabaseFactStore | None) -> None:
             st.session_state["teacher_projector_mode"] = False
             st.rerun()
 
-    st.caption("Start with Today. Use Classes & Rosters for whole-class setup; use Student Support when one student needs help.")
-    today_tab, class_tab, mastery_tab, mystery_tab, tools_tab, test_tab = st.tabs([
-        "📊 Today", "👥 Classes & Rosters", "🎯 Mastery & Focus", "🕵️ Weekly Mystery", "🛠️ Student Support", "🧪 Test Student"
-    ])
-    with today_tab:
+    st.caption("Start with Today. Only the section you open loads, which keeps the dashboard faster.")
+    teacher_sections = [
+        "📊 Today", "👥 Classes & Rosters", "🎯 Mastery & Focus",
+        "🕵️ Weekly Mystery", "🛠️ Student Support", "🧪 Test Student",
+    ]
+    section = st.radio(
+        "Teacher section", teacher_sections, horizontal=True, label_visibility="collapsed", key="teacher_section"
+    )
+    if section == "📊 Today":
         render_teacher_today(store)
-    with class_tab:
+    elif section == "👥 Classes & Rosters":
         render_teacher_classes(store)
-    with mastery_tab:
+    elif section == "🎯 Mastery & Focus":
         render_teacher_mastery_focus(store)
-    with mystery_tab:
+    elif section == "🕵️ Weekly Mystery":
         render_teacher_weekly_mystery(store)
-    with tools_tab:
+    elif section == "🛠️ Student Support":
         render_teacher_student_tools(store)
-    with test_tab:
+    else:
         render_teacher_test_student_launcher(store)
 
     st.markdown("---")

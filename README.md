@@ -1,5 +1,19 @@
 # Teal's Daily Fact Challenge
 
+### v2.9.1 — Performance + Student Clarity Pass
+
+- **Teacher Dashboard loads only the section you open.** The old Streamlit tab layout executed Today, Rosters, Mastery, Mystery, Student Support, and Test Student on every teacher rerun. v2.9.1 uses one section selector and renders only the chosen area.
+- **Teacher → Today reuses one roster snapshot** for Daily status, learning progress, streak/Star summaries, PIN display, and the Top 10. The Top 10 is derived from the already-loaded Daily status instead of running another leaderboard query.
+- **Projector Top 10 also reuses the loaded status snapshot** instead of making a second leaderboard round trip.
+- **Mastery & Focus loads the class mastery dataset once** and derives summary counts locally instead of fetching summary + detail separately. Manual Focus override database reads now happen only when the teacher opens those controls.
+- **Optional My Focus Facts Practice builds an 8-fact local queue.** The app no longer reloads the student's mastery/override profile between every optional Practice fact.
+- Removed the growing all-time **saved Practice score query** from the student Practice screen. Practice is cleaner and that database read can no longer get slower as the school year grows.
+- The finished-screen **My Growth** data is now genuinely lazy: it loads only when the student turns it on.
+- Student navigation is simplified to **Today | Practice**, with Teacher access moved to a smaller secondary button.
+- The routine strip now labels the final item **★ Mystery Reward** rather than making it look like required Step 4.
+- Daily timing directions and Focus Practice copy are shorter and more fifth-grade friendly. Rare save-error messages now tell students simply to try the step again and show their teacher if it repeats.
+- No Daily generator, mastery threshold, Fact Coach strategy, leaderboard privacy, Mystery, raffle, Test Student, login, or database-schema behavior changed. **No SQL migration and no new Streamlit Secret are required.**
+
 ### v2.9.0 — Weekly Mystery Raffle + Typo-Friendly Guessing + Test Student Sandbox
 
 - Every real student who solves the Weekly Mystery correctly gets **one equal raffle entry**. Thursday and Friday solvers have the same chance; solving earlier does not create extra entries.
@@ -81,7 +95,7 @@ Focus Practice still runs the entire 8-retrieval session **browser-locally**. Qu
 
 ### 4. ⭐ Day Complete
 
-The finish screen is intentionally short: **YOU'RE DONE FOR TODAY!**, the three learning steps checked off, the student's Star/streak, and then the earned Weekly Mystery. Growth and Daily review remain available in collapsed optional sections instead of crowding the finish.
+The finish screen is intentionally short: **YOU'RE DONE FOR TODAY!**, the three learning steps checked off, the student's Star/streak, and then the earned Weekly Mystery. Growth and Daily review remain optional instead of crowding the finish. Growth data is loaded only when the student asks to see it.
 
 Completing the full learning routine earns one **Daily Star**, progress toward a private **Learning Streak**, and milestone celebrations at 3, 5, 10, 20, 30, 50 days and later 50-day milestones. The reward is for **finishing the learning routine**, not for being fast or being on the leaderboard.
 
@@ -159,7 +173,7 @@ A new **Next Week's Mystery** planning area lets the teacher preview the automat
 
 ### Classes & Rosters / Student Support
 
-Every existing teacher function remains available, but the dashboard is reorganized into **Today → Classes & Rosters → Mastery & Focus → Weekly Mystery → Student Support**. Whole-class setup and roster management live together; one-student troubleshooting groups nickname/PIN, Daily reset, Focus override, move/status, and permanent-delete tools into clearly labeled sections.
+Every existing teacher function remains available. The dashboard uses a section selector so only **Today, Classes & Rosters, Mastery & Focus, Weekly Mystery, Student Support, or Test Student** loads at a time. Whole-class setup and roster management live together; one-student troubleshooting groups nickname/PIN, Daily reset, Focus override, move/status, and permanent-delete tools into clearly labeled sections.
 
 ## Daily fact generator
 

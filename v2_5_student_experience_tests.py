@@ -15,7 +15,7 @@ SCHEMA = (ROOT / "SUPABASE_SCHEMA.sql").read_text(encoding="utf-8").lower()
 
 def run():
     checks = {}
-    checks["version 2.6"] = APP_VERSION == "2.9.0"
+    checks["version 2.6"] = APP_VERSION == "2.9.1"
 
     # Touch keypad: digit taps are local browser state; Streamlit receives one
     # component value only when ✓ is submitted.
@@ -42,7 +42,7 @@ def run():
     # Finish screen is intentionally short; detail is optional/collapsed.
     checks["clear done banner"] = "YOU'RE DONE FOR TODAY!" in APP
     checks["mystery centered as reward"] = "Today's Mystery Reward" in APP
-    checks["growth collapsed"] = 'with st.expander("🌱 See My Growth"' in APP
+    checks["growth lazy"] = 'st.toggle("🌱 See My Growth"' in APP and 'if show_growth:' in APP
     checks["daily review collapsed"] = 'with st.expander("📝 Review My Daily 10"' in APP
     day_complete = APP[APP.index("def render_day_complete"):APP.index("def render_classroom_connection_retry")]
     checks["no automatic final leaderboard reload"] = "render_leaderboard(" not in day_complete

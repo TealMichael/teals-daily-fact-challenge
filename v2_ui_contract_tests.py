@@ -19,7 +19,7 @@ def run():
         "Mastery & Focus",
         "Full Class Fact Map",
         "Personal Focus override",
-        "runs quietly in the background",
+        "hidden timer starts",
         "free_practice",
         "Fact Coach correction is teaching practice, not instant mastery",
         "record_mastery_evidence_batch",

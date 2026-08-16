@@ -6,7 +6,7 @@ HTML = (ROOT / "guided_practice_component" / "index.html").read_text()
 APP = (ROOT / "app.py").read_text()
 
 checks = {
-    "version 2.8.3": APP_VERSION == "2.9.0",
+    "version 2.8.3": APP_VERSION == "2.9.1",
     "explicit WATCH IT gate": "▶ WATCH IT" in HTML and 'id="watch-coach"' in HTML,
     "student can replay": "↻ REPLAY" in HTML and 'id="replay-coach"' in HTML,
     "teach sequence is JS staged": "function startTeachSequence()" in HTML,

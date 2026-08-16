@@ -11,7 +11,7 @@ STORE = (ROOT / "supabase_fact_store.py").read_text(encoding="utf-8")
 
 def run():
     checks = {}
-    checks["version 2.7.0"] = APP_VERSION == "2.9.0"
+    checks["version 2.7.0"] = APP_VERSION == "2.9.1"
 
     # Friday is a real fifth clue, with no skipped-day backfill.
     checks["all bank mysteries resolve to five clues"] = all(len(mystery_for_key(item.key).clues) == 5 for item in MYSTERIES)
@@ -62,7 +62,7 @@ def run():
     checks["quick focus action"] = "Quick Focus assignment" in APP
     checks["individual why"] = "Why does this student have this fact status?" in APP
     checks["individual targets"] = "Today's Focus Practice targets" in APP
-    checks["manual controls secondary"] = "⚙️ Manual Focus Controls" in APP
+    checks["manual controls secondary"] = "⚙️ Show Manual Focus Controls" in APP
     checks["teaching/data explanation"] = "How the app teaches & uses data" in APP
     checks["no placement test claim"] = "No placement test" in APP
 

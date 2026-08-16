@@ -5,10 +5,10 @@ APP = (ROOT / "app.py").read_text(encoding="utf-8")
 ENGINE = (ROOT / "fact_engine.py").read_text(encoding="utf-8")
 
 checks = {
-    "version bumped": 'APP_VERSION = "2.9.0"' in ENGINE,
+    "version bumped": 'APP_VERSION = "2.9.1"' in ENGINE,
     "growth renderer restored": "def render_mastery_card" in APP,
     "growth uses mastery summary": "store.mastery_summary(st.session_state.student_id)" in APP,
-    "growth remains optional": 'with st.expander("🌱 See My Growth", expanded=False)' in APP,
+    "growth remains optional": 'st.toggle("🌱 See My Growth"' in APP and 'if show_growth:' in APP,
     "transient classifier exists": "def _is_transient_classroom_error" in APP,
     "http read error classified": "httpx.ReadError" in APP,
     "busy copy still exists for real transport errors": "The classroom connection is busy for a moment" in APP,

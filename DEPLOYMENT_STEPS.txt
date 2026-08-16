@@ -1,20 +1,21 @@
-TEAL'S DAILY FACT CHALLENGE v2.9.0
+TEAL'S DAILY FACT CHALLENGE v2.9.1
 
-WEEKLY MYSTERY RAFFLE + TYPO-FRIENDLY GUESSES + TEST STUDENT
+PERFORMANCE + STUDENT CLARITY PASS
 
-UPDATING FROM v2.8.x
+UPDATING FROM v2.9.0
 
-1. In the existing Fact Challenge Supabase project, open SQL Editor → New query.
-2. Open RUN_THIS_ONCE_IN_SUPABASE_v2_9.sql from this package.
-3. Paste the entire file into the NEW query and click Run.
-4. Do NOT rerun older migrations or SUPABASE_SCHEMA.sql.
-5. Upload every file/folder in UPLOAD_TO_GITHUB to the existing GitHub repository root.
-6. Let Streamlit redeploy automatically.
-7. Teacher → Test Student: choose a class context and use Open Test Student. Use Reset & start fresh whenever you want a clean full routine. The sandbox is hidden from real classroom data.
-8. Teacher → Weekly Mystery: correct real solvers should appear in Weekly Mystery Prize Raffle. The draw button becomes available Friday; the saved winner survives refreshes.
-9. Test typo tolerance with a long Mystery answer such as Abraham Lincon. A small spelling error should count; a different person/answer should not.
+1. No Supabase SQL is required for v2.9.1.
+2. Upload every file/folder in UPLOAD_TO_GITHUB to the existing GitHub repository root, replacing the old files.
+3. Let Streamlit redeploy automatically.
+4. Student check: the top navigation should read Today | Practice, with a smaller Teacher button.
+5. Student check: the routine strip should show Mystery Reward instead of a required Step 4.
+6. Teacher check: open Teacher Dashboard and switch between Today, Classes & Rosters, Mastery & Focus, Weekly Mystery, Student Support, and Test Student. Only the selected section should load.
+7. Teacher → Today: Refresh data, Top 10, PINs, routine status, and teacher-only accuracy/timing should still work normally.
+8. Optional Practice → My Focus Facts: move through several facts and confirm question-to-question use remains fast.
+
+If this installation is still on v2.8.x and RUN_THIS_ONCE_IN_SUPABASE_v2_9.sql has never been run, run that v2.9 migration once before deploying v2.9.1. Do NOT rerun it if v2.9.0 is already working.
 
 No new Streamlit Secrets are required.
 
 Suggested GitHub commit:
-v2.9.0 - add Mystery raffle, typo-friendly guesses, and Test Student sandbox
+v2.9.1 - speed up teacher dashboard and simplify student UI
