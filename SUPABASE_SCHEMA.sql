@@ -11,6 +11,7 @@ create table if not exists public.classes (
     class_name_key text not null unique,
     class_code text not null unique,
     active boolean not null default true,
+    is_test boolean not null default false,
     created_at timestamptz not null default now(),
     constraint class_name_not_blank check (length(btrim(class_name)) between 1 and 40),
     constraint class_code_shape check (class_code ~ '^[A-Z2-9]{6}$')
@@ -94,6 +95,7 @@ create table if not exists public.practice_answers (
 );
 
 create index if not exists students_class_idx on public.students(class_id, active);
+create index if not exists students_test_idx on public.students(is_test, class_id);
 create index if not exists attempts_challenge_idx on public.daily_attempts(challenge_id, completed_at);
 create index if not exists attempts_student_idx on public.daily_attempts(student_id, challenge_id);
 create index if not exists answers_attempt_idx on public.daily_answers(attempt_id, question_number);

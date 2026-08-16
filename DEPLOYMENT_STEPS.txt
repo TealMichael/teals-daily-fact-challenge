@@ -1,16 +1,20 @@
-TEAL'S DAILY FACT CHALLENGE v2.8.4
+TEAL'S DAILY FACT CHALLENGE v2.9.0
 
-CLEAR TAKE-AWAY FACT COACH
+WEEKLY MYSTERY RAFFLE + TYPO-FRIENDLY GUESSES + TEST STUDENT
 
-1. There is NO new Supabase SQL step.
-2. There are NO new Streamlit Secrets.
-3. Upload every file/folder in UPLOAD_TO_GITHUB to the existing GitHub repository root.
-4. Let Streamlit redeploy automatically.
-5. Test a ×9 miss such as 7 × 9. Before the removable row is tapped, the coach should explain the full relationship: start with 7 × 10 = 70, tap 1 group of 7 to take it away, and show that this leaves 7 × 9.
-6. Test a 10−2 / ×8 lesson. It should explain the ×10 anchor, ask the student to remove 2 equal groups, and name the original fact that remains.
-7. The staged animation, click-to-remove interaction, browser-local Guided Practice, teacher dashboard, Mystery planning, Daily continuity, and all current classroom features remain intact.
+UPDATING FROM v2.8.x
+
+1. In the existing Fact Challenge Supabase project, open SQL Editor → New query.
+2. Open RUN_THIS_ONCE_IN_SUPABASE_v2_9.sql from this package.
+3. Paste the entire file into the NEW query and click Run.
+4. Do NOT rerun older migrations or SUPABASE_SCHEMA.sql.
+5. Upload every file/folder in UPLOAD_TO_GITHUB to the existing GitHub repository root.
+6. Let Streamlit redeploy automatically.
+7. Teacher → Test Student: choose a class context and use Open Test Student. Use Reset & start fresh whenever you want a clean full routine. The sandbox is hidden from real classroom data.
+8. Teacher → Weekly Mystery: correct real solvers should appear in Weekly Mystery Prize Raffle. The draw button becomes available Friday; the saved winner survives refreshes.
+9. Test typo tolerance with a long Mystery answer such as Abraham Lincon. A small spelling error should count; a different person/answer should not.
+
+No new Streamlit Secrets are required.
 
 Suggested GitHub commit:
-v2.8.4 - clarify why students remove groups in Fact Coach
-
-v2.8.4 is code-only. No Supabase SQL migration and no new Streamlit Secret are required.
+v2.9.0 - add Mystery raffle, typo-friendly guesses, and Test Student sandbox

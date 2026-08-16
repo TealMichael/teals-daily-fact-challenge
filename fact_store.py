@@ -58,6 +58,7 @@ class StudentRecord:
     active: bool
     created_at: datetime
     pin_code: str | None = None
+    is_test: bool = False
 
 
 @dataclass(frozen=True)
@@ -224,6 +225,7 @@ class InMemoryFactStore:
         self.class_focus_overrides: dict[str, int | None] = {}
         self.student_focus_overrides: dict[str, int | None] = {}
         self.global_focus_override: int | None = None
+        self.app_settings: dict[str, object] = {}
         self.weekly_mysteries: dict[str, WeeklyMysteryRecord] = {}
         self.mystery_unlocks: dict[tuple[str, str, int], MysteryUnlockRecord] = {}
         self.mystery_guesses: dict[tuple[str, str, int], MysteryGuessRecord] = {}
@@ -255,7 +257,7 @@ class InMemoryFactStore:
         return record
 
     # ----- Students -----
-    def create_student(self, class_id: str, nickname: str, pin: str) -> StudentRecord:
+    def create_student(self, class_id: str, nickname: str, pin: str, *, is_test: bool = False) -> StudentRecord:
         if class_id not in self.classes:
             raise NotFound("Class not found.")
         nickname, key = normalize_name(nickname, label="Nickname", max_length=28)
@@ -266,7 +268,7 @@ class InMemoryFactStore:
         ):
             raise NameTaken(f"{nickname} already exists in this class.")
         pin = validate_pin(pin)
-        record = StudentRecord(_uuid(), class_id, nickname, True, utc_now(), pin)
+        record = StudentRecord(_uuid(), class_id, nickname, True, utc_now(), pin, bool(is_test))
         self.students[record.student_id] = {
             "record": record,
             "nickname_key": key,
@@ -282,12 +284,14 @@ class InMemoryFactStore:
             return None
         for row in self.students.values():
             record = row["record"]
-            if record.class_id == class_id and row["nickname_key"] == key and record.active:
+            if record.class_id == class_id and row["nickname_key"] == key and record.active and not record.is_test:
                 return record if verify_pin(pin, row["pin_hash"]) else None
         return None
 
-    def list_students(self, class_id: str, *, include_inactive: bool = False) -> list[StudentRecord]:
+    def list_students(self, class_id: str, *, include_inactive: bool = False, include_test: bool = False) -> list[StudentRecord]:
         result = [row["record"] for row in self.students.values() if row["record"].class_id == class_id]
+        if not include_test:
+            result = [student for student in result if not student.is_test]
         if not include_inactive:
             result = [student for student in result if student.active]
         return sorted(result, key=lambda item: item.nickname.casefold())
@@ -346,6 +350,18 @@ class InMemoryFactStore:
         updated = replace(record, class_id=new_class_id)
         self.students[student_id]["record"] = updated
         return updated
+
+    def get_test_student(self, class_id: str | None = None) -> StudentRecord | None:
+        rows = [row["record"] for row in self.students.values() if row["record"].is_test]
+        if class_id is not None:
+            rows = [row for row in rows if row.class_id == str(class_id)]
+        return rows[0] if rows else None
+
+    def reset_test_student(self, class_id: str) -> StudentRecord:
+        test_ids = [sid for sid, row in self.students.items() if row["record"].is_test]
+        if test_ids:
+            self.delete_students(test_ids)
+        return self.create_student(str(class_id), "🧪 Test Student", "0000", is_test=True)
 
     def delete_student(self, student_id: str) -> None:
         self.delete_students([student_id])
@@ -856,6 +872,36 @@ class InMemoryFactStore:
             if cid == challenge_id and sid in ids
         }
 
+    # ----- Private app settings (reference backend) -----
+    def get_app_setting(self, setting_key: str):
+        return self.app_settings.get(str(setting_key))
+
+    def set_app_setting(self, setting_key: str, value) -> None:
+        self.app_settings[str(setting_key)] = value
+
+    def delete_app_setting(self, setting_key: str) -> None:
+        self.app_settings.pop(str(setting_key), None)
+
+    @staticmethod
+    def _mystery_plan_key(week_start: date | str) -> str:
+        return f"weekly_mystery_plan::{_as_date_key(week_start)}"
+
+    def get_mystery_plan(self, week_start: date | str) -> dict | None:
+        value = self.get_app_setting(self._mystery_plan_key(week_start))
+        return dict(value) if isinstance(value, dict) else None
+
+    def save_mystery_plan(self, week_start: date | str, plan: Mapping) -> None:
+        key = _as_date_key(week_start)
+        if self.weekly_mystery_locked(key):
+            raise FactStoreError("This week's mystery is locked because a student has already unlocked a clue.")
+        self.set_app_setting(self._mystery_plan_key(key), dict(plan))
+
+    def clear_mystery_plan(self, week_start: date | str) -> None:
+        key = _as_date_key(week_start)
+        if self.weekly_mystery_locked(key):
+            raise FactStoreError("This week's mystery is locked because a student has already unlocked a clue.")
+        self.delete_app_setting(self._mystery_plan_key(key))
+
     # ----- Weekly Mystery -----
     def get_weekly_mystery(self, week_start: date | str) -> WeeklyMysteryRecord | None:
         return self.weekly_mysteries.get(_as_date_key(week_start))
@@ -872,7 +918,8 @@ class InMemoryFactStore:
 
     def weekly_mystery_locked(self, week_start: date | str) -> bool:
         key = _as_date_key(week_start)
-        return any(row.week_start == key for row in self.mystery_unlocks.values())
+        test_ids = {sid for sid, row in self.students.items() if row["record"].is_test}
+        return any(row.week_start == key and row.student_id not in test_ids for row in self.mystery_unlocks.values())
 
     def replace_weekly_mystery(self, week_start: date | str, mystery_key: str) -> WeeklyMysteryRecord:
         key = _as_date_key(week_start)
@@ -961,10 +1008,33 @@ class InMemoryFactStore:
             "earliest_solve": min((row.clue_count for row in correct_rows), default=None),
         }
 
+    def weekly_mystery_correct_students(self, week_start: date | str) -> list[dict]:
+        week_key = _as_date_key(week_start)
+        correct = [row for row in self.mystery_guesses.values() if row.week_start == week_key and row.correct]
+        by_student = {}
+        for row in correct:
+            student = self.students.get(row.student_id, {}).get("record")
+            if student is None or student.is_test:
+                continue
+            prior = by_student.get(row.student_id)
+            if prior is None or row.guess_day < prior.guess_day:
+                by_student[row.student_id] = row
+        class_names = {item.class_id: item.class_name for item in self.list_classes(include_inactive=True)}
+        result = []
+        for sid, guess in by_student.items():
+            student = self.students[sid]["record"]
+            result.append({
+                "student_id": sid, "nickname": student.nickname,
+                "class_id": student.class_id, "class_name": class_names.get(student.class_id, "Class"),
+                "guess_day": guess.guess_day, "clue_count": guess.clue_count,
+            })
+        return sorted(result, key=lambda item: (item["class_name"].casefold(), item["nickname"].casefold()))
+
     def weekly_mystery_teacher_stats(self, week_start: date | str) -> dict[str, int]:
         week_key = _as_date_key(week_start)
-        unlocks = [row for row in self.mystery_unlocks.values() if row.week_start == week_key]
-        guesses = [row for row in self.mystery_guesses.values() if row.week_start == week_key]
+        test_ids = {sid for sid, row in self.students.items() if row["record"].is_test}
+        unlocks = [row for row in self.mystery_unlocks.values() if row.week_start == week_key and row.student_id not in test_ids]
+        guesses = [row for row in self.mystery_guesses.values() if row.week_start == week_key and row.student_id not in test_ids]
         return {
             "students_unlocked": len({row.student_id for row in unlocks}),
             "clues_unlocked": len(unlocks),

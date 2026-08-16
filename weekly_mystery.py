@@ -309,12 +309,52 @@ def normalize_guess(value: str) -> str:
     return text
 
 
+def _damerau_levenshtein(a: str, b: str) -> int:
+    """Small optimal-string-alignment distance for classroom typo tolerance."""
+    if a == b:
+        return 0
+    if not a:
+        return len(b)
+    if not b:
+        return len(a)
+    prev2 = None
+    prev = list(range(len(b) + 1))
+    for i, ca in enumerate(a, start=1):
+        cur = [i] + [0] * len(b)
+        for j, cb in enumerate(b, start=1):
+            cost = 0 if ca == cb else 1
+            cur[j] = min(cur[j-1] + 1, prev[j] + 1, prev[j-1] + cost)
+            if prev2 is not None and i > 1 and j > 1 and ca == b[j-2] and a[i-2] == cb:
+                cur[j] = min(cur[j], prev2[j-2] + 1)
+        prev2, prev = prev, cur
+    return prev[-1]
+
+
+def _typo_tolerant_match(guess: str, target: str) -> bool:
+    """Allow only small, plausible spelling errors without giving away answers."""
+    if guess == target:
+        return True
+    # Very short answers are too easy to accidentally match to a different word.
+    compact_guess = guess.replace(" ", "")
+    compact_target = target.replace(" ", "")
+    if min(len(compact_guess), len(compact_target)) < 5:
+        return False
+    length = max(len(compact_guess), len(compact_target))
+    # One edit for ordinary words; two for longer names/phrases. Adjacent swaps count as one.
+    allowance = 2 if length >= 15 else 1
+    if abs(len(compact_guess) - len(compact_target)) > allowance:
+        return False
+    return _damerau_levenshtein(compact_guess, compact_target) <= allowance
+
+
 def is_correct_guess(mystery: MysteryDefinition, guess: str) -> bool:
     normalized = normalize_guess(guess)
     if not normalized:
         return False
     accepted = {normalize_guess(mystery.answer), *(normalize_guess(alias) for alias in mystery.aliases)}
-    return normalized in accepted
+    if normalized in accepted:
+        return True
+    return any(_typo_tolerant_match(normalized, target) for target in accepted if target)
 
 
 def default_mystery_key_for_week(week_start: date) -> str:

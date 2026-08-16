@@ -160,6 +160,7 @@ def _student(row: Mapping) -> StudentRecord:
         active=bool(row.get("active", True)),
         created_at=_dt(row.get("created_at")) or utc_now(),
         pin_code=None if row.get("pin_code") is None else str(row.get("pin_code")),
+        is_test=bool(row.get("is_test", False)),
     )
 
 
@@ -358,7 +359,7 @@ class SupabaseFactStore:
         return _class(row)
 
     # ----- Students -----
-    def create_student(self, class_id: str, nickname: str, pin: str) -> StudentRecord:
+    def create_student(self, class_id: str, nickname: str, pin: str, *, is_test: bool = False) -> StudentRecord:
         name, key = normalize_name(nickname, label="Nickname", max_length=28)
         pin = validate_pin(pin)
         payload = {
@@ -367,6 +368,7 @@ class SupabaseFactStore:
             "nickname_key": key,
             "pin_hash": hash_pin(pin),
             "pin_code": pin,
+            "is_test": bool(is_test),
         }
         try:
             row = _first(self.client.table("students").insert(payload).select("*").execute())
@@ -385,8 +387,9 @@ class SupabaseFactStore:
             return None
         row = _first(_retry_transient(lambda: (
             self.client.table("students")
-            .select("student_id,class_id,nickname,pin_hash,active,created_at")
+            .select("student_id,class_id,nickname,pin_hash,active,created_at,is_test")
             .eq("class_id", str(class_id))
+            .eq("is_test", False)
             .eq("nickname_key", key)
             .eq("active", True)
             .limit(1)
@@ -396,16 +399,18 @@ class SupabaseFactStore:
             return None
         return _student(row)
 
-    def list_students(self, class_id: str, *, include_inactive: bool = False) -> list[StudentRecord]:
-        query = self.client.table("students").select("student_id,class_id,nickname,pin_code,active,created_at").eq("class_id", str(class_id))
+    def list_students(self, class_id: str, *, include_inactive: bool = False, include_test: bool = False) -> list[StudentRecord]:
+        query = self.client.table("students").select("student_id,class_id,nickname,pin_code,active,created_at,is_test").eq("class_id", str(class_id))
         if not include_inactive:
             query = query.eq("active", True)
+        if not include_test:
+            query = query.eq("is_test", False)
         return [_student(row) for row in _rows(_retry_transient(lambda: query.order("nickname").execute()))]
 
     def get_student(self, student_id: str) -> StudentRecord:
         row = _first(_retry_transient(lambda: (
             self.client.table("students")
-            .select("student_id,class_id,nickname,pin_code,active,created_at")
+            .select("student_id,class_id,nickname,pin_code,active,created_at,is_test")
             .eq("student_id", str(student_id))
             .limit(1)
             .execute()
@@ -413,6 +418,22 @@ class SupabaseFactStore:
         if row is None:
             raise NotFound("Student not found.")
         return _student(row)
+
+    def get_test_student(self, class_id: str | None = None) -> StudentRecord | None:
+        query = self.client.table("students").select("student_id,class_id,nickname,pin_code,active,created_at,is_test").eq("is_test", True)
+        if class_id is not None:
+            query = query.eq("class_id", str(class_id))
+        row = _first(_retry_transient(lambda: query.order("created_at").limit(1).execute()))
+        return None if row is None else _student(row)
+
+    def reset_test_student(self, class_id: str) -> StudentRecord:
+        test_rows = _rows(_retry_transient(lambda: self.client.table("students").select("student_id").eq("is_test", True).execute()))
+        test_ids = [str(row["student_id"]) for row in test_rows]
+        if test_ids:
+            # practice_answers uses ON DELETE SET NULL, so remove sandbox practice rows explicitly.
+            _retry_transient(lambda: self.client.table("practice_answers").delete().in_("student_id", test_ids).execute())
+            _retry_transient(lambda: self.client.table("students").delete().in_("student_id", test_ids).execute())
+        return self.create_student(str(class_id), "🧪 Test Student", "0000", is_test=True)
 
     def rename_student(self, student_id: str, nickname: str) -> StudentRecord:
         student = self.get_student(student_id)
@@ -422,7 +443,7 @@ class SupabaseFactStore:
                 self.client.table("students")
                 .update({"nickname": name, "nickname_key": key})
                 .eq("student_id", student.student_id)
-                .select("student_id,class_id,nickname,pin_code,active,created_at")
+                .select("student_id,class_id,nickname,pin_code,active,created_at,is_test")
                 .execute()
             )
         except Exception as exc:
@@ -450,7 +471,7 @@ class SupabaseFactStore:
             self.client.table("students")
             .update({"active": bool(active)})
             .eq("student_id", str(student_id))
-            .select("student_id,class_id,nickname,pin_code,active,created_at")
+            .select("student_id,class_id,nickname,pin_code,active,created_at,is_test")
             .execute()
         )
         if row is None:
@@ -468,7 +489,7 @@ class SupabaseFactStore:
                 self.client.table("students")
                 .update({"class_id": str(new_class_id)})
                 .eq("student_id", student.student_id)
-                .select("student_id,class_id,nickname,pin_code,active,created_at")
+                .select("student_id,class_id,nickname,pin_code,active,created_at,is_test")
                 .execute()
             )
         except Exception as exc:
@@ -1385,11 +1406,10 @@ class SupabaseFactStore:
             raise
 
     def weekly_mystery_locked(self, week_start: date | str) -> bool:
-        row = _first(
-            self.client.table("weekly_mystery_unlocks").select("student_id")
-            .eq("week_start", self._week_key(week_start)).limit(1).execute()
-        )
-        return row is not None
+        rows = _rows(_retry_transient(lambda: self.client.table("weekly_mystery_unlocks").select("student_id")
+            .eq("week_start", self._week_key(week_start)).range(0, 9999).execute()))
+        test_ids = self._test_student_ids()
+        return any(str(row["student_id"]) not in test_ids for row in rows)
 
     def replace_weekly_mystery(self, week_start: date | str, mystery_key: str) -> WeeklyMysteryRecord:
         week_key = self._week_key(week_start)
@@ -1519,8 +1539,48 @@ class SupabaseFactStore:
             "earliest_solve": min((int(row["clue_count"]) for row in correct_rows), default=None),
         }
 
+    def _test_student_ids(self) -> set[str]:
+        rows = _rows(_retry_transient(lambda: self.client.table("students").select("student_id").eq("is_test", True).execute()))
+        return {str(row["student_id"]) for row in rows}
+
+    def weekly_mystery_correct_students(self, week_start: date | str) -> list[dict]:
+        week_key = self._week_key(week_start)
+        guess_rows = _rows(_retry_transient(lambda: self.client.table("weekly_mystery_guesses")
+            .select("student_id,guess_day,clue_count,guessed_at")
+            .eq("week_start", week_key).eq("correct", True).range(0, 9999).execute()))
+        student_ids = list(dict.fromkeys(str(row["student_id"]) for row in guess_rows))
+        if not student_ids:
+            return []
+        student_rows = _rows(_retry_transient(lambda: self.client.table("students")
+            .select("student_id,class_id,nickname,is_test")
+            .in_("student_id", student_ids).eq("is_test", False).execute()))
+        class_ids = list({str(row["class_id"]) for row in student_rows})
+        class_rows = _rows(_retry_transient(lambda: self.client.table("classes")
+            .select("class_id,class_name").in_("class_id", class_ids).execute())) if class_ids else []
+        class_names = {str(row["class_id"]): str(row["class_name"]) for row in class_rows}
+        guess_by_student = {}
+        for row in guess_rows:
+            sid = str(row["student_id"])
+            prior = guess_by_student.get(sid)
+            if prior is None or int(row.get("guess_day") or 5) < int(prior.get("guess_day") or 5):
+                guess_by_student[sid] = row
+        result = []
+        for row in student_rows:
+            sid = str(row["student_id"])
+            guess = guess_by_student.get(sid, {})
+            result.append({
+                "student_id": sid,
+                "nickname": str(row["nickname"]),
+                "class_id": str(row["class_id"]),
+                "class_name": class_names.get(str(row["class_id"]), "Class"),
+                "guess_day": int(guess.get("guess_day") or 5),
+                "clue_count": int(guess.get("clue_count") or 0),
+            })
+        return sorted(result, key=lambda item: (item["class_name"].casefold(), item["nickname"].casefold()))
+
     def weekly_mystery_teacher_stats(self, week_start: date | str) -> dict[str, int]:
         week_key = self._week_key(week_start)
+        test_ids = self._test_student_ids()
         unlock_rows = _rows(
             self.client.table("weekly_mystery_unlocks").select("student_id")
             .eq("week_start", week_key).range(0, 9999).execute()
@@ -1529,6 +1589,8 @@ class SupabaseFactStore:
             self.client.table("weekly_mystery_guesses").select("student_id,correct")
             .eq("week_start", week_key).range(0, 9999).execute()
         )
+        unlock_rows = [row for row in unlock_rows if str(row["student_id"]) not in test_ids]
+        guess_rows = [row for row in guess_rows if str(row["student_id"]) not in test_ids]
         return {
             "students_unlocked": len({str(row["student_id"]) for row in unlock_rows}),
             "clues_unlocked": len(unlock_rows),

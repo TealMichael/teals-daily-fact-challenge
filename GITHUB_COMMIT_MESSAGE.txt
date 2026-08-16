@@ -1,1 +1,1 @@
-v2.8.4 - clarify why students remove groups in Fact Coach
+v2.9.0 - add Mystery raffle, typo-friendly guesses, and Test Student sandbox

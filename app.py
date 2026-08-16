@@ -440,7 +440,7 @@ def switch_mode(mode: str) -> None:
 def sign_out() -> None:
     st.session_state.persistent_login_pending_action = {"action": "clear"}
     st.session_state.persistent_login_check_complete = False
-    for key in ("student_id", "student_nickname", "student_class_id", "student_class_name"):
+    for key in ("student_id", "student_nickname", "student_class_id", "student_class_name", "student_is_test"):
         st.session_state[key] = None
     st.session_state.practice_result = None
 
@@ -457,6 +457,7 @@ def _set_student_session(student, class_record) -> None:
     st.session_state.student_nickname = student.nickname
     st.session_state.student_class_id = student.class_id
     st.session_state.student_class_name = class_record.class_name
+    st.session_state.student_is_test = bool(getattr(student, "is_test", False))
 
 
 def handle_persistent_student_login(store: SupabaseFactStore | None) -> None:
@@ -783,6 +784,10 @@ def _render_mystery_win(mystery, solved_guess, week_start) -> None:
         f"</div>",
         unsafe_allow_html=True,
     )
+    if st.session_state.get("student_is_test"):
+        st.info("🧪 Test Student: this correct guess is sandbox-only and is not entered in the real raffle.")
+    else:
+        st.success("🎟️ **You're in this week's prize raffle!** Every correct solver gets one equal entry.")
     _render_mystery_learning(mystery)
 
 
@@ -2511,6 +2516,67 @@ def render_teacher_student_tools(store: SupabaseFactStore) -> None:
             except Exception as exc:
                 st.error(str(exc))
 
+def _mystery_raffle_setting_key(week_start) -> str:
+    return f"weekly_mystery_raffle::{week_start.isoformat()}"
+
+
+def _render_teacher_mystery_raffle(store: SupabaseFactStore, week_start, *, day) -> None:
+    st.markdown("#### 🎟️ Weekly Mystery Prize Raffle")
+    st.caption("Every real student who solves the Mystery correctly gets exactly one equal entry. Solving Thursday does not give extra chances.")
+    try:
+        eligible = store.weekly_mystery_correct_students(week_start)
+        saved = store.get_app_setting(_mystery_raffle_setting_key(week_start))
+    except Exception as exc:
+        st.error("The raffle list could not be loaded.")
+        if str(st.query_params.get("dbcheck", "0")) == "1":
+            st.exception(exc)
+        return
+
+    st.metric("Eligible students", len(eligible))
+    with st.expander("View raffle entries", expanded=False):
+        if not eligible:
+            st.caption("No correct solvers yet.")
+        else:
+            for item in eligible:
+                when = "Thursday" if int(item.get("guess_day") or 5) == 4 else "Friday"
+                st.write(f"🎟️ **{item['nickname']}** · {item['class_name']} · solved {when}")
+
+    eligible_by_id = {str(item["student_id"]): item for item in eligible}
+    winner = saved if isinstance(saved, dict) else None
+    if winner and str(winner.get("student_id") or "") in eligible_by_id:
+        item = eligible_by_id[str(winner["student_id"])]
+        st.success(f"🏆 **Raffle winner: {item['nickname']}** · {item['class_name']}")
+        with st.expander("Need to redraw?", expanded=False):
+            st.warning("Redraw only if you need to replace the saved winner (for example, the student is absent).")
+            confirm = st.checkbox("I want to replace the saved raffle winner.", key=f"confirm_raffle_redraw_{week_start}")
+            if st.button("🎲 Redraw winner", use_container_width=True, disabled=not confirm, key=f"redraw_raffle_{week_start}"):
+                pool = list(eligible)
+                new_item = random.SystemRandom().choice(pool)
+                store.set_app_setting(_mystery_raffle_setting_key(week_start), {
+                    "student_id": new_item["student_id"],
+                    "nickname": new_item["nickname"],
+                    "class_name": new_item["class_name"],
+                    "drawn_at": utc_now().isoformat(),
+                })
+                st.rerun()
+        return
+    elif winner:
+        st.warning("The saved raffle winner is no longer eligible. Draw a new winner below.")
+
+    friday_or_later = int(day.weekday()) >= 4
+    if not friday_or_later:
+        st.info("Entries are building. The Draw Winner button opens Friday so Thursday solvers and Friday solvers have the same chance.")
+    if st.button("🎲 Draw weekly raffle winner", use_container_width=True, type="primary", disabled=(not eligible or not friday_or_later), key=f"draw_raffle_{week_start}"):
+        item = random.SystemRandom().choice(list(eligible))
+        store.set_app_setting(_mystery_raffle_setting_key(week_start), {
+            "student_id": item["student_id"],
+            "nickname": item["nickname"],
+            "class_name": item["class_name"],
+            "drawn_at": utc_now().isoformat(),
+        })
+        st.rerun()
+
+
 def _mystery_bank_label(mystery) -> str:
     return f"{mystery.category} · {mystery.answer}"
 
@@ -2533,6 +2599,7 @@ def _render_teacher_mystery_preview(mystery, *, label: str) -> None:
 def render_teacher_weekly_mystery(store: SupabaseFactStore) -> None:
     st.markdown("### 🕵️ Weekly Mystery")
     st.caption("One shared just-for-fun mystery. Full routines earn one clue Monday–Friday; Guess #1 is Thursday and Guess #2 is Friday.")
+    st.caption("Student guesses ignore capitalization/punctuation, honor your accepted aliases, and allow only small plausible spelling mistakes (for example, Abraham Lincon).")
     day = current_daily_date()
     try:
         week_start, record, mystery = ensure_weekly_mystery(store, day)
@@ -2563,6 +2630,8 @@ def render_teacher_weekly_mystery(store: SupabaseFactStore) -> None:
                 st.rerun()
             except Exception as exc:
                 st.error(str(exc))
+
+    _render_teacher_mystery_raffle(store, week_start, day=day)
 
     st.markdown("---")
     next_week = week_start + timedelta(days=7)
@@ -2653,12 +2722,91 @@ def render_teacher_weekly_mystery(store: SupabaseFactStore) -> None:
         st.write("The bank is stored inside the app, so clue delivery never depends on a live internet search.")
 
 
+def _test_student_backup_keys() -> tuple[str, ...]:
+    return ("student_id", "student_nickname", "student_class_id", "student_class_name", "student_is_test")
+
+
+def _enter_teacher_test_student(store: SupabaseFactStore, class_record, *, reset: bool = False) -> None:
+    if "teacher_test_student_backup" not in st.session_state:
+        st.session_state["teacher_test_student_backup"] = {key: st.session_state.get(key) for key in _test_student_backup_keys()}
+    student = store.reset_test_student(class_record.class_id) if reset else store.get_test_student(class_record.class_id)
+    if student is None:
+        student = store.reset_test_student(class_record.class_id)
+    _set_student_session(student, class_record)
+    st.session_state["teacher_test_student_mode"] = True
+    st.session_state["teacher_test_student_class_id"] = class_record.class_id
+    st.rerun()
+
+
+def _exit_teacher_test_student() -> None:
+    backup = st.session_state.pop("teacher_test_student_backup", {}) or {}
+    for key in _test_student_backup_keys():
+        st.session_state[key] = backup.get(key)
+    st.session_state["teacher_test_student_mode"] = False
+    st.session_state.pop("teacher_test_student_class_id", None)
+    st.rerun()
+
+
+def render_teacher_test_student_launcher(store: SupabaseFactStore) -> None:
+    st.markdown("### 🧪 Test Student Sandbox")
+    st.caption("Run the real student workflow as many times as you want without affecting real rosters, Top 10, mastery heatmaps, class completion, Mystery stats, or raffle entries.")
+    classes = store.list_classes()
+    if not classes:
+        st.info("Create a real class first so the sandbox has a class context.")
+        return
+    by_name = {item.class_name: item for item in classes}
+    class_name = st.selectbox("Use class context", list(by_name), key="teacher_test_student_class")
+    selected = by_name[class_name]
+    existing = store.get_test_student(selected.class_id)
+    if existing is not None:
+        st.success(f"Sandbox ready in {selected.class_name}. It is hidden from real class data.")
+    else:
+        st.info("No sandbox run exists for this class yet. Starting it will create a hidden Test Student.")
+    a, b = st.columns(2)
+    with a:
+        if st.button("▶ Open Test Student", use_container_width=True, type="primary", key="open_test_student"):
+            _enter_teacher_test_student(store, selected, reset=False)
+    with b:
+        if st.button("↻ Reset & start fresh", use_container_width=True, key="reset_test_student_launcher"):
+            _enter_teacher_test_student(store, selected, reset=True)
+    st.caption("Reset & start fresh wipes only the hidden sandbox account and immediately recreates it. Real student data is untouched.")
+
+
+def render_teacher_test_student_mode(store: SupabaseFactStore) -> None:
+    class_id = st.session_state.get("teacher_test_student_class_id")
+    classes = store.list_classes()
+    class_record = next((item for item in classes if item.class_id == class_id), None)
+    if class_record is None:
+        _exit_teacher_test_student()
+        return
+    student = store.get_test_student(class_record.class_id)
+    if student is None:
+        student = store.reset_test_student(class_record.class_id)
+    _set_student_session(student, class_record)
+
+    left, right = st.columns([2.5, 2])
+    with left:
+        if st.button("← Back to Teacher Dashboard", use_container_width=True, key="exit_test_student"):
+            _exit_teacher_test_student()
+    with right:
+        if st.button("↻ Reset Test Student", use_container_width=True, key="reset_test_student_mode"):
+            student = store.reset_test_student(class_record.class_id)
+            _set_student_session(student, class_record)
+            st.rerun()
+    st.warning("🧪 **TEST STUDENT SANDBOX** · This is the real student workflow, but this account is excluded from real classroom results and raffle entries.")
+    render_daily(store)
+
+
 def render_teacher(store: SupabaseFactStore | None) -> None:
     if store is None:
         st.markdown("## Teacher Dashboard")
         render_db_setup_message()
         return
     if not teacher_login():
+        return
+
+    if st.session_state.get("teacher_test_student_mode"):
+        render_teacher_test_student_mode(store)
         return
 
     if st.session_state.get("teacher_projector_mode"):
@@ -2676,8 +2824,8 @@ def render_teacher(store: SupabaseFactStore | None) -> None:
             st.rerun()
 
     st.caption("Start with Today. Use Classes & Rosters for whole-class setup; use Student Support when one student needs help.")
-    today_tab, class_tab, mastery_tab, mystery_tab, tools_tab = st.tabs([
-        "📊 Today", "👥 Classes & Rosters", "🎯 Mastery & Focus", "🕵️ Weekly Mystery", "🛠️ Student Support"
+    today_tab, class_tab, mastery_tab, mystery_tab, tools_tab, test_tab = st.tabs([
+        "📊 Today", "👥 Classes & Rosters", "🎯 Mastery & Focus", "🕵️ Weekly Mystery", "🛠️ Student Support", "🧪 Test Student"
     ])
     with today_tab:
         render_teacher_today(store)
@@ -2689,6 +2837,8 @@ def render_teacher(store: SupabaseFactStore | None) -> None:
         render_teacher_weekly_mystery(store)
     with tools_tab:
         render_teacher_student_tools(store)
+    with test_tab:
+        render_teacher_test_student_launcher(store)
 
     st.markdown("---")
     st.caption(f"Teal's Daily Fact Challenge · v{APP_VERSION} · Teacher-only data is never shown on student leaderboards.")

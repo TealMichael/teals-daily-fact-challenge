@@ -1,5 +1,15 @@
 # Teal's Daily Fact Challenge
 
+### v2.9.0 — Weekly Mystery Raffle + Typo-Friendly Guessing + Test Student Sandbox
+
+- Every real student who solves the Weekly Mystery correctly gets **one equal raffle entry**. Thursday and Friday solvers have the same chance; solving earlier does not create extra entries.
+- Teacher → Weekly Mystery now includes a **Weekly Mystery Prize Raffle** with eligible-student list, Friday draw button, saved winner, and confirmed redraw option.
+- Mystery guesses now accept capitalization/punctuation differences, existing aliases, and **small plausible spelling mistakes** such as `Abraham Lincon` or `Abraham Linclon`. Short answers remain intentionally strict and unrelated guesses are not fuzzy-matched into a win.
+- Correct student Mystery screens explicitly say **You're in this week's prize raffle!**
+- Adds Teacher → **🧪 Test Student**, a real Supabase-backed sandbox account that can run the entire student routine repeatedly. It is automatically excluded from real rosters, Top 10, mastery heatmaps, class completion, Mystery stats, mystery locking, and raffle entries.
+- **Reset Test Student** wipes only the hidden sandbox account and immediately recreates it for another full end-to-end test.
+- Requires the one-time `RUN_THIS_ONCE_IN_SUPABASE_v2_9.sql` migration to add the private `is_test` student flag. No new Streamlit Secret is required.
+
 ### v2.8.4 — Clear Take-Away Fact Coach
 
 Take-away lessons now explain the mathematical reason before the tap: start with the ×10 anchor, remove one or two equal groups, and show which original fact remains. The anchor question uses the same orientation students just saw.
@@ -178,6 +188,8 @@ TEACHER_PASSWORD = "CHOOSE-A-PRIVATE-TEACHER-PASSWORD"
 ```
 
 ## Updating an existing installation
+
+**Updating from v2.8.x:** run `RUN_THIS_ONCE_IN_SUPABASE_v2_9.sql` once in a **new Supabase SQL query**, then upload every file/folder in `UPLOAD_TO_GITHUB`. This adds only the hidden Test Student flag; the raffle uses the existing private `app_settings` table. No new Streamlit Secret is required.
 
 **Updating from v2.8.0:** v2.8.1 is **code only**. There is no new Supabase SQL migration and no new Streamlit Secret. Upload every file/folder in `UPLOAD_TO_GITHUB` and let Streamlit redeploy. The existing v2.6 browser-batch schema already stores every independent/correction event Fact Coach needs.
 
