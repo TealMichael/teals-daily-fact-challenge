@@ -1,21 +1,20 @@
-TEAL'S DAILY FACT CHALLENGE v2.9.2
+TEAL'S DAILY FACT CHALLENGE v2.9.3
 
-TEACHER USABILITY + FACT COACH QUALITY PASS
+FINISH SCREEN + COMPLETION LANGUAGE CLEANUP
 
-UPDATING FROM v2.9.1
+UPDATING FROM v2.9.2
 
-1. No Supabase SQL is required for v2.9.2.
+1. No Supabase SQL is required for v2.9.3.
 2. Upload every file/folder in UPLOAD_TO_GITHUB to the existing GitHub repository root, replacing the old files.
 3. Let Streamlit redeploy automatically.
-4. Teacher → Mastery & Focus: confirm you see the four views: What Should I Teach?, Who Needs Help?, Look Up a Fact, and Look Up a Student.
-5. Teacher → Student Support: select a student and confirm the four action buttons appear instead of the old toggle stack.
-6. Teacher → Weekly Mystery: confirm each active class has its own raffle section and Friday Draw Winner button.
-7. Test Student: intentionally miss a few facts and watch the Fact Coach. For a ×9 take-away fact, confirm the coach names the ×10 anchor, the exact group size, and the exact quantity removed before the anchor question appears.
-8. Confirm the Fact Coach wording says “Start with a fact you know” and never “Easy fact first.”
+4. Use Test Student to complete a full routine. On the final screen confirm the order is:
+   YOU'RE DONE → Mystery/raffle → Current Top 10 → Learning Streak → goodbye.
+5. If the Test Student is in the Top 10, confirm the current place is shown. If not, confirm no lower exact rank is revealed.
+6. Confirm no Daily Star/Stars wording appears on the student finish screen.
+7. Teacher → Today: confirm the old Stars column now reads Days Completed.
 
-If this installation is still on v2.8.x and RUN_THIS_ONCE_IN_SUPABASE_v2_9.sql has never been run, run that older v2.9 migration once before deploying v2.9.2. If v2.9.0 or v2.9.1 is already working, do NOT rerun it.
-
+The underlying completion history is preserved. No student records are reset.
 No new Streamlit Secrets are required.
 
 Suggested GitHub commit:
-v2.9.2 - rebuild teacher mastery UI and tighten Fact Coach clarity
+v2.9.3 - restore end-of-day Top 10 status and retire Stars

@@ -1,5 +1,14 @@
 # Teal's Daily Fact Challenge
 
+### v2.9.3 — Finish Screen + Completion Language Cleanup
+
+- The finished student screen now follows the clearer order: **YOU'RE DONE → Mystery/raffle → Current Top 10 status → Learning Streak → goodbye**.
+- Students who are currently in the Top 10 see their current place again at the end of the full routine. Students outside the Top 10 are congratulated without exposing a lower exact class rank.
+- The final Top 10 card reuses the leaderboard snapshot already loaded for the Daily, so this clarity improvement adds **no extra Supabase round trip**.
+- The unused **Daily Stars** concept is retired from the student UI. Students now see the meaningful reward already in use: their **Learning Streak**.
+- Teacher → Today renames the old Stars column to **Days Completed**, which says exactly what the underlying count means. Historical completion data is preserved; no student records are reset or migrated.
+- No Daily generator, mastery logic, Mystery/raffle behavior, Fact Coach, Top 10 privacy, PIN/login, or database schema changed. **No SQL migration and no new Streamlit Secret are required.**
+
 ### v2.9.2 — Teacher Usability + Fact Coach Quality Pass
 
 - **Mastery & Focus is rebuilt around four teacher questions:** What Should I Teach?, Who Needs Help?, Look Up a Fact, and Look Up a Student. Only the chosen view is shown; the giant analytics wall is gone.
@@ -16,7 +25,7 @@
 ### v2.9.1 — Performance + Student Clarity Pass
 
 - **Teacher Dashboard loads only the section you open.** The old Streamlit tab layout executed Today, Rosters, Mastery, Mystery, Student Support, and Test Student on every teacher rerun. v2.9.1 uses one section selector and renders only the chosen area.
-- **Teacher → Today reuses one roster snapshot** for Daily status, learning progress, streak/Star summaries, PIN display, and the Top 10. The Top 10 is derived from the already-loaded Daily status instead of running another leaderboard query.
+- **Teacher → Today reuses one roster snapshot** for Daily status, learning progress, streak/completion summaries, PIN display, and the Top 10. The Top 10 is derived from the already-loaded Daily status instead of running another leaderboard query.
 - **Projector Top 10 also reuses the loaded status snapshot** instead of making a second leaderboard round trip.
 - **Mastery & Focus loads the class mastery dataset once** and derives summary counts locally instead of fetching summary + detail separately. Manual Focus override database reads now happen only when the teacher opens those controls.
 - **Optional My Focus Facts Practice builds an 8-fact local queue.** The app no longer reloads the student's mastery/override profile between every optional Practice fact.
@@ -65,7 +74,7 @@ A classroom-first multiplication fact fluency game built around one short shared
 
 Every signed-in student follows the same learning path:
 
-**Daily 10 → Fix Your Misses → Your Focus Practice → ⭐ Day Complete → 🕵️ Weekly Mystery**
+**Daily 10 → Fix Your Misses → Your Focus Practice → ✅ Day Complete → 🕵️ Weekly Mystery**
 
 ### 1. Daily 10
 
@@ -106,11 +115,11 @@ If a Focus answer is missed, the same **Interactive Fact Coach** opens immediate
 
 Focus Practice still runs the entire 8-retrieval session **browser-locally**. Question-to-question movement, touch-keypad input, Fact Coach animation, anchor prompts, required retries, and spacing all happen without Streamlit reruns. The app sends one detailed evidence batch only after the whole Focus step is complete, preserving first-try accuracy, response time, retries, and teacher/mastery data.
 
-### 4. ⭐ Day Complete
+### 4. ✅ Day Complete
 
-The finish screen is intentionally short: **YOU'RE DONE FOR TODAY!**, the three learning steps checked off, the student's Star/streak, and then the earned Weekly Mystery. Growth and Daily review remain optional instead of crowding the finish. Growth data is loaded only when the student asks to see it.
+The finish screen is intentionally short: **YOU'RE DONE FOR TODAY!**, the three learning steps checked off, the student's Learning Streak, and then the earned Weekly Mystery. Growth and Daily review remain optional instead of crowding the finish. Growth data is loaded only when the student asks to see it.
 
-Completing the full learning routine earns one **Daily Star**, progress toward a private **Learning Streak**, and milestone celebrations at 3, 5, 10, 20, 30, 50 days and later 50-day milestones. The reward is for **finishing the learning routine**, not for being fast or being on the leaderboard.
+Completing the full learning routine builds the student's private **Learning Streak** and plain **Days Completed** history. Milestone streak celebrations appear at 3, 5, 10, 20, 30, 50 days and later 50-day milestones. The recognition is for **finishing the learning routine**, not for being fast or being on the leaderboard.
 
 ### 5. 🕵️ Weekly Mystery
 
@@ -123,7 +132,7 @@ The Weekly Mystery is a curiosity reward that appears only after the full learni
 - **Friday:** a completed routine earns **Clue #5**, unlocks **Guess #2 of 2**, then the answer is revealed.
 - Missed clue days are **never backfilled**. A student who completes only Monday, Thursday, and Friday finishes with exactly three clues. Skipped Tuesday/Wednesday clues are never auto-granted.
 - Thursday and Friday guesses are separate; an unused Thursday guess does not roll into Friday.
-- Mystery solves are private and never affect Daily rank, mastery, Stars, or streaks.
+- Mystery solves are private and never affect Daily rank, mastery, completed-day history, or streaks.
 
 The built-in bank contains **80 curated mysteries** across Places, Animals, Foods, Sports, Science & Nature, History & People, Music & Entertainment, and Games/Toys/Objects. It is local to the app, so clue delivery never relies on a live web search.
 
@@ -307,7 +316,7 @@ Make sure all five browser-component folders are present in GitHub:
 - Uses browser session storage to preserve an in-progress guided session through an iframe refresh and deterministic event IDs to make network retries safe.
 - Adds `RUN_THIS_ONCE_IN_SUPABASE_v2_6.sql`, which adds the private event-id field used for idempotent batch saving.
 - Replaces Abraham Lincoln's Mystery learning paragraph with the teacher-approved kid-friendly version about his log-cabin birth, limited formal schooling, love of reading, and “Honest Abe” nickname.
-- Does not change Daily 10 generation, adaptive Focus selection, mastery thresholds, leaderboard rules, Teacher Tools, Stars, streaks, or Mystery clue/guess rules.
+- Does not change Daily 10 generation, adaptive Focus selection, mastery thresholds, leaderboard rules, Teacher Tools, completed-day history, streaks, or Mystery clue/guess rules.
 
 ### v2.5.1.3 — PIN Check/Login Hotfix
 
@@ -352,7 +361,7 @@ Make sure all five browser-component folders are present in GitHub:
 - Changes Weekly Mystery to the classroom rule: earned clues Monday-Thursday, no guessing Monday-Wednesday, Guess #1 Thursday, Guess #2 Friday, then reveal.
 - Skipped clue days are never backfilled on Thursday or Friday.
 - Adds the one-time `RUN_THIS_ONCE_IN_SUPABASE_v2_5.sql` migration so Thursday and Friday guesses have separate persistent database slots.
-- Preserves adaptive mastery, no-placement-test learning, classroom-load retries/batching, fast Focus Practice, teacher tools, 30-day login, Stars, and school-day streaks.
+- Preserves adaptive mastery, no-placement-test learning, classroom-load retries/batching, fast Focus Practice, teacher tools, 30-day login, completed-day history, and school-day streaks.
 
 ### v2.4.0 — 30-Day Remembered Student Login
 
@@ -421,7 +430,7 @@ Make sure all five browser-component folders are present in GitHub:
 
 - Adds an obvious **Roster Management** section directly under each class roster in **Classes & Students**.
 - Select one or many students at once.
-- **Move selected student(s)** preserves PIN, mastery, Stars, streak, Daily history, Focus work, and Mystery history.
+- **Move selected student(s)** preserves PIN, mastery, completed-day history, streak, Daily history, Focus work, and Mystery history.
 - **Delete selected student(s)** supports permanent bulk cleanup with an explicit confirmation checkbox.
 - Existing individual Student Tools remain available.
 - Code-only update: no database migration or new Streamlit secret.
@@ -430,7 +439,7 @@ Make sure all five browser-component folders are present in GitHub:
 
 Adds the post-routine **Weekly Mystery** motivation loop. Monday-Thursday full completion unlocks clues, each student has one guess for the entire week, and Friday provides the final guess/reveal. Includes an 80-mystery local bank, private solve stats, and a Teacher Dashboard preview/replacement control that locks after the first clue is earned.
 
-The multiplication learning model, Daily generator, accuracy-first Top 10, Focus personalization, mastery evidence, Stars, streaks, and visible teacher PIN system are unchanged.
+The multiplication learning model, Daily generator, accuracy-first Top 10, Focus personalization, mastery evidence, completed-day history, streaks, and visible teacher PIN system are unchanged.
 
 ### v2.1.0 — Research Alignment + Teacher PIN Visibility
 
@@ -438,7 +447,7 @@ Tightened early adaptive exploration around 2s/5s/10s anchor relationships and r
 
 ### v2.0.0 — Adaptive Learning Routine
 
-Added **Daily 10 → Fix Your Misses → Your Focus Practice → Done**, persistent individualized mastery with no placement test, eight-fact adaptive Focus sessions, required correction retries, hidden competition timing, Daily Stars and school-day Learning Streaks, private growth views, teacher heatmaps, and Focus overrides.
+Added **Daily 10 → Fix Your Misses → Your Focus Practice → Done**, persistent individualized mastery with no placement test, eight-fact adaptive Focus sessions, required correction retries, hidden competition timing, completed-day history and school-day Learning Streaks, private growth views, teacher heatmaps, and Focus overrides.
 
 ### v1.0.0 — Full classroom beta
 

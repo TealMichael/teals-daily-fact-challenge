@@ -15,7 +15,7 @@ def section(name: str, next_name: str | None = None) -> str:
 
 def run():
     checks = {}
-    checks["version 2.9.2"] = APP_VERSION == "2.9.2"
+    checks["version 2.9.3"] = APP_VERSION == "2.9.3"
 
     teacher = section("render_teacher", "maybe_render_db_diagnostic")
     checks["teacher dashboard is lazy"] = "st.tabs(" not in teacher and 'section = st.radio(' in teacher
@@ -76,7 +76,7 @@ def run():
         print(f"{'PASS' if ok else 'FAIL'}: {name}")
     if failed:
         raise AssertionError("Failed: " + ", ".join(failed))
-    print(f"v2.9.2 performance + student clarity regression: {len(checks)}/{len(checks)} checks passed")
+    print(f"v2.9.3 performance + student clarity regression: {len(checks)}/{len(checks)} checks passed")
 
 
 if __name__ == "__main__":

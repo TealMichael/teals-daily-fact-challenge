@@ -12,7 +12,7 @@ def run():
         "Learning Step 3 of 3 · 🎯 Your Focus Practice",
         "YOU'RE DONE FOR TODAY!",
         "Learning Streak",
-        "total Daily Stars",
+        "Current Top 10",
         "My Growth",
         "No placement test",
         "🎯 My Focus Facts",
@@ -52,6 +52,7 @@ def run():
 
     # No student-facing placement/pretest flow should be introduced.
     forbidden = ["Take placement test", "Placement Test", "diagnostic test", "50-fact test"]
+    forbidden += ["Daily Star earned", "total Daily Stars", "\"Stars\":"]
     for phrase in forbidden:
         assert phrase not in app
 

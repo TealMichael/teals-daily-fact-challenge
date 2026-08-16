@@ -1329,10 +1329,40 @@ def render_mastery_card(store: SupabaseFactStore) -> None:
     c4.metric("⚪ Learning", summary.get(STATUS_UNKNOWN, 0))
 
 
-def render_day_complete(store: SupabaseFactStore, day, facts: list[Fact], challenge, attempt, answers) -> None:
+def render_final_top10_status(challenge, leaderboard_context: dict | None) -> None:
+    """Show only the student's current Top 10 status on the finished screen.
+
+    Reuse the leaderboard snapshot already loaded for this Daily so the final
+    celebration does not add another classroom database round trip. Lower
+    exact ranks remain private.
+    """
+    st.markdown("## 🏆 Current Top 10")
+    if leaderboard_context is None:
+        st.caption("Your Top 10 status is updating. You do not need to redo anything.")
+        return
+
+    rows = list(leaderboard_context.get("rows") or [])
+    finished = int(leaderboard_context.get("finished") or 0)
+    roster_count = int(leaderboard_context.get("roster_count") or 0)
+    own_top = next((row for row in rows if row.get("student_id") == st.session_state.student_id), None)
+
+    if own_top:
+        st.success(f"🏆 You're #{int(own_top['rank'])} in your class Top 10 right now!")
+    else:
+        st.info("You finished today's challenge! Only Top 10 places are shown, so lower exact ranks stay private.")
+
+    if roster_count:
+        st.caption(f"{finished} of {roster_count} finished · standings may change as classmates finish")
+    else:
+        st.caption("Standings may change as classmates finish.")
+
+
+def render_day_complete(
+    store: SupabaseFactStore, day, facts: list[Fact], challenge, attempt, answers,
+    *, leaderboard_context: dict | None = None,
+) -> None:
     stats = store.student_learning_stats(st.session_state.student_id, day)
     streak = int(stats.get("current_streak", 0))
-    stars = int(stats.get("stars", 0))
 
     st.markdown(
         "<div class='finish-banner'><div class='big'>✅ YOU'RE DONE FOR TODAY!</div>"
@@ -1340,15 +1370,16 @@ def render_day_complete(store: SupabaseFactStore, day, facts: list[Fact], challe
         "<div style='margin-top:.45rem'>Your learning work is finished for today.</div></div>",
         unsafe_allow_html=True,
     )
-    if streak in {3, 5, 10, 20, 30, 50} or (streak > 0 and streak % 50 == 0):
-        st.success(f"🎉 {streak}-day Learning Streak! · ⭐ {stars} total Daily Stars")
-    elif streak:
-        st.success(f"🔥 {streak}-day Learning Streak · ⭐ {stars} total Daily Stars")
-    else:
-        st.success(f"⭐ Daily Star earned · {stars} total")
 
     st.markdown("## 🕵️ Today's Mystery Reward")
     render_weekly_mystery_reward(store, day, challenge, show_heading=False)
+
+    render_final_top10_status(challenge, leaderboard_context)
+
+    if streak in {3, 5, 10, 20, 30, 50} or (streak > 0 and streak % 50 == 0):
+        st.success(f"🎉 {streak}-day Learning Streak!")
+    elif streak:
+        st.success(f"🔥 {streak}-day Learning Streak")
 
     st.markdown("### ✅ That's it — see you next Challenge day! 👋")
     st.caption("Everything below is optional. Your required work is complete.")
@@ -1418,6 +1449,20 @@ def render_completed_daily(store: SupabaseFactStore, day, facts: list[Fact], cha
     except Exception:
         leaderboard_context = st.session_state.get(_leaderboard_cache_key(challenge))
 
+    # Once the full routine is complete, go directly to the true end-of-day
+    # screen. The Daily-result card already appeared immediately after the
+    # Daily 10 and should not compete with the final Mystery → Top 10 → Streak
+    # hierarchy.
+    if progress.completed_at is not None:
+        try:
+            render_day_complete(
+                store, day, facts, challenge, attempt, answers,
+                leaderboard_context=leaderboard_context,
+            )
+        except Exception as exc:
+            render_classroom_connection_retry(exc, key="retry_day_complete")
+        return
+
     if leaderboard_context is not None:
         render_daily_result_summary(store, day, challenge, attempt, leaderboard_context=leaderboard_context)
     else:
@@ -1436,13 +1481,6 @@ def render_completed_daily(store: SupabaseFactStore, day, facts: list[Fact], cha
 
     missed_count = sum(not answer.correct for answer in answers)
     render_learning_path(progress, missed_count)
-
-    if progress.completed_at is not None:
-        try:
-            render_day_complete(store, day, facts, challenge, attempt, answers)
-        except Exception as exc:
-            render_classroom_connection_retry(exc, key="retry_day_complete")
-        return
 
     try:
         if progress.fix_completed_at is None:
@@ -1859,7 +1897,7 @@ def render_teacher_today(store: SupabaseFactStore) -> None:
             "PIN": pin,
             "Status": routine,
             "Streak": f"🔥 {stats.get('current_streak', 0)}" if stats.get("current_streak", 0) else "—",
-            "Stars": int(stats.get("stars", 0)),
+            "Days Completed": int(stats.get("stars", 0)),
         })
         performance_rows.append({
             "Nickname": row["nickname"],
@@ -2590,7 +2628,7 @@ def render_teacher_student_tools(store: SupabaseFactStore) -> None:
             destination_options = [item for item in classes if item.class_id != student.class_id]
             destination_by_name = {item.class_name: item for item in destination_options}
             destination_name = st.selectbox("Move to another class", list(destination_by_name), key=f"move_student_destination_{student.student_id}")
-            st.caption("Moving keeps the student's PIN, mastery, Stars, streak, saved work, and Mystery history.")
+            st.caption("Moving keeps the student's PIN, mastery, completed-day history, streak, saved work, and Mystery history.")
             if st.button("Move student", use_container_width=True, key=f"move_student_{student.student_id}"):
                 try:
                     destination = destination_by_name[destination_name]

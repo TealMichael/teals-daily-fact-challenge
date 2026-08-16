@@ -16,7 +16,7 @@ def section(name: str, next_name: str | None = None) -> str:
 
 def run():
     checks = {}
-    checks["version 2.9.2"] = APP_VERSION == "2.9.2"
+    checks["version 2.9.3"] = APP_VERSION == "2.9.3"
 
     mastery = section("render_teacher_mastery_focus", "render_teacher_classes")
     checks["mastery has four decision views"] = all(label in mastery for label in [
@@ -71,7 +71,7 @@ def run():
         print(f"{'PASS' if ok else 'FAIL'}: {name}")
     if failed:
         raise AssertionError("Failed: " + ", ".join(failed))
-    print(f"v2.9.2 teacher redesign + Fact Coach quality regression: {len(checks)}/{len(checks)} checks passed")
+    print(f"v2.9.3 teacher redesign + Fact Coach quality regression: {len(checks)}/{len(checks)} checks passed")
 
 
 if __name__ == "__main__":

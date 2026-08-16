@@ -1,1 +1,1 @@
-v2.9.2 - rebuild teacher mastery UI and tighten Fact Coach clarity
+v2.9.3 - restore end-of-day Top 10 status and retire Stars
