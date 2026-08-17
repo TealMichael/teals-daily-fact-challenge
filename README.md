@@ -1,5 +1,14 @@
 # Teal's Daily Fact Challenge
 
+### v2.9.3.1 — Teacher Refresh Data Hotfix
+
+- Fixes Teacher → Today and projector **🔄 Refresh data** so the button performs a true fresh Supabase read instead of only rerunning the Streamlit page.
+- The refresh callback now clears the cached Supabase client **before** Streamlit reruns, so the next top-level store load creates a brand-new connection before any teacher status, progress, streak, or Top 10 queries execute.
+- The selected teacher section and selected class remain in place; teacher authentication is not cleared.
+- A successful refresh is marked only after the fresh reads complete, with a confirmation toast and updated timestamp.
+- The projector Top 10 uses the same hard-refresh behavior.
+- No student flow, Daily generator, mastery logic, Mystery/raffle, Fact Coach, roster data, or database schema changed. **No SQL migration and no new Streamlit Secret are required.**
+
 ### v2.9.3 — Finish Screen + Completion Language Cleanup
 
 - The finished student screen now follows the clearer order: **YOU'RE DONE → Mystery/raffle → Current Top 10 status → Learning Streak → goodbye**.

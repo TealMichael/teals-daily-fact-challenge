@@ -1,1 +1,1 @@
-v2.9.3 - restore end-of-day Top 10 status and retire Stars
+v2.9.3.1 - make Teacher Refresh Data perform a true Supabase refresh

@@ -1737,13 +1737,39 @@ def _set_teacher_refresh_stamp() -> None:
     st.session_state["teacher_last_refresh_at"] = datetime.now().strftime("%I:%M:%S %p").lstrip("0")
 
 
-def _teacher_refresh_control(*, key: str) -> None:
-    if st.button("🔄 Refresh data", use_container_width=True, key=key):
+def _request_teacher_refresh() -> None:
+    """Force the next teacher render to use a brand-new Supabase client.
+
+    Streamlit button callbacks run before the script reruns. Clearing the cached
+    store here means the top-level ``get_store()`` call on that rerun creates a
+    fresh client *before* Teacher Today/Projector reads any data. This makes the
+    Refresh button a real data refresh rather than merely rerunning the page
+    with the same long-lived cached connection.
+    """
+    load_store.clear()
+    st.session_state["teacher_refresh_pending"] = True
+
+
+def _finish_teacher_refresh() -> None:
+    """Mark a requested refresh complete only after fresh reads succeeded."""
+    if st.session_state.pop("teacher_refresh_pending", False):
         _set_teacher_refresh_stamp()
-        st.rerun()
+        st.toast("✅ Teacher data refreshed from Supabase")
+
+
+def _teacher_refresh_control(*, key: str) -> None:
+    st.button(
+        "🔄 Refresh data",
+        use_container_width=True,
+        key=key,
+        on_click=_request_teacher_refresh,
+    )
+    pending = bool(st.session_state.get("teacher_refresh_pending"))
     stamp = st.session_state.get("teacher_last_refresh_at")
-    if stamp:
-        st.caption(f"Last refreshed {stamp}")
+    if pending:
+        st.caption("Refreshing latest Supabase data…")
+    elif stamp:
+        st.caption(f"✅ Data updated {stamp}")
 
 
 def render_teacher_projector(store: SupabaseFactStore) -> None:
@@ -1761,6 +1787,7 @@ def render_teacher_projector(store: SupabaseFactStore) -> None:
     total = len(status)
     final = _leaderboard_is_final(store, day, class_id, completed=completed, total=total)
     board = _leaderboard_from_status(status, limit=10)
+    _finish_teacher_refresh()
 
     top_a, top_b = st.columns([1, 1])
     with top_a:
@@ -1817,6 +1844,7 @@ def render_teacher_today(store: SupabaseFactStore) -> None:
     progress_map = store.class_learning_progress(selected.class_id, challenge.challenge_id, students=students)
     learning_stats = store.class_learning_stats(selected.class_id, day, students=students)
     completed_rows = [row for row in status if row.get("status") == "Complete"]
+    _finish_teacher_refresh()
 
     total = len(status)
     full_complete = sum(
