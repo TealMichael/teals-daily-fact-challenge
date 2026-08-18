@@ -1,1 +1,1 @@
-v2.10.0.1 - rebuild stale Supabase store after Warm-Up deployment
+v2.10.1 - add Indiana standards picker, Warm-Up groups, and Outlook reports

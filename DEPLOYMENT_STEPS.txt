@@ -1,35 +1,25 @@
-TEAL'S DAILY FACT CHALLENGE v2.10.0
+TEAL'S DAILY FACT CHALLENGE v2.10.1
 
-QUICK WARM-UP TRIAL
+INDIANA STANDARDS + WARM-UP SMALL GROUPS + OUTLOOK
 
-UPDATING FROM v2.9.3.1
+UPDATING FROM v2.10.0 / v2.10.0.1
 
-1. In Supabase, open SQL Editor → New query.
-2. Run RUN_THIS_ONCE_IN_SUPABASE_v2_10.sql exactly once.
+1. NO new Supabase SQL is required.
+2. DO NOT rerun RUN_THIS_ONCE_IN_SUPABASE_v2_10.sql if the Warm-Up trial is already working.
 3. Upload every file/folder in UPLOAD_TO_GITHUB to the existing GitHub repository root, replacing the old files.
 4. Let Streamlit redeploy automatically.
 5. No new Streamlit Secret is required.
 
-TONIGHT'S TEST
+QUICK TEST
 
-1. Open Teacher Dashboard → 🧠 Warm-Up.
-2. Choose the class you use for the Test Student.
-3. Set Warm-Up date to TODAY.
-4. Enter one Spiral Review question and one Yesterday Check question. Attach an Indiana standard code to each.
-5. Save the Warm-Up.
-6. Open Teacher Dashboard → 🧪 Test Student and reset/start fresh.
-7. Confirm the Test Student sees Quick Warm-Up before the Daily 10.
-8. Answer both questions, then confirm Start Daily 10 appears and the normal multiplication routine continues.
-9. Return to Teacher → 🧠 Warm-Up to view the two-question class snapshot.
-10. Turn on Prepare weekly CSV to test the downloadable standards data. Test Student is intentionally excluded from the real weekly export.
-
-IMPORTANT BEHAVIOR
-
-- No Warm-Up assigned = student goes straight to Daily 10.
-- Warm-Up is untimed and has no effect on Top 10 or multiplication mastery.
-- Once any REAL student answers a class/date Warm-Up, those two questions lock.
-- Test Student answers do not lock the Warm-Up. Editing a test-only Warm-Up resets sandbox answers so it can be tested again.
-- Warm-Up is required before the Daily only on dates/classes where it is assigned.
+1. Teacher → 🧠 Warm-Up: create/edit a Warm-Up and confirm each question has a searchable Grades 4–7 Indiana Math standard dropdown.
+2. Save one or two standards and confirm Recently Used standards float to the top next time.
+3. Use Test Student to confirm the student still sees the same 2-question Warm-Up before the Daily 10. Test Student must remain excluded from real group/email results.
+4. With real responses available, open Teacher → Today → 🎯 Show Warm-Up groups & email.
+5. Confirm Priority / Spiral / Yesterday / Not Finished lists are clear and unfinished students are not counted as misses.
+6. Under Email recipients, save your school email. Add the push-in teacher only on the class that needs the second recipient.
+7. Press 📧 Prepare Warm-Up Email, preview the report, then use 📨 Open this draft in Outlook. Nothing sends until you press Send in Outlook.
+8. Teacher → 🧠 Warm-Up → Weekly Warm-Up Data still downloads the CSV; it now includes a Grade column.
 
 Suggested GitHub commit:
-v2.10.0 - add two-question standards Warm-Up trial and weekly data export
+v2.10.1 - add Indiana standards picker, Warm-Up groups, and Outlook reports

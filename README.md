@@ -1,5 +1,20 @@
 # Teal's Daily Fact Challenge
 
+## v2.10.1 — Indiana Standards + Warm-Up Small Groups + Outlook
+
+- Replaces typed Warm-Up standard codes with a **searchable Indiana Mathematics standards picker for Grades 4–7**, using teacher-friendly summaries of the 2023 content standards. Recently used standards float to the top; **Other / Custom standard** remains available.
+- Saves the standard code and description with each Warm-Up response and adds **Grade** to the weekly CSV export.
+- Adds automatic **Warm-Up instructional groups** from current real-student results: Priority (missed both), Spiral support, Yesterday support, and a separate Not Finished list.
+- **Unfinished students are never counted as incorrect or placed in a reteach group** until they complete both questions.
+- Adds a clear instructional suggestion based on the size of each completed-student miss group: quick check-in, small-group reteach, or whole-class clarification.
+- Teacher → Today can open **🎯 Show Warm-Up groups & email** using the data already loaded for that class. Teacher → Warm-Up shows the same actionable groups with the deeper standards view.
+- Adds private email settings: **one primary school email for every class** plus an optional **class-specific push-in teacher** address.
+- **📧 Prepare Warm-Up Email** creates a previewable Microsoft 365/Outlook draft containing completion count, both standards/questions, accuracy, small groups, priority students, and the explicit line **“These students didn't finish, so please check in with them!”**
+- Nothing is sent automatically. The app opens the prepared report in Outlook so the teacher can review and press Send.
+- Test Student remains excluded from real grouping, email results, class accuracy, and weekly CSV.
+- A teacher-only **sandbox Outlook preview** lets you test the email workflow using Test Student; it is marked SANDBOX and addressed only to the primary teacher, never the push-in teacher.
+- No database-schema change. If v2.10.0 is already installed, **do not rerun the v2.10 SQL migration**.
+
 ## v2.10.0.1 — Warm-Up Store Cache Hotfix
 
 - Makes the cached Supabase store version-aware so a hot deployment cannot reuse a pre-Warm-Up store object.
