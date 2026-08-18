@@ -1,7 +1,7 @@
 from pathlib import Path
 from collections import Counter
 from types import SimpleNamespace
-from urllib.parse import urlencode, urlparse, parse_qs
+from urllib.parse import urlencode, quote, urlparse, parse_qs
 import ast
 
 from fact_engine import APP_VERSION
@@ -16,7 +16,7 @@ APP = (ROOT / "app.py").read_text(encoding="utf-8")
 
 def run():
     checks = 0
-    assert APP_VERSION == "2.10.1"; checks += 1
+    assert APP_VERSION == "2.10.1.1"; checks += 1
 
     # Official-grade picker coverage: content standards across Grades 4–7.
     counts = Counter(item.grade for item in STANDARDS)
@@ -73,12 +73,13 @@ def run():
     assert "Open this draft in Outlook" in APP; checks += 1
     assert "sendgrid" not in APP.casefold() and "resend" not in APP.casefold(); checks += 1
     outlook_node = next(node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == "_warmup_outlook_url")
-    outlook_ns = {"urlencode": urlencode}
+    outlook_ns = {"urlencode": urlencode, "quote": quote}
     exec(compile(ast.Module(body=[outlook_node], type_ignores=[]), "app_outlook", "exec"), outlook_ns)
     url = outlook_ns["_warmup_outlook_url"]("me@school.org", "pushin@school.org", "Warm-Up Results", "Line 1\nLine 2")
     parsed = parse_qs(urlparse(url).query)
     assert parsed["to"] == ["me@school.org"] and parsed["cc"] == ["pushin@school.org"]; checks += 1
     assert parsed["subject"] == ["Warm-Up Results"] and parsed["body"] == ["Line 1\nLine 2"]; checks += 1
+    assert "+" not in url; checks += 1
 
     # Immediate Today workflow plus detailed Warm-Up page both expose groups/email.
     assert "🎯 Show Warm-Up groups & email" in APP; checks += 1
@@ -92,7 +93,7 @@ def run():
     assert '"Grade": grade_from_standard_code(row.standard_code)' in APP; checks += 1
     assert '"Date", "Class", "Nickname", "Question", "Question Type", "Grade", "Indiana Standard"' in APP; checks += 1
 
-    print(f"v2.10.1 standards/groups/Outlook regression: PASS ({checks} checks)")
+    print(f"v2.10.1.1 standards/groups/Outlook regression: PASS ({checks} checks)")
 
 
 if __name__ == "__main__":

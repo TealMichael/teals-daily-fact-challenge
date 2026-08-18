@@ -1,25 +1,19 @@
-TEAL'S DAILY FACT CHALLENGE v2.10.1
+TEAL'S DAILY FACT CHALLENGE v2.10.1.1
+STUDENT IGNITER + OUTLOOK CLEANUP
 
-INDIANA STANDARDS + WARM-UP SMALL GROUPS + OUTLOOK
+UPDATING FROM v2.10.1:
+1. There is NO new Supabase SQL migration.
+2. There is NO new Streamlit Secret.
+3. Upload/replace every file and folder in this package's UPLOAD_TO_GITHUB directory to the existing GitHub repository root.
+4. Let Streamlit redeploy.
 
-UPDATING FROM v2.10.0 / v2.10.0.1
+QUICK CHECK AFTER DEPLOYMENT:
+- Before student login: Today / Practice should NOT be visible. Student Sign In and Teacher should be available.
+- Assign a Warm-Up and test with Test Student: the student should see Igniter Question 1, then Igniter Question 2, then Igniter complete -> Start Daily 10.
+- Question text should not show literal ** symbols.
+- Prepare a Warm-Up Outlook email: it should be short and readable, with no + signs between words.
 
-1. NO new Supabase SQL is required.
-2. DO NOT rerun RUN_THIS_ONCE_IN_SUPABASE_v2_10.sql if the Warm-Up trial is already working.
-3. Upload every file/folder in UPLOAD_TO_GITHUB to the existing GitHub repository root, replacing the old files.
-4. Let Streamlit redeploy automatically.
-5. No new Streamlit Secret is required.
-
-QUICK TEST
-
-1. Teacher → 🧠 Warm-Up: create/edit a Warm-Up and confirm each question has a searchable Grades 4–7 Indiana Math standard dropdown.
-2. Save one or two standards and confirm Recently Used standards float to the top next time.
-3. Use Test Student to confirm the student still sees the same 2-question Warm-Up before the Daily 10. Test Student must remain excluded from real group/email results.
-4. With real responses available, open Teacher → Today → 🎯 Show Warm-Up groups & email.
-5. Confirm Priority / Spiral / Yesterday / Not Finished lists are clear and unfinished students are not counted as misses.
-6. Under Email recipients, save your school email. Add the push-in teacher only on the class that needs the second recipient.
-7. Press 📧 Prepare Warm-Up Email, preview the report, then use 📨 Open this draft in Outlook. Nothing sends until you press Send in Outlook.
-8. Teacher → 🧠 Warm-Up → Weekly Warm-Up Data still downloads the CSV; it now includes a Grade column.
+Do NOT rerun RUN_THIS_ONCE_IN_SUPABASE_v2_10.sql if v2.10 is already installed.
 
 Suggested GitHub commit:
-v2.10.1 - add Indiana standards picker, Warm-Up groups, and Outlook reports
+v2.10.1.1 - simplify Igniter, login flow, and Warm-Up Outlook email

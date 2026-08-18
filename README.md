@@ -1,6 +1,18 @@
 # Teal's Daily Fact Challenge
 
-## v2.10.1 — Indiana Standards + Warm-Up Small Groups + Outlook
+## v2.10.1.1 — Student Igniter + Outlook Cleanup
+
+- Pre-login now shows student sign-in plus Teacher access only; Today / Practice appear after student login.
+- Removed the premature Daily Challenge heading from the login screen.
+- Student-facing Quick Warm-Up is now simply **Igniter Question 1** and **Igniter Question 2**.
+- Removed student-facing Spiral/Yesterday labels, progress-bar clutter, and literal Markdown markers.
+- Added a clean **Igniter complete → Start Daily 10** transition.
+- Simplified the Warm-Up Outlook report to questions, standards, students to pull, missed-both priority group, and unfinished-student check-in.
+- Outlook draft URLs now use clean `%20` space encoding instead of `+`.
+- No database schema or learning/mastery rules changed.
+
+
+## v2.10.1.1 — Indiana Standards + Warm-Up Small Groups + Outlook
 
 - Replaces typed Warm-Up standard codes with a **searchable Indiana Mathematics standards picker for Grades 4–7**, using teacher-friendly summaries of the 2023 content standards. Recently used standards float to the top; **Other / Custom standard** remains available.
 - Saves the standard code and description with each Warm-Up response and adds **Grade** to the weekly CSV export.

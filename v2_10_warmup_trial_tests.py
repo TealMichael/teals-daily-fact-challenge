@@ -14,7 +14,7 @@ SUPABASE = (ROOT / "supabase_fact_store.py").read_text()
 
 def run():
     checks = 0
-    assert APP_VERSION == "2.10.1"; checks += 1
+    assert APP_VERSION == "2.10.1.1"; checks += 1
 
     # Matching is useful for decimals/fractions without fuzzy grading.
     assert answer_matches("14.40", "14.4"); checks += 1
@@ -76,7 +76,7 @@ def run():
     assert len(rows) == 1 and rows[0].standard_code == "TEST.STANDARD.1" and not rows[0].correct; checks += 1
 
     # App contract.
-    assert "def render_quick_warmup" in APP and "2 questions before today's challenge · untimed" in APP; checks += 1
+    assert "def render_quick_warmup" in APP and "🧠 Igniter Question {slot}" in APP; checks += 1
     assert APP.index("if not render_quick_warmup(store, day):") < APP.index("day, facts, challenge = ensure_today(store)"); checks += 1
     assert '"🧠 Warm-Up"' in APP and "def render_teacher_warmup" in APP; checks += 1
     assert "Download weekly Warm-Up CSV" in APP and "Indiana Standard" in APP; checks += 1

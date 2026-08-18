@@ -1,1 +1,1 @@
-v2.10.1 - add Indiana standards picker, Warm-Up groups, and Outlook reports
+v2.10.1.1 - simplify Igniter, login flow, and Warm-Up Outlook email

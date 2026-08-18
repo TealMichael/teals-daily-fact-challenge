@@ -6,7 +6,7 @@ import hmac
 import random
 import re
 from pathlib import Path
-from urllib.parse import urlencode
+from urllib.parse import urlencode, quote
 
 import pandas as pd
 import httpx
@@ -657,26 +657,41 @@ def render_header() -> str:
     st.markdown("<h1 class='top-title'>Teal's Daily Fact Challenge</h1>", unsafe_allow_html=True)
     st.markdown("<div class='subtitle'>10 facts a day · accuracy first · speed breaks ties</div>", unsafe_allow_html=True)
 
-    # Student choices stay visually primary. Teacher access is intentionally smaller.
-    nav_col, teacher_col = st.columns([5.2, 1.35])
-    with nav_col:
-        st.radio(
-            "Student navigation", ["Today", "Practice"], horizontal=True,
-            label_visibility="collapsed", key="student_nav", on_change=switch_student_nav,
-        )
-    with teacher_col:
-        if st.button("🔒 Teacher", use_container_width=True, key="open_teacher_nav"):
-            st.session_state.app_mode = "Teacher"
-            st.rerun()
-
+    signed_in = student_signed_in()
     mode = st.session_state.app_mode
-    if student_signed_in() and mode != "Teacher":
+
+    # Before sign-in there are only two paths: student sign-in or Teacher.
+    # Today / Practice becomes meaningful only after we know which student is here.
+    if not signed_in and mode != "Teacher":
+        st.session_state.app_mode = "Daily Challenge"
+        st.session_state.student_nav = "Today"
+        mode = "Daily Challenge"
+
+    if signed_in and mode != "Teacher":
+        nav_col, teacher_col = st.columns([5.2, 1.35])
+        with nav_col:
+            st.radio(
+                "Student navigation", ["Today", "Practice"], horizontal=True,
+                label_visibility="collapsed", key="student_nav", on_change=switch_student_nav,
+            )
+        with teacher_col:
+            if st.button("🔒 Teacher", use_container_width=True, key="open_teacher_nav"):
+                st.session_state.app_mode = "Teacher"
+                st.rerun()
+
         left, right = st.columns([5, 1.4])
         with left:
             st.caption(f"👤 {st.session_state.student_nickname} · {st.session_state.student_class_name}")
         with right:
             st.button("Sign out", use_container_width=True, on_click=sign_out)
-    return mode
+    elif mode != "Teacher":
+        _, teacher_col = st.columns([5.2, 1.35])
+        with teacher_col:
+            if st.button("🔒 Teacher", use_container_width=True, key="open_teacher_nav"):
+                st.session_state.app_mode = "Teacher"
+                st.rerun()
+
+    return st.session_state.app_mode
 
 
 def render_db_setup_message() -> None:
@@ -694,8 +709,6 @@ def render_student_sign_in(store: SupabaseFactStore | None) -> bool:
         return False
     if store is None:
         render_db_setup_message()
-        if st.button("Open Practice without signing in", use_container_width=True, on_click=switch_mode, args=("Practice",)):
-            pass
         return False
 
     try:
@@ -1546,7 +1559,7 @@ def render_quick_warmup(store: SupabaseFactStore, day: date) -> bool:
     try:
         warmup = store.get_warmup_set(class_id, day)
     except Exception as exc:
-        st.error("Today's Quick Warm-Up could not be loaded. Show your teacher this screen.")
+        st.error("Today's Igniter could not be loaded. Show your teacher this screen.")
         if str(st.query_params.get("dbcheck", "0")) == "1":
             st.exception(exc)
         return False
@@ -1556,7 +1569,7 @@ def render_quick_warmup(store: SupabaseFactStore, day: date) -> bool:
     try:
         answers = store.get_warmup_answers(student_id, warmup.warmup_set_id)
     except Exception as exc:
-        st.error("Your Quick Warm-Up progress could not be loaded. Show your teacher this screen.")
+        st.error("Your Igniter progress could not be loaded. Show your teacher this screen.")
         if str(st.query_params.get("dbcheck", "0")) == "1":
             st.exception(exc)
         return False
@@ -1565,19 +1578,14 @@ def render_quick_warmup(store: SupabaseFactStore, day: date) -> bool:
     completed = len(answered_slots) >= 2
     if completed:
         if st.session_state.get("warmup_just_completed") == warmup.warmup_set_id:
-            st.markdown("## ✅ Warm-Up Complete!")
-            st.success("Two questions done. You're ready for today's multiplication challenge.")
+            st.markdown("## ✅ Igniter complete!")
+            st.success("Both questions are done. Ready for your Daily 10!")
             if st.button("Start Daily 10 →", type="primary", use_container_width=True, key=f"warmup_start_daily_{warmup.warmup_set_id}"):
                 st.session_state.warmup_just_completed = None
                 st.session_state.warmup_feedback = None
                 st.rerun()
             return False
         return True
-
-    st.markdown("## 🧠 Quick Warm-Up")
-    st.caption("2 questions before today's challenge · untimed")
-    st.progress(len(answered_slots) / 2)
-    st.caption(f"{len(answered_slots)} of 2 complete")
 
     feedback = st.session_state.get("warmup_feedback")
     if isinstance(feedback, dict) and feedback.get("warmup_set_id") == warmup.warmup_set_id:
@@ -1589,9 +1597,15 @@ def render_quick_warmup(store: SupabaseFactStore, day: date) -> bool:
 
     slot = 1 if 1 not in answered_slots else 2
     question = _warmup_question(warmup, slot)
-    student_label = str(question.get("student_label") or ("🔁 Review Question" if slot == 1 else "📚 Yesterday's Question"))
-    st.markdown(f"### {student_label}")
-    st.markdown(f"**{html.escape(str(question.get('prompt') or ''))}**")
+    st.markdown(f"## 🧠 Igniter Question {slot}")
+    raw_prompt = str(question.get("prompt") or "").strip()
+    # Teacher-entered Markdown should never leak literal ** / __ / backticks to students.
+    clean_prompt = re.sub(r"(?:\*\*|__|`)", "", raw_prompt).strip()
+    prompt_html = html.escape(clean_prompt).replace("\n", "<br>")
+    st.markdown(
+        f"<div style='font-size:1.35rem;font-weight:700;line-height:1.45;margin:0.35rem 0 1rem 0;'>{prompt_html}</div>",
+        unsafe_allow_html=True,
+    )
 
     form_key = f"warmup_answer_{warmup.warmup_set_id}_{student_id}_{slot}"
     with st.form(form_key, clear_on_submit=False):
@@ -1641,9 +1655,6 @@ def render_quick_warmup(store: SupabaseFactStore, day: date) -> bool:
 
 
 def render_daily(store: SupabaseFactStore | None) -> None:
-    st.markdown("## Daily Challenge")
-    st.caption("10 facts. Do your best. You’ll see your results after all 10.")
-
     if not render_student_sign_in(store):
         return
     assert store is not None
@@ -1651,6 +1662,9 @@ def render_daily(store: SupabaseFactStore | None) -> None:
     day = current_daily_date()
     if not render_quick_warmup(store, day):
         return
+
+    st.markdown("## Daily 10")
+    st.caption("10 facts. Do your best. You’ll see your results after all 10.")
 
     try:
         day, facts, challenge = ensure_today(store)
@@ -3378,45 +3392,39 @@ def _warmup_report_text(class_record, target_date: date, warmup, grouping: dict)
     q1 = _warmup_question(warmup, 1)
     q2 = _warmup_question(warmup, 2)
 
-    def accuracy_line(slot: int, question: dict) -> list[str]:
-        accuracy = grouping[f"accuracy_q{slot}"]
-        answered = grouping[f"answered_q{slot}"]
-        support = grouping[f"q{slot}_support"]
-        if accuracy is None:
-            result = [f"Q{slot} · {question.get('teacher_label', '')} · {question.get('standard_code', '')}", "No responses yet."]
-        else:
-            correct = grouping[f"correct_q{slot}"]
-            result = [
-                f"Q{slot} · {question.get('teacher_label', '')} · {question.get('standard_code', '')}",
-                str(question.get("standard_description") or ""),
-                f"Question: {question.get('prompt', '')}",
-                f"Accuracy: {correct}/{answered} correct ({accuracy:.0f}%)",
-                f"Instructional response: {_warmup_instruction_recommendation(len(support))}",
-                "Students needing this skill: " + (", ".join(support) if support else "None from completed Warm-Ups"),
-            ]
-        return [line for line in result if line]
+    def pull_line(names) -> str:
+        return ", ".join(names) if names else "None"
+
+    def clean_question_text(value) -> str:
+        text = str(value or "").replace("**", "").replace("__", "").replace("`", "")
+        return " ".join(text.split())
 
     lines = [
-        f"Quick Warm-Up Results — {class_record.class_name}",
+        f"Warm-Up Results — {class_record.class_name}",
         target_date.strftime("%A, %B %d, %Y"),
-        f"Completed both questions: {grouping['completed_count']}/{grouping['student_count']}",
+        f"Completed: {grouping['completed_count']}/{grouping['student_count']}",
         "",
-        "PRIORITY GROUP — MISSED BOTH QUESTIONS",
-        ", ".join(grouping["missed_both"]) if grouping["missed_both"] else "None",
+        "QUESTION 1 — SPIRAL REVIEW",
+        f"Standard: {q1.get('standard_code', '')}",
+        f"Question: {clean_question_text(q1.get('prompt', ''))}",
+        "Students to pull: " + pull_line(grouping["q1_support"]),
         "",
+        "QUESTION 2 — YESTERDAY'S LESSON",
+        f"Standard: {q2.get('standard_code', '')}",
+        f"Question: {clean_question_text(q2.get('prompt', ''))}",
+        "Students to pull: " + pull_line(grouping["q2_support"]),
+        "",
+        "PRIORITY GROUP — MISSED BOTH",
+        pull_line(grouping["missed_both"]),
+        "",
+        "HAVE NOT FINISHED YET",
+        pull_line(grouping["unfinished"]),
     ]
-    lines.extend(accuracy_line(1, q1))
-    lines.extend(["", *accuracy_line(2, q2), ""])
     if grouping["unfinished"]:
         lines.extend([
-            "NOT FINISHED YET",
-            "These students didn't finish, so please check in with them!",
-            ", ".join(grouping["unfinished"]),
             "",
+            "Please check in with these students. They are not counted as incorrect until they finish the Warm-Up.",
         ])
-    else:
-        lines.extend(["NOT FINISHED YET", "Everyone finished both Warm-Up questions.", ""])
-    lines.append("Note: Students who have not finished are not counted as incorrect or placed in a reteach group until they complete both questions.")
     return "\n".join(lines)
 
 
@@ -3424,7 +3432,7 @@ def _warmup_outlook_url(primary: str, secondary: str, subject: str, body: str) -
     params = {"to": primary, "subject": subject, "body": body}
     if secondary:
         params["cc"] = secondary
-    return "https://outlook.office.com/mail/deeplink/compose?" + urlencode(params)
+    return "https://outlook.office.com/mail/deeplink/compose?" + urlencode(params, quote_via=quote)
 
 
 def _render_warmup_groups_and_email(
