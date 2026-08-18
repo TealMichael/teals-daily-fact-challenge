@@ -11,6 +11,7 @@ def run():
         "classes", "students", "daily_challenges", "daily_attempts", "daily_answers", "practice_answers",
         "student_fact_mastery", "daily_learning_progress", "app_settings",
         "weekly_mysteries", "weekly_mystery_unlocks", "weekly_mystery_guesses",
+        "warmup_sets", "warmup_answers",
     ]
     for table in tables:
         assert f"alter table public.{table} enable row level security" in schema
@@ -33,6 +34,12 @@ def run():
     assert "primary key (student_id, week_start, guess_day)" in mystery_v25
     assert "guess_day in (4, 5)" in mystery_v25
     assert "primary key (student_id, week_start, guess_day)" in schema
+
+
+    warmup_migration = Path("RUN_THIS_ONCE_IN_SUPABASE_v2_10.sql").read_text(encoding="utf-8").lower()
+    assert "warmup_sets" in warmup_migration and "warmup_answers" in warmup_migration
+    assert "alter table public.warmup_sets enable row level security" in warmup_migration
+    assert "alter table public.warmup_answers enable row level security" in warmup_migration
 
     encoded = hash_pin("2468")
     assert "2468" not in encoded and encoded.startswith("scrypt$")

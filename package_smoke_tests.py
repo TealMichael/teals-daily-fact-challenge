@@ -18,6 +18,8 @@ def run():
         "RUN_THIS_ONCE_IN_SUPABASE_v2_1.sql",
         "RUN_THIS_ONCE_IN_SUPABASE_v2_2.sql",
         "RUN_THIS_ONCE_IN_SUPABASE_v2_5.sql",
+        "RUN_THIS_ONCE_IN_SUPABASE_v2_10.sql",
+        "warmup.py",
         "weekly_mystery.py",
         "persistent_login.py",
         "daily_sprint_component/index.html",

@@ -17,7 +17,7 @@ projector = section('render_teacher_projector', 'render_teacher_today')
 today = section('render_teacher_today', '_override_label')
 
 checks = {
-    'version 2.9.3.1': APP_VERSION == '2.9.3.1',
+    'version 2.10.0': APP_VERSION == '2.10.0',
     'refresh clears cached Supabase store': 'load_store.clear()' in request,
     'refresh marks fresh read pending': 'teacher_refresh_pending' in request,
     'button uses pre-rerun callback': 'on_click=_request_teacher_refresh' in control,
@@ -36,4 +36,4 @@ failed = [name for name, ok in checks.items() if not ok]
 if failed:
     raise AssertionError('Failed checks: ' + ', '.join(failed))
 
-print(f'v2.9.3.1 teacher refresh hotfix regression: {len(checks)}/{len(checks)} checks passed')
+print(f'v2.10.0 teacher refresh hotfix regression: {len(checks)}/{len(checks)} checks passed')

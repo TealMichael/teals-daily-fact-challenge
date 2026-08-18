@@ -150,6 +150,35 @@ class LearningProgressRecord:
     completed_at: datetime | None = None
 
 
+@dataclass(frozen=True)
+class WarmupSetRecord:
+    warmup_set_id: str
+    class_id: str
+    warmup_date: str
+    question_one: dict
+    question_two: dict
+    created_at: datetime
+    updated_at: datetime
+
+
+@dataclass(frozen=True)
+class WarmupAnswerRecord:
+    warmup_answer_id: str
+    warmup_set_id: str
+    student_id: str
+    class_id: str
+    warmup_date: str
+    question_slot: int
+    question_type: str
+    prompt: str
+    standard_code: str
+    standard_description: str
+    student_answer: str
+    correct_answer: str
+    correct: bool
+    answered_at: datetime
+
+
 def utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
@@ -229,6 +258,8 @@ class InMemoryFactStore:
         self.weekly_mysteries: dict[str, WeeklyMysteryRecord] = {}
         self.mystery_unlocks: dict[tuple[str, str, int], MysteryUnlockRecord] = {}
         self.mystery_guesses: dict[tuple[str, str, int], MysteryGuessRecord] = {}
+        self.warmup_sets: dict[tuple[str, str], WarmupSetRecord] = {}
+        self.warmup_answers: dict[tuple[str, str, int], WarmupAnswerRecord] = {}
 
     # ----- Classes -----
     def create_class(self, class_name: str, class_code: str | None = None) -> ClassRecord:
@@ -388,6 +419,7 @@ class InMemoryFactStore:
             self.student_focus_overrides.pop(student_id, None)
         self.mystery_unlocks = {key: row for key, row in self.mystery_unlocks.items() if key[0] not in id_set}
         self.mystery_guesses = {key: row for key, row in self.mystery_guesses.items() if key[0] not in id_set}
+        self.warmup_answers = {key: row for key, row in self.warmup_answers.items() if row.student_id not in id_set}
         for student_id in id_set:
             self.students.pop(student_id, None)
         return len(id_set)
@@ -871,6 +903,84 @@ class InMemoryFactStore:
             sid: row for (sid, cid), row in self.learning_progress.items()
             if cid == challenge_id and sid in ids
         }
+
+    # ----- Quick Warm-Up -----
+    def get_warmup_set(self, class_id: str, warmup_date: date | str) -> WarmupSetRecord | None:
+        return self.warmup_sets.get((str(class_id), _as_date_key(warmup_date)))
+
+    def warmup_set_locked(self, warmup_set_id: str) -> bool:
+        test_ids = {sid for sid, row in self.students.items() if row["record"].is_test}
+        return any(
+            row.warmup_set_id == str(warmup_set_id) and row.student_id not in test_ids
+            for row in self.warmup_answers.values()
+        )
+
+    def save_warmup_set(self, class_id: str, warmup_date: date | str, question_one: Mapping, question_two: Mapping) -> WarmupSetRecord:
+        class_id = str(class_id)
+        if class_id not in self.classes:
+            raise NotFound("Class not found.")
+        key = (class_id, _as_date_key(warmup_date))
+        existing = self.warmup_sets.get(key)
+        if existing is not None and self.warmup_set_locked(existing.warmup_set_id):
+            raise FactStoreError("This Warm-Up is locked because a student has already answered it.")
+        if existing is not None:
+            # If only the sandbox has answered, editing the trial should reset
+            # those sandbox answers so the updated questions can be tested again.
+            self.warmup_answers = {k: row for k, row in self.warmup_answers.items() if row.warmup_set_id != existing.warmup_set_id}
+        now = utc_now()
+        record = WarmupSetRecord(
+            existing.warmup_set_id if existing else _uuid(),
+            class_id, key[1], dict(question_one), dict(question_two),
+            existing.created_at if existing else now, now,
+        )
+        self.warmup_sets[key] = record
+        return record
+
+    def delete_warmup_set(self, class_id: str, warmup_date: date | str) -> None:
+        key = (str(class_id), _as_date_key(warmup_date))
+        existing = self.warmup_sets.get(key)
+        if existing is None:
+            return
+        if self.warmup_set_locked(existing.warmup_set_id):
+            raise FactStoreError("This Warm-Up is locked because a student has already answered it.")
+        self.warmup_sets.pop(key, None)
+        self.warmup_answers = {k: row for k, row in self.warmup_answers.items() if row.warmup_set_id != existing.warmup_set_id}
+
+    def get_warmup_answers(self, student_id: str, warmup_set_id: str) -> list[WarmupAnswerRecord]:
+        rows = [
+            row for row in self.warmup_answers.values()
+            if row.student_id == str(student_id) and row.warmup_set_id == str(warmup_set_id)
+        ]
+        return sorted(rows, key=lambda row: row.question_slot)
+
+    def record_warmup_answer(
+        self, *, warmup_set_id: str, student_id: str, class_id: str, warmup_date: date | str,
+        question_slot: int, question_type: str, prompt: str, standard_code: str,
+        standard_description: str, student_answer: str, correct_answer: str, correct: bool,
+    ) -> WarmupAnswerRecord:
+        key = (str(student_id), str(warmup_set_id), int(question_slot))
+        existing = self.warmup_answers.get(key)
+        if existing is not None:
+            return existing
+        record = WarmupAnswerRecord(
+            _uuid(), str(warmup_set_id), str(student_id), str(class_id), _as_date_key(warmup_date),
+            int(question_slot), str(question_type), str(prompt), str(standard_code), str(standard_description),
+            str(student_answer), str(correct_answer), bool(correct), utc_now(),
+        )
+        self.warmup_answers[key] = record
+        return record
+
+    def list_warmup_answers(
+        self, start_date: date | str, end_date: date | str, *, class_id: str | None = None, include_test: bool = False
+    ) -> list[WarmupAnswerRecord]:
+        start_key, end_key = _as_date_key(start_date), _as_date_key(end_date)
+        test_ids = {sid for sid, row in self.students.items() if row["record"].is_test}
+        rows = [row for row in self.warmup_answers.values() if start_key <= row.warmup_date <= end_key]
+        if class_id is not None:
+            rows = [row for row in rows if row.class_id == str(class_id)]
+        if not include_test:
+            rows = [row for row in rows if row.student_id not in test_ids]
+        return sorted(rows, key=lambda row: (row.warmup_date, row.class_id, row.student_id, row.question_slot))
 
     # ----- Private app settings (reference backend) -----
     def get_app_setting(self, setting_key: str):

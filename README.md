@@ -1,5 +1,19 @@
 # Teal's Daily Fact Challenge
 
+### v2.10.0 — Quick Warm-Up Trial
+
+- Adds an optional **🧠 Quick Warm-Up** before the Daily 10: exactly two untimed curriculum questions, **Spiral Review** + **Yesterday Check**.
+- Each question requires an **Indiana standard code** and can include an optional standard description.
+- Trial question types are **Short answer** and **Multiple choice**. Short-answer grading handles numeric equivalents such as `14.40 = 14.4` and `1/2 = 0.5`, plus teacher-entered accepted alternates.
+- Warm-Up responses are stored in their own tables and never affect multiplication mastery, Daily accuracy, timer, or Top 10.
+- If no Warm-Up is assigned for a class/date, students go straight to the Daily 10.
+- Teacher → **🧠 Warm-Up** can plan a class/date, copy the same Warm-Up to all active classes, see question accuracy and students who need another look, and download a Monday–Friday standards-tagged CSV.
+- A class/date Warm-Up locks after the first **real** student response so historical standards data always stays attached to the exact questions students saw.
+- **🧪 Test Student runs the same Warm-Up first** but remains sandbox-only: it does not lock the plan and is excluded from real class results and weekly CSV exports.
+- Teacher → Today shows a compact Warm-Up completion / Spiral accuracy / Yesterday accuracy snapshot when a Warm-Up is assigned.
+- Requires the one-time `RUN_THIS_ONCE_IN_SUPABASE_v2_10.sql` migration. No new Streamlit Secret is required.
+
+
 ### v2.9.3.1 — Teacher Refresh Data Hotfix
 
 - Fixes Teacher → Today and projector **🔄 Refresh data** so the button performs a true fresh Supabase read instead of only rerunning the Streamlit page.
@@ -83,7 +97,7 @@ A classroom-first multiplication fact fluency game built around one short shared
 
 Every signed-in student follows the same learning path:
 
-**Daily 10 → Fix Your Misses → Your Focus Practice → ✅ Day Complete → 🕵️ Weekly Mystery**
+**Optional Quick Warm-Up (when assigned) → Daily 10 → Fix Your Misses → Your Focus Practice → ✅ Day Complete → 🕵️ Weekly Mystery**
 
 ### 1. Daily 10
 

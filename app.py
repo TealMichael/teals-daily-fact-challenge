@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone, timedelta
+from datetime import date, datetime, timezone, timedelta
 import html
 import hmac
 import random
@@ -37,6 +37,7 @@ from adaptive_engine import (
 )
 from supabase_fact_store import SupabaseFactStore
 from persistent_login import REMEMBER_DAYS, issue_student_token, peek_student_id, verify_student_token
+from warmup import QUESTION_TYPES, answer_matches as warmup_answer_matches, prepare_question as prepare_warmup_question
 from weekly_mystery import (
     MYSTERIES,
     default_mystery_key_for_week,
@@ -428,6 +429,9 @@ def init_state() -> None:
         "persistent_login_pending_action": None,
         "persistent_login_check_complete": False,
         "persistent_login_reader_nonce": 0,
+        "warmup_feedback": None,
+        "warmup_just_completed": None,
+        "teacher_warmup_export_ready": False,
     }
     for key, value in defaults.items():
         if key not in st.session_state:
@@ -1500,6 +1504,119 @@ def render_completed_daily(store: SupabaseFactStore, day, facts: list[Fact], cha
         return
 
 
+def _warmup_question(record, slot: int) -> dict:
+    return dict(record.question_one if int(slot) == 1 else record.question_two)
+
+
+def render_quick_warmup(store: SupabaseFactStore, day: date) -> bool:
+    """Render the optional two-question curriculum Warm-Up.
+
+    Returns True when no Warm-Up is assigned or the student has already
+    completed it. Warm-Up responses never touch multiplication mastery or the
+    Daily leaderboard.
+    """
+    class_id = str(st.session_state.get("student_class_id") or "")
+    student_id = str(st.session_state.get("student_id") or "")
+    if not class_id or not student_id:
+        return True
+
+    try:
+        warmup = store.get_warmup_set(class_id, day)
+    except Exception as exc:
+        st.error("Today's Quick Warm-Up could not be loaded. Show your teacher this screen.")
+        if str(st.query_params.get("dbcheck", "0")) == "1":
+            st.exception(exc)
+        return False
+    if warmup is None:
+        return True
+
+    try:
+        answers = store.get_warmup_answers(student_id, warmup.warmup_set_id)
+    except Exception as exc:
+        st.error("Your Quick Warm-Up progress could not be loaded. Show your teacher this screen.")
+        if str(st.query_params.get("dbcheck", "0")) == "1":
+            st.exception(exc)
+        return False
+
+    answered_slots = {int(row.question_slot) for row in answers}
+    completed = len(answered_slots) >= 2
+    if completed:
+        if st.session_state.get("warmup_just_completed") == warmup.warmup_set_id:
+            st.markdown("## ✅ Warm-Up Complete!")
+            st.success("Two questions done. You're ready for today's multiplication challenge.")
+            if st.button("Start Daily 10 →", type="primary", use_container_width=True, key=f"warmup_start_daily_{warmup.warmup_set_id}"):
+                st.session_state.warmup_just_completed = None
+                st.session_state.warmup_feedback = None
+                st.rerun()
+            return False
+        return True
+
+    st.markdown("## 🧠 Quick Warm-Up")
+    st.caption("2 questions before today's challenge · untimed")
+    st.progress(len(answered_slots) / 2)
+    st.caption(f"{len(answered_slots)} of 2 complete")
+
+    feedback = st.session_state.get("warmup_feedback")
+    if isinstance(feedback, dict) and feedback.get("warmup_set_id") == warmup.warmup_set_id:
+        if feedback.get("correct"):
+            st.success("✅ Nice!")
+        else:
+            st.info(f"Good try. The answer was **{feedback.get('correct_answer', '')}**.")
+        st.session_state.warmup_feedback = None
+
+    slot = 1 if 1 not in answered_slots else 2
+    question = _warmup_question(warmup, slot)
+    student_label = str(question.get("student_label") or ("🔁 Review Question" if slot == 1 else "📚 Yesterday's Question"))
+    st.markdown(f"### {student_label}")
+    st.markdown(f"**{html.escape(str(question.get('prompt') or ''))}**")
+
+    form_key = f"warmup_answer_{warmup.warmup_set_id}_{student_id}_{slot}"
+    with st.form(form_key, clear_on_submit=False):
+        if question.get("question_type") == "Multiple choice":
+            options = [str(value) for value in (question.get("options") or [])]
+            response = st.radio("Choose your answer", options, key=f"warmup_choice_{warmup.warmup_set_id}_{slot}") if options else ""
+        else:
+            response = st.text_input("Your answer", key=f"warmup_text_{warmup.warmup_set_id}_{slot}", placeholder="Type your answer")
+        submitted = st.form_submit_button("Check answer →", type="primary", use_container_width=True)
+
+    if submitted:
+        response = str(response or "").strip()
+        if not response:
+            st.warning("Enter an answer first.")
+            return False
+        correct_answer = str(question.get("correct_answer") or "")
+        correct = warmup_answer_matches(response, correct_answer, question.get("accepted_answers") or ())
+        try:
+            store.record_warmup_answer(
+                warmup_set_id=warmup.warmup_set_id,
+                student_id=student_id,
+                class_id=class_id,
+                warmup_date=day,
+                question_slot=slot,
+                question_type=str(question.get("question_type") or "Short answer"),
+                prompt=str(question.get("prompt") or ""),
+                standard_code=str(question.get("standard_code") or ""),
+                standard_description=str(question.get("standard_description") or ""),
+                student_answer=response,
+                correct_answer=correct_answer,
+                correct=correct,
+            )
+        except Exception as exc:
+            st.error("That answer did not save. Tap Check answer again; you do not need to redo anything else.")
+            if str(st.query_params.get("dbcheck", "0")) == "1":
+                st.exception(exc)
+            return False
+        st.session_state.warmup_feedback = {
+            "warmup_set_id": warmup.warmup_set_id,
+            "correct": bool(correct),
+            "correct_answer": correct_answer,
+        }
+        if slot == 2:
+            st.session_state.warmup_just_completed = warmup.warmup_set_id
+        st.rerun()
+    return False
+
+
 def render_daily(store: SupabaseFactStore | None) -> None:
     st.markdown("## Daily Challenge")
     st.caption("10 facts. Do your best. You’ll see your results after all 10.")
@@ -1507,6 +1624,10 @@ def render_daily(store: SupabaseFactStore | None) -> None:
     if not render_student_sign_in(store):
         return
     assert store is not None
+
+    day = current_daily_date()
+    if not render_quick_warmup(store, day):
+        return
 
     try:
         day, facts, challenge = ensure_today(store)
@@ -1843,6 +1964,8 @@ def render_teacher_today(store: SupabaseFactStore) -> None:
     status = store.daily_status(selected.class_id, challenge.challenge_id, students=students)
     progress_map = store.class_learning_progress(selected.class_id, challenge.challenge_id, students=students)
     learning_stats = store.class_learning_stats(selected.class_id, day, students=students)
+    warmup_today = store.get_warmup_set(selected.class_id, day)
+    warmup_rows = store.list_warmup_answers(day, day, class_id=selected.class_id) if warmup_today is not None else []
     completed_rows = [row for row in status if row.get("status") == "Complete"]
     _finish_teacher_refresh()
 
@@ -1868,6 +1991,21 @@ def render_teacher_today(store: SupabaseFactStore) -> None:
     c2.metric("🟡 Working", working)
     c3.metric("⚪ Not started", not_started)
     c4.metric("Daily 10 finished", f"{daily_complete}/{total}")
+
+    if warmup_today is not None:
+        real_ids = {student.student_id for student in students}
+        warmup_rows = [row for row in warmup_rows if row.student_id in real_ids]
+        q1_rows = [row for row in warmup_rows if row.question_slot == 1]
+        q2_rows = [row for row in warmup_rows if row.question_slot == 2]
+        warmup_done = {row.student_id for row in q1_rows} & {row.student_id for row in q2_rows}
+        q1_accuracy = (sum(row.correct for row in q1_rows) / len(q1_rows) * 100) if q1_rows else None
+        q2_accuracy = (sum(row.correct for row in q2_rows) / len(q2_rows) * 100) if q2_rows else None
+        st.markdown("#### 🧠 Quick Warm-Up")
+        w1, w2, w3 = st.columns(3)
+        w1.metric("Finished", f"{len(warmup_done)}/{len(students)}")
+        w2.metric("Spiral accuracy", "—" if q1_accuracy is None else f"{q1_accuracy:.0f}%")
+        w3.metric("Yesterday accuracy", "—" if q2_accuracy is None else f"{q2_accuracy:.0f}%")
+        st.caption("Open 🧠 Warm-Up for standards details, students who missed each question, and the weekly CSV download.")
 
     st.markdown("#### 🏆 Class Top 10")
     board = _leaderboard_from_status(status, limit=10)
@@ -2951,6 +3089,221 @@ def _exit_teacher_test_student() -> None:
     st.rerun()
 
 
+def _next_school_day(value: date) -> date:
+    result = value + timedelta(days=1)
+    while result.weekday() >= 5:
+        result += timedelta(days=1)
+    return result
+
+
+def _lines(value: str) -> list[str]:
+    return [line.strip() for line in str(value or "").splitlines() if line.strip()]
+
+
+def _warmup_form_question(existing: dict, slot: int, key_prefix: str) -> dict:
+    label = "Spiral Review" if slot == 1 else "Yesterday Check"
+    st.markdown(f"#### {slot}. {label}")
+    prompt = st.text_area(
+        "Question", value=str(existing.get("prompt") or ""),
+        key=f"{key_prefix}_prompt_{slot}", height=90,
+    )
+    current_type = str(existing.get("question_type") or "Short answer")
+    qtype = st.selectbox(
+        "Answer type", list(QUESTION_TYPES),
+        index=list(QUESTION_TYPES).index(current_type) if current_type in QUESTION_TYPES else 0,
+        key=f"{key_prefix}_type_{slot}",
+    )
+    correct = st.text_input(
+        "Correct answer", value=str(existing.get("correct_answer") or ""),
+        key=f"{key_prefix}_correct_{slot}",
+    )
+    options = st.text_area(
+        "Multiple-choice options — one per line (only used for Multiple choice)",
+        value="\n".join(str(value) for value in (existing.get("options") or [])),
+        key=f"{key_prefix}_options_{slot}", height=90,
+    )
+    alternates = st.text_area(
+        "Accepted alternate answers — optional, one per line",
+        value="\n".join(str(value) for value in (existing.get("accepted_answers") or [])),
+        key=f"{key_prefix}_alternates_{slot}", height=70,
+    )
+    standard = st.text_input(
+        "Indiana standard code", value=str(existing.get("standard_code") or ""),
+        key=f"{key_prefix}_standard_{slot}", placeholder="Paste the standard code from your planning materials",
+    )
+    description = st.text_input(
+        "Standard description — optional", value=str(existing.get("standard_description") or ""),
+        key=f"{key_prefix}_description_{slot}",
+    )
+    return {
+        "prompt": prompt, "question_type": qtype, "correct_answer": correct,
+        "options": _lines(options), "accepted_answers": _lines(alternates),
+        "standard_code": standard, "standard_description": description,
+    }
+
+
+def _warmup_class_snapshot(store: SupabaseFactStore, class_record, target_date: date, warmup) -> None:
+    students = store.list_students(class_record.class_id)
+    student_ids = {student.student_id for student in students}
+    rows = [row for row in store.list_warmup_answers(target_date, target_date, class_id=class_record.class_id) if row.student_id in student_ids]
+    by_slot = {1: [row for row in rows if row.question_slot == 1], 2: [row for row in rows if row.question_slot == 2]}
+    completed = {row.student_id for row in by_slot[1]} & {row.student_id for row in by_slot[2]}
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Warm-Up finished", f"{len(completed)}/{len(students)}")
+    for slot, column in ((1, c2), (2, c3)):
+        slot_rows = by_slot[slot]
+        accuracy = (sum(bool(row.correct) for row in slot_rows) / len(slot_rows) * 100) if slot_rows else 0
+        column.metric(f"Q{slot} accuracy", "—" if not slot_rows else f"{accuracy:.0f}%")
+
+    for slot in (1, 2):
+        question = _warmup_question(warmup, slot)
+        slot_rows = by_slot[slot]
+        st.markdown(f"**Q{slot} · {question.get('teacher_label', '')} · {question.get('standard_code', '')}**")
+        st.caption(str(question.get("prompt") or ""))
+        wrong_ids = [row.student_id for row in slot_rows if not row.correct]
+        if wrong_ids:
+            names = {student.student_id: student.nickname for student in students}
+            st.caption("Needs another look: " + ", ".join(names.get(student_id, "Student") for student_id in wrong_ids))
+        elif slot_rows:
+            st.caption("No misses recorded yet.")
+        else:
+            st.caption("No responses yet.")
+
+
+def _warmup_export_frame(store: SupabaseFactStore, start_date: date, end_date: date, class_id: str | None) -> pd.DataFrame:
+    rows = store.list_warmup_answers(start_date, end_date, class_id=class_id, include_test=False)
+    classes = store.list_classes(include_inactive=True)
+    class_names = {item.class_id: item.class_name for item in classes}
+    student_names: dict[str, str] = {}
+    for class_record in classes:
+        for student in store.list_students(class_record.class_id, include_inactive=True, include_test=False):
+            student_names[student.student_id] = student.nickname
+    data = []
+    for row in rows:
+        data.append({
+            "Date": row.warmup_date,
+            "Class": class_names.get(row.class_id, row.class_id),
+            "Nickname": student_names.get(row.student_id, "Student"),
+            "Question": "Spiral Review" if row.question_slot == 1 else "Yesterday Check",
+            "Question Type": row.question_type,
+            "Indiana Standard": row.standard_code,
+            "Standard Description": row.standard_description,
+            "Prompt": row.prompt,
+            "Student Answer": row.student_answer,
+            "Correct Answer": row.correct_answer,
+            "Correct": "Yes" if row.correct else "No",
+            "Answered At": row.answered_at.isoformat(),
+        })
+    return pd.DataFrame(data, columns=[
+        "Date", "Class", "Nickname", "Question", "Question Type", "Indiana Standard",
+        "Standard Description", "Prompt", "Student Answer", "Correct Answer", "Correct", "Answered At",
+    ])
+
+
+def render_teacher_warmup(store: SupabaseFactStore) -> None:
+    st.markdown("### 🧠 Quick Warm-Up — Trial")
+    st.caption("Two untimed curriculum questions before the Daily 10. Warm-Up accuracy is stored separately from multiplication mastery and Top 10.")
+    classes = store.list_classes()
+    if not classes:
+        st.info("Create a class first.")
+        return
+    class_by_name = {item.class_name: item for item in classes}
+    selected_name = st.selectbox("Class", list(class_by_name), key="teacher_warmup_class")
+    selected = class_by_name[selected_name]
+
+    default_date = _next_school_day(current_daily_date())
+    target_date = st.date_input("Warm-Up date", value=default_date, key="teacher_warmup_date")
+    st.caption("Testing tonight? Choose **today** here, save the Warm-Up, then open 🧪 Test Student for this class.")
+
+    existing = store.get_warmup_set(selected.class_id, target_date)
+    locked = bool(existing and store.warmup_set_locked(existing.warmup_set_id))
+    if locked:
+        st.info("🔒 This Warm-Up is locked because a real student has already answered it. Historical data stays attached to the exact questions they saw.")
+
+    q1_existing = dict(existing.question_one) if existing else {}
+    q2_existing = dict(existing.question_two) if existing else {}
+    key_prefix = f"warmup_plan_{selected.class_id}_{target_date.isoformat()}"
+    with st.form(f"{key_prefix}_form"):
+        q1_values = _warmup_form_question(q1_existing, 1, key_prefix)
+        q2_values = _warmup_form_question(q2_existing, 2, key_prefix)
+        copy_all = st.checkbox("Also copy this Warm-Up to every active class", value=False, key=f"{key_prefix}_copy")
+        save = st.form_submit_button("Save Warm-Up", type="primary", use_container_width=True, disabled=locked)
+    if save:
+        try:
+            q1 = prepare_warmup_question(slot=1, **q1_values)
+            q2 = prepare_warmup_question(slot=2, **q2_values)
+            targets = classes if copy_all else [selected]
+            locked_targets = []
+            for class_record in targets:
+                current = store.get_warmup_set(class_record.class_id, target_date)
+                if current is not None and store.warmup_set_locked(current.warmup_set_id):
+                    locked_targets.append(class_record.class_name)
+            if locked_targets:
+                raise FactStoreError("Cannot copy over a Warm-Up that students already started: " + ", ".join(locked_targets))
+            for class_record in targets:
+                store.save_warmup_set(class_record.class_id, target_date, q1, q2)
+            st.success("Warm-Up saved" + (" for all active classes." if copy_all else f" for {selected.class_name}."))
+            st.rerun()
+        except (ValueError, FactStoreError) as exc:
+            st.error(str(exc))
+        except Exception as exc:
+            st.error("The Warm-Up could not be saved.")
+            if str(st.query_params.get("dbcheck", "0")) == "1":
+                st.exception(exc)
+
+    if existing and not locked:
+        if st.button("Remove this Warm-Up", use_container_width=True, key=f"remove_{key_prefix}"):
+            try:
+                store.delete_warmup_set(selected.class_id, target_date)
+                st.success("Warm-Up removed for this class/date.")
+                st.rerun()
+            except FactStoreError as exc:
+                st.error(str(exc))
+
+    if existing:
+        st.markdown("#### Class results")
+        _warmup_class_snapshot(store, selected, target_date, existing)
+        test_student = store.get_test_student(selected.class_id)
+        if test_student is not None:
+            test_rows = store.get_warmup_answers(test_student.student_id, existing.warmup_set_id)
+            if test_rows:
+                with st.expander("🧪 Test Student answers — sandbox only", expanded=False):
+                    st.caption("These responses let you verify the flow, but they never enter class accuracy or the weekly CSV.")
+                    st.dataframe(pd.DataFrame([
+                        {
+                            "Question": "Spiral Review" if row.question_slot == 1 else "Yesterday Check",
+                            "Answer": row.student_answer,
+                            "Correct": "Yes" if row.correct else "No",
+                        } for row in test_rows
+                    ]), hide_index=True, use_container_width=True)
+    else:
+        st.info("No Warm-Up is assigned for this class/date. Students will go straight to the Daily 10.")
+
+    st.markdown("#### 📥 Weekly Warm-Up Data")
+    st.caption("Download standards-tagged student responses whenever you want. Test Student is excluded automatically.")
+    if st.toggle("Prepare weekly CSV", key="teacher_warmup_export_ready"):
+        today = current_daily_date()
+        monday = today - timedelta(days=today.weekday())
+        week_start = st.date_input("Week starting", value=monday, key="teacher_warmup_export_week")
+        week_start = week_start - timedelta(days=week_start.weekday())
+        week_end = week_start + timedelta(days=4)
+        scope_names = ["All classes"] + list(class_by_name)
+        scope = st.selectbox("Export", scope_names, key="teacher_warmup_export_scope")
+        export_class_id = None if scope == "All classes" else class_by_name[scope].class_id
+        frame = _warmup_export_frame(store, week_start, week_end, export_class_id)
+        if frame.empty:
+            st.info(f"No Warm-Up responses found for {week_start.strftime('%b %d')}–{week_end.strftime('%b %d')}.")
+        else:
+            summary = frame.assign(CorrectFlag=frame["Correct"].eq("Yes")).groupby("Indiana Standard", as_index=False).agg(
+                Responses=("CorrectFlag", "size"), Correct=("CorrectFlag", "sum")
+            )
+            summary["Accuracy"] = (summary["Correct"] / summary["Responses"] * 100).round(0).astype(int).astype(str) + "%"
+            st.dataframe(summary[["Indiana Standard", "Responses", "Correct", "Accuracy"]], hide_index=True, use_container_width=True)
+            csv_bytes = frame.to_csv(index=False).encode("utf-8")
+            filename = f"warmup_data_{week_start.isoformat()}_to_{week_end.isoformat()}.csv"
+            st.download_button("⬇️ Download weekly Warm-Up CSV", data=csv_bytes, file_name=filename, mime="text/csv", use_container_width=True)
+
+
 def render_teacher_test_student_launcher(store: SupabaseFactStore) -> None:
     st.markdown("### 🧪 Test Student Sandbox")
     st.caption("Run the real student workflow as many times as you want without affecting real rosters, Top 10, mastery heatmaps, class completion, Mystery stats, or raffle entries.")
@@ -3029,7 +3382,7 @@ def render_teacher(store: SupabaseFactStore | None) -> None:
 
     st.caption("Start with Today. Only the section you open loads, which keeps the dashboard faster.")
     teacher_sections = [
-        "📊 Today", "👥 Classes & Rosters", "🎯 Mastery & Focus",
+        "📊 Today", "🧠 Warm-Up", "👥 Classes & Rosters", "🎯 Mastery & Focus",
         "🕵️ Weekly Mystery", "🛠️ Student Support", "🧪 Test Student",
     ]
     section = st.radio(
@@ -3037,6 +3390,8 @@ def render_teacher(store: SupabaseFactStore | None) -> None:
     )
     if section == "📊 Today":
         render_teacher_today(store)
+    elif section == "🧠 Warm-Up":
+        render_teacher_warmup(store)
     elif section == "👥 Classes & Rosters":
         render_teacher_classes(store)
     elif section == "🎯 Mastery & Focus":

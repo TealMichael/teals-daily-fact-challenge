@@ -1,1 +1,1 @@
-v2.9.3.1 - make Teacher Refresh Data perform a true Supabase refresh
+v2.10.0 - add two-question standards Warm-Up trial and weekly data export

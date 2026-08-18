@@ -40,6 +40,8 @@ from fact_store import (
     MysteryUnlockRecord,
     MysteryGuessRecord,
     StudentRecord,
+    WarmupSetRecord,
+    WarmupAnswerRecord,
     generate_class_code,
     hash_pin,
     normalize_name,
@@ -262,6 +264,37 @@ def _mystery_guess(row: Mapping) -> MysteryGuessRecord:
         clue_count=int(row.get("clue_count") or 0),
         guessed_at=_dt(row.get("guessed_at")) or utc_now(),
         guess_day=int(row.get("guess_day") or 4),
+    )
+
+
+def _warmup_set(row: Mapping) -> WarmupSetRecord:
+    return WarmupSetRecord(
+        warmup_set_id=str(row["warmup_set_id"]),
+        class_id=str(row["class_id"]),
+        warmup_date=str(row["warmup_date"]),
+        question_one=dict(row.get("question_one") or {}),
+        question_two=dict(row.get("question_two") or {}),
+        created_at=_dt(row.get("created_at")) or utc_now(),
+        updated_at=_dt(row.get("updated_at")) or utc_now(),
+    )
+
+
+def _warmup_answer(row: Mapping) -> WarmupAnswerRecord:
+    return WarmupAnswerRecord(
+        warmup_answer_id=str(row["warmup_answer_id"]),
+        warmup_set_id=str(row["warmup_set_id"]),
+        student_id=str(row["student_id"]),
+        class_id=str(row["class_id"]),
+        warmup_date=str(row["warmup_date"]),
+        question_slot=int(row["question_slot"]),
+        question_type=str(row.get("question_type") or "Short answer"),
+        prompt=str(row.get("prompt") or ""),
+        standard_code=str(row.get("standard_code") or ""),
+        standard_description=str(row.get("standard_description") or ""),
+        student_answer=str(row.get("student_answer") or ""),
+        correct_answer=str(row.get("correct_answer") or ""),
+        correct=bool(row.get("correct", False)),
+        answered_at=_dt(row.get("answered_at")) or utc_now(),
     )
 
 
@@ -1231,6 +1264,105 @@ class SupabaseFactStore:
         if not 2 <= value <= 10:
             raise ValueError("Focus override must be 2 through 10 or Automatic.")
         return value
+
+    # ----- Quick Warm-Up -----
+    def get_warmup_set(self, class_id: str, warmup_date: date | str) -> WarmupSetRecord | None:
+        date_key = warmup_date.isoformat() if isinstance(warmup_date, date) else str(warmup_date)
+        row = _first(_retry_transient(lambda: self.client.table("warmup_sets")
+            .select("*").eq("class_id", str(class_id)).eq("warmup_date", date_key).limit(1).execute()))
+        return None if row is None else _warmup_set(row)
+
+    def warmup_set_locked(self, warmup_set_id: str) -> bool:
+        rows = _rows(_retry_transient(lambda: self.client.table("warmup_answers")
+            .select("student_id").eq("warmup_set_id", str(warmup_set_id)).execute()))
+        if not rows:
+            return False
+        student_ids = sorted({str(row["student_id"]) for row in rows})
+        real_rows = _rows(_retry_transient(lambda: self.client.table("students")
+            .select("student_id").in_("student_id", student_ids).eq("is_test", False).limit(1).execute()))
+        return bool(real_rows)
+
+    def save_warmup_set(self, class_id: str, warmup_date: date | str, question_one: Mapping, question_two: Mapping) -> WarmupSetRecord:
+        date_key = warmup_date.isoformat() if isinstance(warmup_date, date) else str(warmup_date)
+        existing = self.get_warmup_set(class_id, date_key)
+        if existing is not None and self.warmup_set_locked(existing.warmup_set_id):
+            raise FactStoreError("This Warm-Up is locked because a student has already answered it.")
+        if existing is not None:
+            # Only sandbox responses can exist when the set is not locked. Clear
+            # them so an edited trial can be tested from the beginning.
+            _retry_transient(lambda: self.client.table("warmup_answers").delete()
+                .eq("warmup_set_id", existing.warmup_set_id).execute())
+        payload = {
+            "class_id": str(class_id), "warmup_date": date_key,
+            "question_one": dict(question_one), "question_two": dict(question_two),
+            "updated_at": utc_now().isoformat(),
+        }
+        _retry_transient(lambda: self.client.table("warmup_sets").upsert(
+            payload, on_conflict="class_id,warmup_date"
+        ).execute())
+        record = self.get_warmup_set(class_id, date_key)
+        if record is None:
+            raise FactStoreError("Could not load the saved Warm-Up.")
+        return record
+
+    def delete_warmup_set(self, class_id: str, warmup_date: date | str) -> None:
+        date_key = warmup_date.isoformat() if isinstance(warmup_date, date) else str(warmup_date)
+        existing = self.get_warmup_set(class_id, date_key)
+        if existing is None:
+            return
+        if self.warmup_set_locked(existing.warmup_set_id):
+            raise FactStoreError("This Warm-Up is locked because a student has already answered it.")
+        _retry_transient(lambda: self.client.table("warmup_sets").delete()
+            .eq("warmup_set_id", existing.warmup_set_id).execute())
+
+    def get_warmup_answers(self, student_id: str, warmup_set_id: str) -> list[WarmupAnswerRecord]:
+        rows = _rows(_retry_transient(lambda: self.client.table("warmup_answers").select("*")
+            .eq("student_id", str(student_id)).eq("warmup_set_id", str(warmup_set_id))
+            .order("question_slot").execute()))
+        return [_warmup_answer(row) for row in rows]
+
+    def record_warmup_answer(
+        self, *, warmup_set_id: str, student_id: str, class_id: str, warmup_date: date | str,
+        question_slot: int, question_type: str, prompt: str, standard_code: str,
+        standard_description: str, student_answer: str, correct_answer: str, correct: bool,
+    ) -> WarmupAnswerRecord:
+        date_key = warmup_date.isoformat() if isinstance(warmup_date, date) else str(warmup_date)
+        payload = {
+            "warmup_set_id": str(warmup_set_id), "student_id": str(student_id),
+            "class_id": str(class_id), "warmup_date": date_key, "question_slot": int(question_slot),
+            "question_type": str(question_type), "prompt": str(prompt), "standard_code": str(standard_code),
+            "standard_description": str(standard_description), "student_answer": str(student_answer),
+            "correct_answer": str(correct_answer), "correct": bool(correct),
+        }
+        try:
+            _retry_transient(lambda: self.client.table("warmup_answers").insert(payload).execute())
+        except Exception as exc:
+            if not _is_unique(exc):
+                raise
+        row = _first(_retry_transient(lambda: self.client.table("warmup_answers").select("*")
+            .eq("student_id", str(student_id)).eq("warmup_set_id", str(warmup_set_id))
+            .eq("question_slot", int(question_slot)).limit(1).execute()))
+        if row is None:
+            raise FactStoreError("Could not save the Warm-Up answer.")
+        return _warmup_answer(row)
+
+    def list_warmup_answers(
+        self, start_date: date | str, end_date: date | str, *, class_id: str | None = None, include_test: bool = False
+    ) -> list[WarmupAnswerRecord]:
+        start_key = start_date.isoformat() if isinstance(start_date, date) else str(start_date)
+        end_key = end_date.isoformat() if isinstance(end_date, date) else str(end_date)
+        query = self.client.table("warmup_answers").select("*").gte("warmup_date", start_key).lte("warmup_date", end_key)
+        if class_id is not None:
+            query = query.eq("class_id", str(class_id))
+        rows = _rows(_retry_transient(lambda: query.order("warmup_date").order("question_slot").execute()))
+        records = [_warmup_answer(row) for row in rows]
+        if include_test or not records:
+            return records
+        student_ids = sorted({row.student_id for row in records})
+        test_rows = _rows(_retry_transient(lambda: self.client.table("students").select("student_id")
+            .in_("student_id", student_ids).eq("is_test", True).execute()))
+        test_ids = {str(row["student_id"]) for row in test_rows}
+        return [row for row in records if row.student_id not in test_ids]
 
     def get_app_setting(self, setting_key: str, default=None):
         row = _first(_retry_transient(lambda: self.client.table("app_settings")
