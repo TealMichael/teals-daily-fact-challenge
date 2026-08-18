@@ -1,0 +1,16 @@
+TEAL'S DAILY FACT CHALLENGE v2.10.0.1 — TEST RESULTS
+
+Release focus:
+- Make the cached Supabase store version-aware after v2.10 deployment.
+- Detect and rebuild a stale pre-Warm-Up SupabaseFactStore instance.
+- Prevent a Warm-Up read failure from crashing Teacher → Today.
+
+Results:
+- 45/45 Python regression suites passed.
+- v2.10 Warm-Up trial regression: 30 checks passed.
+- v2.10.0.1 store-cache hotfix regression: 9/9 checks passed.
+- 3-class / 90-student classroom simulation passed.
+- Python compilation passed.
+- 5/5 browser components passed JavaScript syntax validation.
+
+No database schema change in v2.10.0.1.

@@ -1,5 +1,13 @@
 # Teal's Daily Fact Challenge
 
+## v2.10.0.1 — Warm-Up Store Cache Hotfix
+
+- Makes the cached Supabase store version-aware so a hot deployment cannot reuse a pre-Warm-Up store object.
+- Detects and rebuilds a stale store that is missing v2.10 Warm-Up methods.
+- Isolates Warm-Up read failures so Teacher → Today remains usable even if the trial feature has a backend problem.
+- No new SQL migration.
+
+
 ### v2.10.0 — Quick Warm-Up Trial
 
 - Adds an optional **🧠 Quick Warm-Up** before the Daily 10: exactly two untimed curriculum questions, **Spiral Review** + **Yesterday Check**.

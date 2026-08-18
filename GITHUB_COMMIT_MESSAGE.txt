@@ -1,1 +1,1 @@
-v2.10.0 - add two-question standards Warm-Up trial and weekly data export
+v2.10.0.1 - rebuild stale Supabase store after Warm-Up deployment

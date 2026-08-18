@@ -382,7 +382,12 @@ def database_configured() -> bool:
 
 
 @st.cache_resource(show_spinner=False)
-def load_store() -> SupabaseFactStore:
+def load_store(app_version: str) -> SupabaseFactStore:
+    # Include the app version in the cache key. Streamlit Cloud can preserve a
+    # cached resource across a hot deployment; without a versioned key the new
+    # app can receive an instance of the *previous* SupabaseFactStore class.
+    # That became visible in v2.10 when the new Warm-Up methods were added.
+    _ = app_version
     return SupabaseFactStore.from_secrets(st.secrets)
 
 
@@ -390,7 +395,15 @@ def get_store() -> SupabaseFactStore | None:
     if not database_configured():
         return None
     try:
-        return load_store()
+        store = load_store(APP_VERSION)
+        # Defensive recovery for any stale pre-v2.10 resource that survives a
+        # deployment despite the versioned cache key. Rebuild before rendering
+        # so Teacher Today / student Warm-Up never sees a half-upgraded store.
+        required = ("get_warmup_set", "get_warmup_answers", "list_warmup_answers")
+        if not all(hasattr(store, name) for name in required):
+            load_store.clear()
+            store = load_store(APP_VERSION)
+        return store
     except Exception:
         return None
 
@@ -1964,8 +1977,17 @@ def render_teacher_today(store: SupabaseFactStore) -> None:
     status = store.daily_status(selected.class_id, challenge.challenge_id, students=students)
     progress_map = store.class_learning_progress(selected.class_id, challenge.challenge_id, students=students)
     learning_stats = store.class_learning_stats(selected.class_id, day, students=students)
-    warmup_today = store.get_warmup_set(selected.class_id, day)
-    warmup_rows = store.list_warmup_answers(day, day, class_id=selected.class_id) if warmup_today is not None else []
+    warmup_error = None
+    try:
+        warmup_today = store.get_warmup_set(selected.class_id, day)
+        warmup_rows = store.list_warmup_answers(day, day, class_id=selected.class_id) if warmup_today is not None else []
+    except Exception as exc:
+        # Warm-Up is a trial feature and must never take down the rest of the
+        # Teacher Today dashboard. Surface the issue while preserving Daily,
+        # Focus, leaderboard, and roster data.
+        warmup_today = None
+        warmup_rows = []
+        warmup_error = exc
     completed_rows = [row for row in status if row.get("status") == "Complete"]
     _finish_teacher_refresh()
 
@@ -1991,6 +2013,11 @@ def render_teacher_today(store: SupabaseFactStore) -> None:
     c2.metric("🟡 Working", working)
     c3.metric("⚪ Not started", not_started)
     c4.metric("Daily 10 finished", f"{daily_complete}/{total}")
+
+    if warmup_error is not None:
+        st.warning("Warm-Up data could not load just now. The rest of Today is still available; try Refresh data once.")
+        if str(st.query_params.get("dbcheck", "0")) == "1":
+            st.exception(warmup_error)
 
     if warmup_today is not None:
         real_ids = {student.student_id for student in students}
