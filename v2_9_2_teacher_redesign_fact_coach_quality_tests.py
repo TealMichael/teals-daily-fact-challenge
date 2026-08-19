@@ -16,17 +16,16 @@ def section(name: str, next_name: str | None = None) -> str:
 
 def run():
     checks = {}
-    checks["version 2.9.3"] = APP_VERSION == "2.10.1.1"
+    checks["version 2.9.3"] = APP_VERSION == "2.11.0"
 
     mastery = section("render_teacher_mastery_focus", "render_teacher_classes")
-    checks["mastery has four decision views"] = all(label in mastery for label in [
-        "📚 What Should I Teach?", "👥 Who Needs Help?", "🔍 Look Up a Fact", "👤 Look Up a Student"
-    ])
-    checks["mastery no longer opens with analytics wall"] = "Evidence coverage" not in mastery and "Fluent fact-student matches" not in mastery
-    checks["mastery teaching view leads with next targets"] = "Best next teaching targets" in mastery and "Students to pull" in mastery
-    checks["mastery support view is actionable"] = "Students who may need a small group" in mastery and "Start with:" in mastery
-    checks["full fact map is advanced only"] = "show_advanced" in mastery and "Show advanced fact map & class-wide Focus controls" in mastery
-    checks["mastery still uses one class detail read"] = mastery.count("store.class_mastery_detail(selected.class_id, students=students)") == 1
+    fluency = section("_render_teacher_fact_fluency", "_render_teacher_standards_tracker")
+    checks["learning data has two clear views"] = all(label in mastery for label in ["⚡ Fact Fluency", "📚 Standards Tracker"])
+    checks["old four-view wall removed"] = "What Should I Teach?" not in mastery and "Who Needs Help?" not in mastery
+    checks["fact fluency leads with pull group"] = "#### 🎯 Students to Pull" in fluency and "Why pull" in fluency
+    checks["building-only students are not described as intervention"] = "This is not automatically an intervention flag" in fluency
+    checks["full fact map is advanced only"] = "Advanced fact map & class-wide Focus controls" in fluency and "expanded=False" in fluency
+    checks["fact fluency still uses one class detail read"] = fluency.count("store.class_mastery_detail(selected.class_id, students=students)") == 1
 
     support = section("render_teacher_student_tools", "_mystery_raffle_setting_key")
     checks["student support uses action buttons"] = all(text in support for text in [

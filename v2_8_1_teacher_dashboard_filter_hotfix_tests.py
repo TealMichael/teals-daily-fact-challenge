@@ -11,7 +11,7 @@ def run():
         "all facts is not parsed as integer": 'int(heat_filter[:-1])' not in APP,
         "brittle suffix test removed": 'elif heat_filter.endswith("s"):' not in APP,
         "all facts fallback shows full map": 'shown_keys = fact_keys' in APP,
-        "focus-only branch preserved": 'if heat_filter == "Focus facts only":' in APP and 'shown_keys = focus_keys' in APP,
+        "needs-help branch preserved": 'if heat_filter == "Needs-help facts only":' in APP and 'shown_keys = help_keys' in APP,
         "family filter still filters either factor": 'shown_keys = [key for key in fact_keys if family in key]' in APP,
     }
     failed = [name for name, ok in checks.items() if not ok]

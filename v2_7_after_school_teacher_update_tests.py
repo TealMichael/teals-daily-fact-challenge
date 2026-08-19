@@ -11,7 +11,7 @@ STORE = (ROOT / "supabase_fact_store.py").read_text(encoding="utf-8")
 
 def run():
     checks = {}
-    checks["version 2.7.0"] = APP_VERSION == "2.10.1.1"
+    checks["version 2.7.0"] = APP_VERSION == "2.11.0"
 
     # Friday is a real fifth clue, with no skipped-day backfill.
     checks["all bank mysteries resolve to five clues"] = all(len(mystery_for_key(item.key).clues) == 5 for item in MYSTERIES)
@@ -51,18 +51,17 @@ def run():
     checks["projector only rank nickname"] = 'row["rank"]' in projector and ("row[\'nickname\']" in projector or 'row["nickname"]' in projector)
     checks["student leaderboard labeled current"] = "### 🏆 Current Top 10" in APP
 
-    # Mastery page is decision-oriented and transparent about evidence.
-    checks["class evidence is still summarized"] = "Best next teaching targets" in APP and "independent Daily + Focus evidence" in APP
-    checks["teaching opportunities"] = "What Should I Teach?" in APP and "Best next teaching targets" in APP
-    checks["support section"] = "Who Needs Help?" in APP and "Students who may need a small group" in APP
-    checks["momentum section"] = "Students showing momentum" in APP
-    checks["true class map"] = "Show advanced fact map & class-wide Focus controls" in APP and "Fact map filter" in APP
-    checks["fact detail"] = "Look Up a Fact" in APP and "Independent accuracy across observed attempts" in APP
+    # Learning Data is decision-oriented and transparent about evidence.
+    checks["fact fluency summary"] = "⚡ Fact Fluency" in APP and "Students to Pull" in APP
+    checks["accuracy and time are separated"] = "Accuracy comes first" in APP and "Accurate, Still Slow" in APP
+    checks["building alone is not intervention"] = "This is not automatically an intervention flag" in APP
+    checks["true class map"] = "Advanced fact map & class-wide Focus controls" in APP and "Fact map filter" in APP
+    checks["fact detail"] = "Look Up a Fact" in APP and "Independent accuracy across recorded attempts" in APP
     checks["strategy connection"] = "Teaching move for" in APP
     checks["quick focus action"] = "Optional: assign a Focus fact family" in APP
-    checks["individual why"] = "Why does a fact have this status?" in APP
-    checks["individual targets"] = "Today's Focus:" in APP
-    checks["manual controls secondary"] = "Show advanced fact map & class-wide Focus controls" in APP and "Class-wide Focus overrides" in APP
+    checks["student detail"] = "Look Up a Student" in APP and "Inspect one fact" in APP
+    checks["standards tracker"] = "Igniter Standards Tracker" in APP and "Student History" in APP
+    checks["manual controls secondary"] = "Advanced fact map & class-wide Focus controls" in APP and "Class-wide Focus overrides" in APP
     checks["teaching/data explanation"] = "How the app teaches & uses data" in APP
     checks["no placement test claim"] = "No placement test" in APP
 

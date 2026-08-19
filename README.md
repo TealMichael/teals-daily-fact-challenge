@@ -1,5 +1,19 @@
 # Teal's Daily Fact Challenge
 
+## v2.11.0 — Afterschool Teacher Data Update
+
+- Replaces the crowded teacher **Mastery & Focus** entry with **📈 Learning Data**, built around two clear views: **⚡ Fact Fluency** and **📚 Standards Tracker**.
+- Fact Fluency translates the existing mastery engine into teacher-friendly language: **Knows It**, **Accurate, Still Slow**, **Needs Help**, and neutral **Still Learning**.
+- **Students to Pull** prioritizes repeated independent accuracy misses. Accurate-but-slow facts can trigger a fluency check, but ordinary Building/developing evidence alone no longer labels a student as needing intervention.
+- Adds compact class metrics, the most common fact needs, and a one-table all-student snapshot with facts known, slow facts, accuracy needs, evidence coverage, and typical correct-recall time.
+- Preserves fact lookup, student lookup, the full 45-fact map, and teacher Focus overrides behind collapsed detail/advanced controls.
+- Adds an **Igniter Standards Tracker** using the standards already stored with Warm-Up answers. Teachers can choose a standard previously assessed this school year and see class evidence plus each student's oldest-to-newest correct/incorrect history.
+- Student drill-down shows the exact dates, Igniter question number, prompt, and result that make up the standard history. The UI explicitly treats these as **evidence checks**, not automatic mastery of an entire Indiana standard.
+- Adds the same true **🔄 Refresh data** control to Teacher → Warm-Up that Teacher → Today uses, preserving the selected class/date while rebuilding the Supabase connection before current results are read.
+- Fixes student Igniter feedback after both questions: **✅ Correct!** or **❌ Not quite. The answer is ...** appears before a separate neutral **Igniter complete** transition.
+- Warm-Up history reads now page through Supabase results so school-year standards evidence is not silently truncated by a default row limit.
+- No schema migration and no new Streamlit Secret. Existing v2.10 Warm-Up tables are sufficient.
+
 ## v2.10.1.1 — Student Igniter + Outlook Cleanup
 
 - Pre-login now shows student sign-in plus Teacher access only; Today / Practice appear after student login.

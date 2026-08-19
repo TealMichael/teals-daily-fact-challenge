@@ -15,13 +15,13 @@ def section(name: str, next_name: str | None = None) -> str:
 
 def run():
     checks = {}
-    checks["version 2.9.3"] = APP_VERSION == "2.10.1.1"
+    checks["version 2.9.3"] = APP_VERSION == "2.11.0"
 
     teacher = section("render_teacher", "maybe_render_db_diagnostic")
     checks["teacher dashboard is lazy"] = "st.tabs(" not in teacher and 'section = st.radio(' in teacher
     checks["only chosen teacher section dispatches"] = all(x in teacher for x in [
         'if section == "📊 Today"', 'elif section == "👥 Classes & Rosters"',
-        'elif section == "🎯 Mastery & Focus"', 'elif section == "🕵️ Weekly Mystery"',
+        'elif section == "📈 Learning Data"', 'elif section == "🕵️ Weekly Mystery"',
         'elif section == "🛠️ Student Support"', 'render_teacher_test_student_launcher(store)'
     ])
 
@@ -37,8 +37,10 @@ def run():
     checks["projector derives leaderboard locally"] = "_leaderboard_from_status(status" in projector and "store.leaderboard(" not in projector
 
     mastery = section("render_teacher_mastery_focus", "render_teacher_classes")
-    checks["mastery uses one detail dataset"] = "class_mastery_summary" not in mastery and "class_mastery_detail(selected.class_id, students=students)" in mastery
-    checks["manual focus controls truly lazy"] = 'st.checkbox("Show advanced fact map & class-wide Focus controls"' in mastery and "if show_advanced:" in mastery
+    fluency = section("_render_teacher_fact_fluency", "_render_teacher_standards_tracker")
+    checks["learning views are lazy"] = "_render_teacher_fact_fluency(store, selected, students)" in mastery and "_render_teacher_standards_tracker(store, selected, students)" in mastery
+    checks["fact fluency uses one detail dataset"] = "class_mastery_summary" not in fluency and fluency.count("class_mastery_detail(selected.class_id, students=students)") == 1
+    checks["manual focus controls truly lazy"] = 'with st.expander("⚙️ Advanced fact map & class-wide Focus controls", expanded=False):' in fluency
 
     practice = section("render_practice", "teacher_login")
     checks["practice lifetime summary query removed"] = "practice_summary(" not in practice

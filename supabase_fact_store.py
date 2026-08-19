@@ -1351,16 +1351,32 @@ class SupabaseFactStore:
     ) -> list[WarmupAnswerRecord]:
         start_key = start_date.isoformat() if isinstance(start_date, date) else str(start_date)
         end_key = end_date.isoformat() if isinstance(end_date, date) else str(end_date)
-        query = self.client.table("warmup_answers").select("*").gte("warmup_date", start_key).lte("warmup_date", end_key)
-        if class_id is not None:
-            query = query.eq("class_id", str(class_id))
-        rows = _rows(_retry_transient(lambda: query.order("warmup_date").order("question_slot").execute()))
+
+        # Standards history can grow beyond Supabase/PostgREST's default
+        # per-request row cap. Page deliberately so a full school-year tracker
+        # never silently stops at the first 1,000 responses.
+        page_size = 1000
+        offset = 0
+        rows = []
+        while True:
+            def fetch_page():
+                query = self.client.table("warmup_answers").select("*").gte("warmup_date", start_key).lte("warmup_date", end_key)
+                if class_id is not None:
+                    query = query.eq("class_id", str(class_id))
+                return query.order("warmup_date").order("question_slot").range(offset, offset + page_size - 1).execute()
+
+            page = _rows(_retry_transient(fetch_page))
+            rows.extend(page)
+            if len(page) < page_size:
+                break
+            offset += page_size
+
         records = [_warmup_answer(row) for row in rows]
         if include_test or not records:
             return records
         student_ids = sorted({row.student_id for row in records})
         test_rows = _rows(_retry_transient(lambda: self.client.table("students").select("student_id")
-            .in_("student_id", student_ids).eq("is_test", True).execute()))
+            .in_("student_id", student_ids).eq("is_test", True).range(0, 9999).execute()))
         test_ids = {str(row["student_id"]) for row in test_rows}
         return [row for row in records if row.student_id not in test_ids]
 

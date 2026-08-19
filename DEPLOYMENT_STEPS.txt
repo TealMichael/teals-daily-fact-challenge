@@ -1,19 +1,21 @@
-TEAL'S DAILY FACT CHALLENGE v2.10.1.1
-STUDENT IGNITER + OUTLOOK CLEANUP
+TEAL'S DAILY FACT CHALLENGE v2.11.0
+AFTERSCHOOL TEACHER DATA UPDATE
 
-UPDATING FROM v2.10.1:
+UPDATING FROM v2.10.1.1:
 1. There is NO new Supabase SQL migration.
 2. There is NO new Streamlit Secret.
 3. Upload/replace every file and folder in this package's UPLOAD_TO_GITHUB directory to the existing GitHub repository root.
 4. Let Streamlit redeploy.
 
 QUICK CHECK AFTER DEPLOYMENT:
-- Before student login: Today / Practice should NOT be visible. Student Sign In and Teacher should be available.
-- Assign a Warm-Up and test with Test Student: the student should see Igniter Question 1, then Igniter Question 2, then Igniter complete -> Start Daily 10.
-- Question text should not show literal ** symbols.
-- Prepare a Warm-Up Outlook email: it should be short and readable, with no + signs between words.
+- Teacher Dashboard should show 📈 Learning Data instead of 🎯 Mastery & Focus.
+- Learning Data → ⚡ Fact Fluency should lead with Students to Pull, then common fact needs and one compact all-student table.
+- A student with only ordinary Building/developing evidence should NOT automatically appear in Students to Pull.
+- Learning Data → 📚 Standards Tracker should let you choose a standard previously used on an Igniter and see student history.
+- Teacher → Warm-Up should have 🔄 Refresh data. Refresh it before preparing the Outlook email.
+- Test an incorrect Igniter answer, especially Question 2: the student should see ❌ Not quite + the correct answer before the neutral Igniter complete message.
 
 Do NOT rerun RUN_THIS_ONCE_IN_SUPABASE_v2_10.sql if v2.10 is already installed.
 
 Suggested GitHub commit:
-v2.10.1.1 - simplify Igniter, login flow, and Warm-Up Outlook email
+v2.11.0 - simplify fact fluency data and add Igniter standards history

@@ -16,7 +16,7 @@ def section(name: str, next_name: str | None = None) -> str:
 
 def run():
     checks = {}
-    checks["version 2.10.1.1"] = APP_VERSION == "2.10.1.1"
+    checks["version 2.11.0"] = APP_VERSION == "2.11.0"
 
     header = section("render_header", "render_db_setup_message")
     checks["prelogin forces student landing mode"] = 'if not signed_in and mode != "Teacher":' in header
@@ -30,7 +30,7 @@ def run():
     checks["no student warmup heading"] = "## 🧠 Quick Warm-Up" not in warmup
     checks["no student progress bar"] = "st.progress(" not in warmup
     checks["no spiral yesterday labels shown"] = "student_label" not in warmup and "Review Question" not in warmup and "Yesterday's Question" not in warmup
-    checks["igniter completion transition"] = "## ✅ Igniter complete!" in warmup and "Start Daily 10 →" in warmup
+    checks["igniter completion transition"] = "## 🧠 Igniter complete!" in warmup and "Start Daily 10 →" in warmup and "Both questions are finished" in warmup
     checks["markdown markers stripped"] = 're.sub(r"(?:\\*\\*|__|`)", "", raw_prompt)' in warmup
 
     daily = section("render_daily", "reset_practice_question")
@@ -60,7 +60,7 @@ def run():
         print(f"{'PASS' if ok else 'FAIL'}: {name}")
     if failed:
         raise AssertionError("Failed: " + ", ".join(failed))
-    print(f"v2.10.1.1 student Igniter + Outlook cleanup: {len(checks)}/{len(checks)} checks passed")
+    print(f"v2.11.0 student Igniter + Outlook cleanup: {len(checks)}/{len(checks)} checks passed")
 
 
 if __name__ == "__main__":

@@ -5,7 +5,7 @@ APP = (ROOT / "app.py").read_text(encoding="utf-8")
 ENGINE = (ROOT / "fact_engine.py").read_text(encoding="utf-8")
 
 checks = {
-    "version bumped": 'APP_VERSION = "2.10.1.1"' in ENGINE,
+    "version bumped": 'APP_VERSION = "2.11.0"' in ENGINE,
     "leaderboard explains private tiebreak": "time used privately as the tiebreaker" in APP,
     "student leaderboard rows omit score cell": 'class="leader-score"' not in APP,
     "student daily result omits Accuracy card": '<div class="result-label">Accuracy</div>' not in APP,

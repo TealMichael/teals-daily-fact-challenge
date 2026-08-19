@@ -27,6 +27,18 @@ from fact_engine import (
 )
 from fact_store import FactStoreError, NameTaken, generate_pin, utc_now
 from fact_coach import coach_plan_for_fact, coach_plan
+from teacher_insights import (
+    BAND_HELP,
+    BAND_KNOWN,
+    BAND_LEARNING,
+    BAND_SLOW,
+    common_fact_needs,
+    pull_reason,
+    rank_students_to_pull,
+    standard_student_history,
+    summarize_student_fluency,
+    teacher_fact_band,
+)
 from adaptive_engine import (
     FOCUS_SESSION_LENGTH,
     STATUS_BUILDING,
@@ -1576,10 +1588,23 @@ def render_quick_warmup(store: SupabaseFactStore, day: date) -> bool:
 
     answered_slots = {int(row.question_slot) for row in answers}
     completed = len(answered_slots) >= 2
+    feedback = st.session_state.get("warmup_feedback")
+    feedback_matches = isinstance(feedback, dict) and feedback.get("warmup_set_id") == warmup.warmup_set_id
+
     if completed:
         if st.session_state.get("warmup_just_completed") == warmup.warmup_set_id:
-            st.markdown("## ✅ Igniter complete!")
-            st.success("Both questions are done. Ready for your Daily 10!")
+            # Completion and correctness are deliberately separate.  Students
+            # should never read a green completion check as evidence that Q2
+            # was correct.
+            if feedback_matches:
+                if feedback.get("correct"):
+                    st.success("✅ Correct!")
+                else:
+                    answer_text = html.escape(str(feedback.get("correct_answer", "")))
+                    st.error(f"❌ Not quite. The answer is {answer_text}.")
+                st.session_state.warmup_feedback = None
+            st.markdown("## 🧠 Igniter complete!")
+            st.info("Both questions are finished. Ready for your Daily 10!")
             if st.button("Start Daily 10 →", type="primary", use_container_width=True, key=f"warmup_start_daily_{warmup.warmup_set_id}"):
                 st.session_state.warmup_just_completed = None
                 st.session_state.warmup_feedback = None
@@ -1587,12 +1612,12 @@ def render_quick_warmup(store: SupabaseFactStore, day: date) -> bool:
             return False
         return True
 
-    feedback = st.session_state.get("warmup_feedback")
-    if isinstance(feedback, dict) and feedback.get("warmup_set_id") == warmup.warmup_set_id:
+    if feedback_matches:
         if feedback.get("correct"):
-            st.success("✅ Nice!")
+            st.success("✅ Correct!")
         else:
-            st.info(f"Good try. The answer was **{feedback.get('correct_answer', '')}**.")
+            answer_text = html.escape(str(feedback.get("correct_answer", "")))
+            st.error(f"❌ Not quite. The answer is {answer_text}.")
         st.session_state.warmup_feedback = None
 
     slot = 1 if 1 not in answered_slots else 2
@@ -2190,23 +2215,20 @@ def _teaching_recommendation(*, students: int, observed: int, focus: int, buildi
     return "Keep this in adaptive practice; whole-class instruction is probably not needed right now."
 
 
-def render_teacher_mastery_focus(store: SupabaseFactStore) -> None:
-    st.markdown("### 🎯 Mastery & Focus")
-    st.caption("Start with the teaching decision you need. The details stay out of the way until you ask for them.")
-    classes = store.list_classes()
-    if not classes:
-        st.info("Create a class first.")
-        return
+def _teacher_band_icon(band: str) -> str:
+    return {
+        BAND_KNOWN: "🟢",
+        BAND_SLOW: "🟡",
+        BAND_HELP: "🔴",
+        BAND_LEARNING: "⚪",
+    }.get(str(band), "⚪")
 
-    class_by_name = {item.class_name: item for item in classes}
-    class_name = st.selectbox("Class", list(class_by_name), key="teacher_mastery_class")
-    selected = class_by_name[class_name]
-    students = store.list_students(selected.class_id)
-    if not students:
-        st.info("No students are in this class yet.")
-        return
 
-    # One class-level read powers every teacher view on this page.
+def _school_year_start(day: date) -> date:
+    return date(day.year if day.month >= 7 else day.year - 1, 7, 1)
+
+
+def _render_teacher_fact_fluency(store: SupabaseFactStore, selected, students) -> None:
     raw_by_student = store.class_mastery_detail(selected.class_id, students=students)
     full_by_student = {
         student.student_id: complete_mastery_map(raw_by_student.get(student.student_id, []))
@@ -2215,265 +2237,198 @@ def render_teacher_mastery_focus(store: SupabaseFactStore) -> None:
     fact_keys = [(a, b) for a in range(2, 11) for b in range(a, 11)]
     fact_labels = {f"{a} × {b}": (a, b) for a, b in fact_keys}
 
-    summary_rows = []
-    for a, b in fact_keys:
-        counts = {STATUS_FLUENT: 0, STATUS_BUILDING: 0, STATUS_FOCUS: 0, STATUS_UNKNOWN: 0}
-        for student in students:
-            counts[full_by_student[student.student_id][(a, b)].status] += 1
-        summary_rows.append({
-            "a": a, "b": b, "fact": f"{a} × {b}",
-            "Fluent": counts[STATUS_FLUENT], "Building": counts[STATUS_BUILDING],
-            "Focus": counts[STATUS_FOCUS], "Unknown": counts[STATUS_UNKNOWN],
-            "students": len(students),
-        })
-    frame = pd.DataFrame(summary_rows)
-    frame["Observed"] = frame["students"] - frame["Unknown"]
-    frame["Need score"] = frame["Focus"] * 2 + frame["Building"]
-
-    view = st.radio(
-        "What do you need?",
-        ["📚 What Should I Teach?", "👥 Who Needs Help?", "🔍 Look Up a Fact", "👤 Look Up a Student"],
-        horizontal=True,
-        key="teacher_mastery_view",
-    )
-
-    if view == "📚 What Should I Teach?":
-        st.markdown("#### 📚 Best next teaching targets")
-        st.caption("These are suggestions from independent Daily + Focus evidence. They are not a placement test.")
-
-        family_targets = []
-        for family in range(2, 11):
-            family_keys = [key for key in fact_keys if family in key]
-            focus_students = []
-            building_students = []
-            for student in students:
-                statuses = [full_by_student[student.student_id][key].status for key in family_keys]
-                if STATUS_FOCUS in statuses:
-                    focus_students.append(student)
-                elif STATUS_BUILDING in statuses:
-                    building_students.append(student)
-            family_frame = frame[frame.apply(lambda row: family in (int(row["a"]), int(row["b"])), axis=1)]
-            if family_frame.empty:
-                continue
-            top_fact_row = family_frame.sort_values(["Need score", "Focus", "Building"], ascending=False).iloc[0]
-            score = len(focus_students) * 3 + len(building_students)
-            family_targets.append((score, family, focus_students, building_students, top_fact_row))
-
-        ranked = [item for item in sorted(family_targets, key=lambda x: (-x[0], x[1])) if item[0] > 0]
-        if not ranked:
-            st.success("No clear class-wide need yet. Keep the normal routine going while the app gathers more evidence.")
-        else:
-            for rank, (_, family, focus_students, building_students, top_row) in enumerate(ranked[:3], start=1):
-                a, b = int(top_row["a"]), int(top_row["b"])
-                st.markdown(f"##### {rank}. **{family}s**")
-                st.write(
-                    f"🔴 **{len(focus_students)}** student{'s' if len(focus_students) != 1 else ''} have a Focus fact in this family"
-                    f" · 🟡 **{len(building_students)}** more are Building"
-                )
-                st.markdown(f"**Start with {a} × {b}.** {strategy_tip(Fact(a=a, b=b, tier='core'))}")
-                if focus_students:
-                    names = ", ".join(student.nickname for student in focus_students[:10])
-                    extra = len(focus_students) - 10
-                    st.caption("Students to pull: " + names + (f" + {extra} more" if extra > 0 else ""))
-                    if len(focus_students) >= max(6, int(len(students) * 0.30)):
-                        st.info("This is broad enough for a quick whole-class strategy reminder before small-group work.")
-                    else:
-                        st.info("This looks like a good small-group target while everyone else continues adaptive practice.")
-                st.markdown("---")
-
-        with st.expander("How should I read these recommendations?", expanded=False):
-            st.write("🔴 **Focus** means the student has repeated independent evidence that this fact needs attention.")
-            st.write("🟡 **Building** means the fact is developing but is not yet Fluent.")
-            st.write("⚪ **Learning** means the app does not have enough independent evidence yet. It does not mean the student is wrong or behind.")
-            st.caption("Accuracy drives the status first. Correct-response time matters only after accuracy is established.")
-
-    elif view == "👥 Who Needs Help?":
-        st.markdown("#### 👥 Students who may need a small group")
-        student_rows = []
-        momentum_rows = []
-        for student in students:
-            rows = list(full_by_student[student.student_id].values())
-            focus_rows = [row for row in rows if row.status == STATUS_FOCUS]
-            building_rows = [row for row in rows if row.status == STATUS_BUILDING]
-            strengthening = [
-                row for row in rows
-                if row.status in {STATUS_BUILDING, STATUS_FLUENT} and row.correct_streak >= 2 and row.evidence_count >= 2
-            ]
-            if focus_rows or building_rows:
-                student_rows.append((len(focus_rows), len(building_rows), student, focus_rows, building_rows))
-            if strengthening:
-                momentum_rows.append((len(strengthening), student, strengthening))
-
-        if not student_rows:
-            st.success("No students currently have Focus or Building facts. Keep gathering normal Daily + Focus evidence.")
-        else:
-            for focus_count, building_count, student, focus_rows, building_rows in sorted(
-                student_rows, key=lambda item: (-item[0], -item[1], item[2].nickname.casefold())
-            )[:12]:
-                st.markdown(f"##### **{student.nickname}**")
-                st.write(f"🔴 {focus_count} Focus · 🟡 {building_count} Building")
-                if focus_rows:
-                    priority = sorted(
-                        focus_rows,
-                        key=lambda row: ((row.ema_accuracy if row.ema_accuracy is not None else 1.0), -row.evidence_count, row.a, row.b),
-                    )[:5]
-                    st.write("**Start with:** " + " · ".join(f"{row.a}×{row.b}" for row in priority))
-                    st.caption(f"Main fact-family need: {_family_need_text(focus_rows)}")
-                else:
-                    st.caption("No red Focus facts yet; this student is still building several facts.")
-                st.markdown("---")
-
-        st.markdown("#### 🌱 Students showing momentum")
-        if not momentum_rows:
-            st.caption("More repeated evidence is needed before momentum appears here.")
-        else:
-            for _, student, strengthening in sorted(momentum_rows, key=lambda item: (-item[0], item[1].nickname.casefold()))[:8]:
-                examples = ", ".join(
-                    f"{row.a}×{row.b}" for row in sorted(strengthening, key=lambda row: (-row.correct_streak, row.a, row.b))[:4]
-                )
-                st.write(f"**{student.nickname}** · strengthening: {examples}")
-
-    elif view == "🔍 Look Up a Fact":
-        st.markdown("#### 🔍 Look up one fact")
-        selected_fact_label = st.selectbox("Fact", list(fact_labels), key="teacher_fact_detail")
-        fa, fb = fact_labels[selected_fact_label]
-        snapshots = [(student, full_by_student[student.student_id][(fa, fb)]) for student in students]
-        counts = {status: sum(snap.status == status for _, snap in snapshots) for status in (STATUS_FLUENT, STATUS_BUILDING, STATUS_FOCUS, STATUS_UNKNOWN)}
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric("🟢 Fluent", counts[STATUS_FLUENT])
-        c2.metric("🟡 Building", counts[STATUS_BUILDING])
-        c3.metric("🔴 Focus", counts[STATUS_FOCUS])
-        c4.metric("⚪ Learning", counts[STATUS_UNKNOWN])
-
-        observed = [(student, snap) for student, snap in snapshots if snap.status != STATUS_UNKNOWN]
-        total_evidence = sum(snap.evidence_count for _, snap in observed)
-        total_correct = sum(snap.correct_count for _, snap in observed)
-        accuracy = (100 * total_correct / total_evidence) if total_evidence else None
-        st.markdown(f"##### Teaching move for **{fa} × {fb}**")
-        st.write(strategy_tip(Fact(a=fa, b=fb, tier="core")))
-        if accuracy is not None:
-            st.caption(f"Independent accuracy across observed attempts: {accuracy:.0f}%")
-        else:
-            st.caption("Not enough independent evidence yet for a class accuracy estimate.")
-
-        focus_students = [student for student, snap in snapshots if snap.status == STATUS_FOCUS]
-        building_students = [student for student, snap in snapshots if snap.status == STATUS_BUILDING]
-        if focus_students:
-            st.markdown("**Pull first:** " + ", ".join(student.nickname for student in focus_students))
-        else:
-            st.success("No students currently have this exact fact in Focus.")
-        if building_students:
-            st.caption("Building: " + ", ".join(student.nickname for student in building_students))
-
-        with st.expander("Optional: assign a Focus fact family", expanded=False):
-            st.caption("Teacher overrides work by fact family. Automatic personalization returns when the override is set back to Automatic.")
-            family_choice = st.selectbox(
-                "Fact family", [f"{value}s" for value in range(2, 11)], index=fa - 2, key="fact_quick_family"
-            )
-            focus_name_map = {student.nickname: student for student in focus_students}
-            chosen_names = st.multiselect(
-                "Students", list(focus_name_map), default=list(focus_name_map), key="fact_quick_students"
-            )
-            if st.button("Assign selected students", use_container_width=True, disabled=not chosen_names, key="fact_quick_assign"):
-                family = int(family_choice.rstrip("s"))
-                for name in chosen_names:
-                    store.set_student_focus_override(focus_name_map[name].student_id, family)
-                st.success(f"Assigned {family}s Focus to {len(chosen_names)} student(s).")
-                st.rerun()
-
-    else:
-        st.markdown("#### 👤 Look up one student")
-        student_by_label = {student.nickname: student for student in students}
-        student_label = st.selectbox("Student", list(student_by_label), key="mastery_student_select")
-        student = student_by_label[student_label]
-        individual_map = full_by_student[student.student_id]
-        rows = list(individual_map.values())
-        counts = {status: sum(row.status == status for row in rows) for status in (STATUS_FLUENT, STATUS_BUILDING, STATUS_FOCUS, STATUS_UNKNOWN)}
-        i1, i2, i3, i4 = st.columns(4)
-        i1.metric("🟢 Fluent", counts[STATUS_FLUENT])
-        i2.metric("🟡 Building", counts[STATUS_BUILDING])
-        i3.metric("🔴 Focus", counts[STATUS_FOCUS])
-        i4.metric("⚪ Learning", counts[STATUS_UNKNOWN])
-
-        focus_rows = sorted(
-            [row for row in rows if row.status == STATUS_FOCUS],
-            key=lambda row: ((row.ema_accuracy if row.ema_accuracy is not None else 1.0), -row.evidence_count, row.a, row.b),
+    summaries = [
+        summarize_student_fluency(
+            student.student_id,
+            student.nickname,
+            full_by_student[student.student_id].values(),
         )
-        building_rows = [row for row in rows if row.status == STATUS_BUILDING]
-        st.markdown("##### Most important facts right now")
-        if focus_rows:
-            for row in focus_rows[:5]:
-                st.write(f"🔴 **{row.a} × {row.b}**")
-            st.caption(f"Main fact-family need: {_family_need_text(focus_rows)}")
-        elif building_rows:
-            st.write("No red Focus facts. Current Building facts: " + " · ".join(f"{row.a}×{row.b}" for row in building_rows[:6]))
+        for student in students
+    ]
+    summary_by_id = {summary.student_id: summary for summary in summaries}
+    pull_students = rank_students_to_pull(summaries)
+    stable_times = [summary.typical_correct_seconds for summary in summaries if summary.typical_correct_seconds is not None]
+    class_typical_time = float(pd.Series(stable_times).median()) if stable_times else None
+    average_known = sum(summary.known for summary in summaries) / len(summaries)
+    average_evidence = sum(summary.evidence_facts for summary in summaries) / len(summaries)
+
+    st.markdown("#### ⚡ Fact Fluency")
+    st.caption("Accuracy comes first. Speed only matters after a student is retrieving a fact accurately and repeatedly.")
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Students to pull", len(pull_students))
+    c2.metric("Avg facts known", f"{average_known:.0f}/45")
+    c3.metric("Typical correct recall", "—" if class_typical_time is None else format_seconds(class_typical_time))
+    c4.metric("Avg facts with evidence", f"{average_evidence:.0f}/45")
+
+    st.markdown("#### 🎯 Students to Pull")
+    if not pull_students:
+        st.success("No clear accuracy or fluency pull group right now. Keep the normal Daily + Focus routine going.")
+    else:
+        pull_frame = pd.DataFrame([
+            {
+                "Student": summary.nickname,
+                "Why pull": pull_reason(summary),
+                "Start with": " · ".join(summary.start_facts) if summary.start_facts else "—",
+            }
+            for summary in pull_students
+        ])
+        st.dataframe(pull_frame, hide_index=True, use_container_width=True)
+        st.caption("Repeated misses put a student at the top. Accurate-but-slow facts are a secondary fluency signal, not an accuracy penalty.")
+
+    common_needs = common_fact_needs(full_by_student, limit=5)
+    st.markdown("#### Most Common Fact Needs")
+    if not common_needs:
+        st.success("No repeated accuracy or speed pattern is standing out across the class yet.")
+    else:
+        st.dataframe(pd.DataFrame([
+            {
+                "Fact": row["fact"],
+                "🔴 Need help": row["needs_help"],
+                "🟡 Accurate but slow": row["slow"],
+            }
+            for row in common_needs
+        ]), hide_index=True, use_container_width=True)
+
+    st.markdown("#### All Students")
+    ordered_summaries = sorted(
+        summaries,
+        key=lambda summary: (
+            summary not in pull_students,
+            -summary.needs_help,
+            -summary.slow,
+            summary.nickname.casefold(),
+        ),
+    )
+    st.dataframe(pd.DataFrame([
+        {
+            "Student": summary.nickname,
+            "🟢 Knows": summary.known,
+            "🟡 Slow": summary.slow,
+            "🔴 Needs help": summary.needs_help,
+            "Evidence": f"{summary.evidence_facts}/45",
+            "Typical correct recall": "—" if summary.typical_correct_seconds is None else format_seconds(summary.typical_correct_seconds),
+        }
+        for summary in ordered_summaries
+    ]), hide_index=True, use_container_width=True)
+
+    with st.expander("How is Fact Fluency being read?", expanded=False):
+        st.markdown("**🟢 Knows It** — repeated accurate retrieval with a stable correct streak and roughly 5 seconds or less on correct responses.")
+        st.markdown("**🟡 Accurate, Still Slow** — repeated accurate answers, but correct retrieval is still taking more than about 5 seconds.")
+        st.markdown("**🔴 Needs Help** — repeated independent evidence shows an accuracy problem.")
+        st.markdown("**⚪ Still Learning** — the app does not have enough stable evidence yet, or the fact is still developing. This is not automatically an intervention flag.")
+        st.caption("Fact Coach corrections do not erase the original miss and do not count as independent fluency evidence.")
+
+    with st.expander("🔎 Fact & student detail", expanded=False):
+        detail_view = st.radio(
+            "Detail",
+            ["Look Up a Fact", "Look Up a Student"],
+            horizontal=True,
+            key="teacher_learning_detail_view",
+        )
+        if detail_view == "Look Up a Fact":
+            selected_fact_label = st.selectbox("Fact", list(fact_labels), key="teacher_fact_detail")
+            fa, fb = fact_labels[selected_fact_label]
+            snapshots = [(student, full_by_student[student.student_id][(fa, fb)]) for student in students]
+            bands = {band: [(student, snap) for student, snap in snapshots if teacher_fact_band(snap) == band]
+                     for band in (BAND_KNOWN, BAND_SLOW, BAND_HELP, BAND_LEARNING)}
+            d1, d2, d3, d4 = st.columns(4)
+            d1.metric("🟢 Knows", len(bands[BAND_KNOWN]))
+            d2.metric("🟡 Slow", len(bands[BAND_SLOW]))
+            d3.metric("🔴 Needs help", len(bands[BAND_HELP]))
+            d4.metric("⚪ Learning", len(bands[BAND_LEARNING]))
+
+            observed = [(student, snap) for student, snap in snapshots if snap.evidence_count > 0]
+            total_evidence = sum(snap.evidence_count for _, snap in observed)
+            total_correct = sum(snap.correct_count for _, snap in observed)
+            accuracy = (100 * total_correct / total_evidence) if total_evidence else None
+            st.markdown(f"**Teaching move for {fa} × {fb}:** {strategy_tip(Fact(a=fa, b=fb, tier='core'))}")
+            if accuracy is not None:
+                st.caption(f"Independent accuracy across recorded attempts: {accuracy:.0f}%")
+            help_names = [student.nickname for student, _ in bands[BAND_HELP]]
+            slow_names = [student.nickname for student, _ in bands[BAND_SLOW]]
+            if help_names:
+                st.markdown("**Pull for accuracy:** " + ", ".join(sorted(help_names, key=str.casefold)))
+            if slow_names:
+                st.markdown("**Accurate but slow:** " + ", ".join(sorted(slow_names, key=str.casefold)))
+            if not help_names and not slow_names:
+                st.success("No current accuracy or speed concern for this fact.")
+
+            with st.expander("Optional: assign a Focus fact family", expanded=False):
+                st.caption("This is a teacher override. Automatic personalization returns when the override is set back to Automatic.")
+                family_choice = st.selectbox(
+                    "Fact family", [f"{value}s" for value in range(2, 11)], index=fa - 2, key="fact_quick_family"
+                )
+                student_by_name = {student.nickname: student for student in students}
+                default_names = sorted(help_names, key=str.casefold)
+                chosen_names = st.multiselect(
+                    "Students", list(student_by_name), default=default_names, key="fact_quick_students"
+                )
+                if st.button("Assign selected students", use_container_width=True, disabled=not chosen_names, key="fact_quick_assign"):
+                    family = int(family_choice.rstrip("s"))
+                    for name in chosen_names:
+                        store.set_student_focus_override(student_by_name[name].student_id, family)
+                    st.success(f"Assigned {family}s Focus to {len(chosen_names)} student(s).")
+                    st.rerun()
         else:
-            st.success("No current Focus or Building facts.")
+            student_by_label = {student.nickname: student for student in students}
+            student_label = st.selectbox("Student", list(student_by_label), key="mastery_student_select")
+            student = student_by_label[student_label]
+            summary = summary_by_id[student.student_id]
+            individual_map = full_by_student[student.student_id]
+            s1, s2, s3, s4 = st.columns(4)
+            s1.metric("🟢 Knows", summary.known)
+            s2.metric("🟡 Slow", summary.slow)
+            s3.metric("🔴 Needs help", summary.needs_help)
+            s4.metric("Evidence", f"{summary.evidence_facts}/45")
 
-        try:
-            _, _, today_challenge = ensure_today(store)
-            today_progress = store.get_learning_progress(student.student_id, today_challenge.challenge_id)
-        except Exception:
-            today_progress = None
-        if today_progress and today_progress.focus_plan:
-            targets = []
-            for fact in today_progress.focus_plan:
-                label = f"{fact.a}×{fact.b}"
-                if label not in targets:
-                    targets.append(label)
-            st.markdown("**Today's Focus:** " + " · ".join(targets))
-        else:
-            st.caption("Today's Focus plan has not been created yet for this student.")
+            help_rows = [row for row in individual_map.values() if teacher_fact_band(row) == BAND_HELP]
+            slow_rows = [row for row in individual_map.values() if teacher_fact_band(row) == BAND_SLOW]
+            if help_rows:
+                help_rows = sorted(help_rows, key=lambda row: (row.ema_accuracy if row.ema_accuracy is not None else 1.0, -row.evidence_count, row.a, row.b))
+                st.markdown("**Accuracy needs:** " + " · ".join(f"{row.a}×{row.b}" for row in help_rows[:8]))
+            if slow_rows:
+                slow_rows = sorted(slow_rows, key=lambda row: (-(row.ema_seconds or 0.0), row.a, row.b))
+                st.markdown("**Accurate but slow:** " + " · ".join(f"{row.a}×{row.b}" for row in slow_rows[:8]))
+            if not help_rows and not slow_rows:
+                st.success("No current accuracy or speed concern for this student.")
 
-        strengthening = [
-            row for row in rows
-            if row.status in {STATUS_BUILDING, STATUS_FLUENT} and row.correct_streak >= 2 and row.evidence_count >= 2
-        ]
-        if strengthening:
-            st.markdown("**Recent momentum:** " + " · ".join(
-                f"{row.a}×{row.b}" for row in sorted(strengthening, key=lambda row: (-row.correct_streak, row.a, row.b))[:6]
-            ))
-
-        with st.expander("Why does a fact have this status?", expanded=False):
-            student_fact_label = st.selectbox("Fact", list(fact_labels), key="student_fact_why")
+            student_fact_label = st.selectbox("Inspect one fact", list(fact_labels), key="student_fact_why")
             sa, sb = fact_labels[student_fact_label]
             snap = individual_map[(sa, sb)]
-            icon, label = status_for_display(snap.status)
-            st.markdown(f"**{student_fact_label} — {icon} {label}**")
+            band = teacher_fact_band(snap)
+            st.markdown(f"**{student_fact_label} — {_teacher_band_icon(band)} {band.replace('_', ' ').title()}**")
             if snap.evidence_count == 0:
-                st.caption("No independent evidence yet. Learning is neutral — it is not a deficit label.")
+                st.caption("No independent evidence yet.")
             else:
-                st.write(f"Independent attempts: **{snap.evidence_count}** · correct: **{snap.correct_count}** · correct streak: **{snap.correct_streak}**")
+                st.write(f"Independent attempts: **{snap.evidence_count}** · correct: **{snap.correct_count}** · current correct streak: **{snap.correct_streak}**")
                 if snap.ema_accuracy is not None:
                     st.write(f"Recent weighted accuracy: **{snap.ema_accuracy * 100:.0f}%**")
                 if snap.ema_seconds is not None:
                     st.write(f"Recent weighted correct-retrieval time: **{format_seconds(snap.ema_seconds)}**")
-                st.caption("Scaffolded Fact Coach answers and correction retries do not count as independent mastery evidence.")
 
-        with st.expander("View all 45 facts", expanded=False):
-            individual_table = []
-            for key in fact_keys:
-                snap = individual_map[key]
-                icon, label = status_for_display(snap.status)
-                individual_table.append({
-                    "Fact": f"{snap.a} × {snap.b}", "Status": f"{icon} {label}",
-                    "Evidence": snap.evidence_count,
-                    "Correct": "—" if not snap.evidence_count else f"{snap.correct_count}/{snap.evidence_count}",
-                    "Recent time": "—" if snap.ema_seconds is None else format_seconds(snap.ema_seconds),
-                })
-            st.dataframe(pd.DataFrame(individual_table), hide_index=True, use_container_width=True)
-        st.caption("Account fixes, PINs, Daily resets, and personal Focus overrides live in Student Support.")
+            with st.expander("View all 45 facts", expanded=False):
+                individual_table = []
+                for key in fact_keys:
+                    row = individual_map[key]
+                    band = teacher_fact_band(row)
+                    individual_table.append({
+                        "Fact": f"{row.a} × {row.b}",
+                        "Teacher read": f"{_teacher_band_icon(band)} {band.replace('_', ' ').title()}",
+                        "Evidence": row.evidence_count,
+                        "Correct": "—" if not row.evidence_count else f"{row.correct_count}/{row.evidence_count}",
+                        "Recent correct time": "—" if row.ema_seconds is None else format_seconds(row.ema_seconds),
+                    })
+                st.dataframe(pd.DataFrame(individual_table), hide_index=True, use_container_width=True)
+            st.caption("Account fixes, PINs, Daily resets, and personal Focus overrides live in Student Support.")
 
-    show_advanced = st.checkbox("Show advanced fact map & class-wide Focus controls", value=False, key="teacher_mastery_advanced")
-    if show_advanced:
-        st.markdown("#### ⚙️ Advanced teacher tools")
-        st.caption("These are here when you need the full evidence map. They stay hidden during normal planning.")
-        filter_options = ["All facts", "Focus facts only"] + [f"{value}s" for value in range(2, 11)]
+    with st.expander("⚙️ Advanced fact map & class-wide Focus controls", expanded=False):
+        st.caption("The full engine view is still available when you need it, but it stays out of the normal teaching dashboard.")
+        filter_options = ["All facts", "Needs-help facts only"] + [f"{value}s" for value in range(2, 11)]
         heat_filter = st.selectbox("Fact map filter", filter_options, key="teacher_heatmap_filter")
-        focus_keys = [key for key in fact_keys if any(full_by_student[s.student_id][key].status == STATUS_FOCUS for s in students)]
+        help_keys = [key for key in fact_keys if any(teacher_fact_band(full_by_student[s.student_id][key]) == BAND_HELP for s in students)]
         family_filters = {f"{value}s": value for value in range(2, 11)}
-        if heat_filter == "Focus facts only":
-            shown_keys = focus_keys
+        if heat_filter == "Needs-help facts only":
+            shown_keys = help_keys
         elif heat_filter in family_filters:
             family = family_filters[heat_filter]
             shown_keys = [key for key in fact_keys if family in key]
@@ -2483,12 +2438,12 @@ def render_teacher_mastery_focus(store: SupabaseFactStore) -> None:
         for student in students:
             row = {"Student": student.nickname}
             for key in shown_keys:
-                row[f"{key[0]}×{key[1]}"] = _status_icon(full_by_student[student.student_id][key].status)
+                row[f"{key[0]}×{key[1]}"] = _teacher_band_icon(teacher_fact_band(full_by_student[student.student_id][key]))
             matrix_rows.append(row)
         if shown_keys:
             st.dataframe(pd.DataFrame(matrix_rows), hide_index=True, use_container_width=True, height=min(650, 78 + len(students) * 35))
         else:
-            st.success("No facts are currently marked Focus in this class.")
+            st.success("No facts are currently marked as a repeated accuracy need in this class.")
 
         with st.expander("Class-wide Focus overrides", expanded=False):
             st.caption("Leave these on Automatic unless you intentionally want to steer Focus Practice for everyone or this class.")
@@ -2510,8 +2465,129 @@ def render_teacher_mastery_focus(store: SupabaseFactStore) -> None:
             st.markdown("**Daily 10:** independent first-try retrieval evidence.")
             st.markdown("**Fix Your Misses:** corrective teaching; the coached retry does not erase the original miss.")
             st.markdown("**Focus Practice:** eight personalized retrievals using weak/developing facts, some unknowns, spacing, and maintenance facts.")
-            st.markdown("**No placement test:** every fact begins as Learning and moves only after normal independent evidence accumulates.")
-            st.markdown("**Accuracy before speed:** response time helps only after accurate retrieval is established.")
+            st.markdown("**No placement test:** every fact begins without enough evidence and grows only through normal independent retrieval.")
+            st.markdown("**Accuracy before speed:** response time matters only after accurate retrieval is established.")
+
+
+def _render_teacher_standards_tracker(store: SupabaseFactStore, selected, students) -> None:
+    st.markdown("#### 📚 Igniter Standards Tracker")
+    st.caption("Choose a standard to see the evidence your Igniter questions have collected over time. This is evidence history, not an automatic mastery claim.")
+
+    today = current_daily_date()
+    start_date = _school_year_start(today)
+    try:
+        rows = store.list_warmup_answers(start_date, today, class_id=selected.class_id)
+    except Exception as exc:
+        st.error("Igniter history could not be loaded. Try Refresh data and open this view again.")
+        if str(st.query_params.get("dbcheck", "0")) == "1":
+            st.exception(exc)
+        return
+
+    student_ids = {student.student_id for student in students}
+    rows = [row for row in rows if row.student_id in student_ids and str(row.standard_code or "").strip()]
+    if not rows:
+        st.info("No standards-tagged Igniter responses have been recorded for this class yet.")
+        return
+
+    latest_by_code = {}
+    for row in rows:
+        code = str(row.standard_code or "").strip()
+        current = latest_by_code.get(code)
+        if current is None or (str(row.warmup_date), row.answered_at) > (str(current.warmup_date), current.answered_at):
+            latest_by_code[code] = row
+    codes = sorted(latest_by_code, key=lambda code: (str(latest_by_code[code].warmup_date), latest_by_code[code].answered_at), reverse=True)
+
+    def standard_label(code: str) -> str:
+        row = latest_by_code[code]
+        description = re.sub(r"\s+", " ", str(row.standard_description or "")).strip()
+        return f"{code} — {description}" if description else code
+
+    selected_code = st.selectbox(
+        "Indiana standard",
+        codes,
+        format_func=standard_label,
+        key=f"teacher_standard_tracker_{selected.class_id}",
+        help="Type a standard code or skill word to search the standards you have actually checked with an Igniter.",
+    )
+    matching = [row for row in rows if str(row.standard_code or "").strip() == selected_code]
+    latest = latest_by_code[selected_code]
+    if latest.standard_description:
+        st.caption(str(latest.standard_description))
+
+    history = standard_student_history(students, rows, selected_code)
+    checked = [item for item in history if item["checks"] > 0]
+    total_checks = len(matching)
+    total_correct = sum(bool(row.correct) for row in matching)
+    accuracy = (total_correct / total_checks * 100) if total_checks else None
+    last_date = max(str(row.warmup_date) for row in matching) if matching else None
+
+    t1, t2, t3, t4 = st.columns(4)
+    t1.metric("Students checked", f"{len(checked)}/{len(students)}")
+    t2.metric("Igniter checks", total_checks)
+    t3.metric("Correct", "—" if accuracy is None else f"{accuracy:.0f}%")
+    t4.metric("Last checked", "—" if not last_date else date.fromisoformat(last_date).strftime("%b %d"))
+
+    st.markdown("#### Student History")
+    st.caption("History is shown oldest → newest. Students with the lowest current evidence appear first; students with no evidence are listed last.")
+    history_frame = pd.DataFrame([
+        {
+            "Student": item["nickname"],
+            "Checks": item["checks"],
+            "Correct": "—" if item["checks"] == 0 else f"{item['correct']}/{item['checks']} ({item['accuracy'] * 100:.0f}%)",
+            "History": item["history"],
+        }
+        for item in history
+    ])
+    st.dataframe(history_frame, hide_index=True, use_container_width=True)
+
+    st.markdown("#### One Student's Evidence")
+    student_options = [item["nickname"] for item in history]
+    detail_name = st.selectbox("Student", student_options, key=f"teacher_standard_student_{selected.class_id}_{selected_code}")
+    detail = next(item for item in history if item["nickname"] == detail_name)
+    if not detail["rows"]:
+        st.info(f"No Igniter evidence for {selected_code} has been recorded for this student yet.")
+    else:
+        detail_frame = pd.DataFrame([
+            {
+                "Date": date.fromisoformat(str(row.warmup_date)).strftime("%b %d, %Y"),
+                "Igniter": f"Question {int(row.question_slot)}",
+                "Question": re.sub(r"\s+", " ", str(row.prompt or "")).strip(),
+                "Result": "✅ Correct" if row.correct else "❌ Needs review",
+            }
+            for row in reversed(detail["rows"])
+        ])
+        st.dataframe(detail_frame, hide_index=True, use_container_width=True)
+    st.caption(f"History shown from {start_date.strftime('%b %d, %Y')} through {today.strftime('%b %d, %Y')}.")
+
+
+def render_teacher_mastery_focus(store: SupabaseFactStore) -> None:
+    st.markdown("### 📈 Learning Data")
+    st.caption("A simple view of multiplication fact fluency plus the standards evidence collected by your Igniters.")
+    classes = store.list_classes()
+    if not classes:
+        st.info("Create a class first.")
+        return
+
+    class_by_name = {item.class_name: item for item in classes}
+    class_name = st.selectbox("Class", list(class_by_name), key="teacher_mastery_class")
+    selected = class_by_name[class_name]
+    students = store.list_students(selected.class_id)
+    if not students:
+        st.info("No students are in this class yet.")
+        return
+
+    view = st.radio(
+        "Learning data view",
+        ["⚡ Fact Fluency", "📚 Standards Tracker"],
+        horizontal=True,
+        label_visibility="collapsed",
+        key="teacher_learning_data_view",
+    )
+    if view == "⚡ Fact Fluency":
+        _render_teacher_fact_fluency(store, selected, students)
+    else:
+        _render_teacher_standards_tracker(store, selected, students)
+
 
 def render_teacher_classes(store: SupabaseFactStore) -> None:
     st.markdown("### 👥 Classes & Rosters")
@@ -3522,8 +3598,12 @@ def _warmup_export_frame(store: SupabaseFactStore, start_date: date, end_date: d
 
 
 def render_teacher_warmup(store: SupabaseFactStore) -> None:
-    st.markdown("### 🧠 Quick Warm-Up — Trial")
-    st.caption("Two untimed curriculum questions before the Daily 10. Warm-Up accuracy is stored separately from multiplication mastery and Top 10.")
+    header_left, header_right = st.columns([4.2, 1.4])
+    with header_left:
+        st.markdown("### 🧠 Quick Warm-Up — Trial")
+        st.caption("Two untimed curriculum questions before the Daily 10. Warm-Up accuracy is stored separately from multiplication mastery and Top 10.")
+    with header_right:
+        _teacher_refresh_control(key="teacher_warmup_refresh")
     classes = store.list_classes()
     if not classes:
         st.info("Create a class first.")
@@ -3587,6 +3667,9 @@ def render_teacher_warmup(store: SupabaseFactStore) -> None:
     if existing:
         st.markdown("#### Class results")
         result_students, result_rows, _ = _warmup_class_snapshot(store, selected, target_date, existing)
+        # A Warm-Up refresh is only marked complete after the current set and
+        # its latest real-student answers have both been read successfully.
+        _finish_teacher_refresh()
         _render_warmup_groups_and_email(
             store, selected, target_date, existing, result_rows, result_students,
             key_prefix=f"teacher_warmup_results_{selected.class_id}_{target_date.isoformat()}",
@@ -3625,6 +3708,7 @@ def render_teacher_warmup(store: SupabaseFactStore) -> None:
                             )
                             st.caption("Sandbox drafts are addressed only to you. The push-in teacher is never CC'd on a Test Student preview.")
     else:
+        _finish_teacher_refresh()
         st.info("No Warm-Up is assigned for this class/date. Students will go straight to the Daily 10.")
 
     st.markdown("#### 📥 Weekly Warm-Up Data")
@@ -3730,7 +3814,7 @@ def render_teacher(store: SupabaseFactStore | None) -> None:
 
     st.caption("Start with Today. Only the section you open loads, which keeps the dashboard faster.")
     teacher_sections = [
-        "📊 Today", "🧠 Warm-Up", "👥 Classes & Rosters", "🎯 Mastery & Focus",
+        "📊 Today", "🧠 Warm-Up", "👥 Classes & Rosters", "📈 Learning Data",
         "🕵️ Weekly Mystery", "🛠️ Student Support", "🧪 Test Student",
     ]
     section = st.radio(
@@ -3742,7 +3826,7 @@ def render_teacher(store: SupabaseFactStore | None) -> None:
         render_teacher_warmup(store)
     elif section == "👥 Classes & Rosters":
         render_teacher_classes(store)
-    elif section == "🎯 Mastery & Focus":
+    elif section == "📈 Learning Data":
         render_teacher_mastery_focus(store)
     elif section == "🕵️ Weekly Mystery":
         render_teacher_weekly_mystery(store)

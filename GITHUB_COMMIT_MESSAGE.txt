@@ -1,1 +1,1 @@
-v2.10.1.1 - simplify Igniter, login flow, and Warm-Up Outlook email
+v2.11.0 - simplify fact fluency data and add Igniter standards history
