@@ -16,7 +16,7 @@ def section(name: str, next_name: str | None = None) -> str:
 
 def run():
     checks = {}
-    checks["version 2.11.0.2"] = APP_VERSION == "2.11.0.2"
+    checks["version 2.11.0.3"] = APP_VERSION == "2.11.0.3"
 
     header = section("render_header", "render_db_setup_message")
     checks["prelogin forces student landing mode"] = 'if not signed_in and mode != "Teacher":' in header
@@ -60,7 +60,7 @@ def run():
         print(f"{'PASS' if ok else 'FAIL'}: {name}")
     if failed:
         raise AssertionError("Failed: " + ", ".join(failed))
-    print(f"v2.11.0.2 student Igniter + Outlook cleanup: {len(checks)}/{len(checks)} checks passed")
+    print(f"v2.11.0.3 student Igniter + Outlook cleanup: {len(checks)}/{len(checks)} checks passed")
 
 
 if __name__ == "__main__":

@@ -16,7 +16,7 @@ APP = (ROOT / "app.py").read_text(encoding="utf-8")
 
 def run():
     checks = 0
-    assert APP_VERSION == "2.11.0.2"; checks += 1
+    assert APP_VERSION == "2.11.0.3"; checks += 1
 
     # Official-grade picker coverage: content standards across Grades 4–7.
     counts = Counter(item.grade for item in STANDARDS)
@@ -93,7 +93,7 @@ def run():
     assert '"Grade": grade_from_standard_code(row.standard_code)' in APP; checks += 1
     assert '"Date", "Class", "Nickname", "Question", "Question Type", "Grade", "Indiana Standard"' in APP; checks += 1
 
-    print(f"v2.11.0.2 standards/groups/Outlook regression: PASS ({checks} checks)")
+    print(f"v2.11.0.3 standards/groups/Outlook regression: PASS ({checks} checks)")
 
 
 if __name__ == "__main__":

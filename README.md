@@ -1,6 +1,6 @@
 # Teal's Daily Fact Challenge
 
-## v2.11.0.2 — Daily-Load Resilience Hotfix
+## v2.11.0.3 — Supabase 2.28.3 Compatibility Hotfix
 
 - Raises the resilience timeout from 6 seconds to **12 seconds** so a normal temporary Supabase slowdown is less likely to fail too aggressively.
 - Hard timeouts still receive at most one retry, keeping waits bounded.

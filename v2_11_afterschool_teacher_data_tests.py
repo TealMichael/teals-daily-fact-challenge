@@ -38,7 +38,7 @@ def snap(a, b, evidence, correct, acc, seconds, streak, status):
 
 def run():
     checks = {}
-    checks["version 2.11.0.2"] = APP_VERSION == "2.11.0.2"
+    checks["version 2.11.0.3"] = APP_VERSION == "2.11.0.3"
 
     known = snap(2, 2, 5, 5, 0.96, 3.2, 5, STATUS_FLUENT)
     slow = snap(3, 4, 5, 5, 0.95, 7.1, 4, STATUS_BUILDING)

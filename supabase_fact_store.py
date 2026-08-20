@@ -110,6 +110,20 @@ def _first(response) -> dict | None:
     return rows[0] if rows else None
 
 
+def _execute_returning(builder, columns: str = "*"):
+    """Execute a mutation and return its row representation across supabase-py versions.
+
+    Newer PostgREST builders expose ``.select()`` after insert/update/upsert,
+    while the pinned classroom-safe supabase-py 2.28.3 mutation builder does
+    not. Version 2.28.3 returns inserted/updated rows by default, so falling
+    back to ``execute()`` preserves the same behavior without crashing.
+    """
+    select_method = getattr(builder, "select", None)
+    if callable(select_method):
+        return select_method(columns).execute()
+    return builder.execute()
+
+
 def _dt(value) -> datetime | None:
     if value is None:
         return None
@@ -382,11 +396,9 @@ class SupabaseFactStore:
         for _ in range(attempts):
             code = str(class_code or generate_class_code()).strip().upper()
             try:
-                response = (
+                response = _execute_returning(
                     self.client.table("classes")
                     .insert({"class_name": name, "class_name_key": key, "class_code": code})
-                    .select("*")
-                    .execute()
                 )
                 row = _first(response)
                 if row is None:
@@ -432,13 +444,11 @@ class SupabaseFactStore:
         return _class(row)
 
     def set_class_active(self, class_id: str, active: bool) -> ClassRecord:
-        row = _first(
+        row = _first(_execute_returning(
             self.client.table("classes")
             .update({"active": bool(active)})
             .eq("class_id", str(class_id))
-            .select("*")
-            .execute()
-        )
+        ))
         if row is None:
             raise NotFound("Class not found.")
         return _class(row)
@@ -456,7 +466,7 @@ class SupabaseFactStore:
             "is_test": bool(is_test),
         }
         try:
-            row = _first(self.client.table("students").insert(payload).select("*").execute())
+            row = _first(_execute_returning(self.client.table("students").insert(payload)))
         except Exception as exc:
             if _is_unique(exc):
                 raise NameTaken(f"{name} already exists in this class.") from exc
@@ -559,13 +569,12 @@ class SupabaseFactStore:
         student = self.get_student(student_id)
         name, key = normalize_name(nickname, label="Nickname", max_length=28)
         try:
-            row = _first(
+            row = _first(_execute_returning(
                 self.client.table("students")
                 .update({"nickname": name, "nickname_key": key})
-                .eq("student_id", student.student_id)
-                .select("student_id,class_id,nickname,pin_code,active,created_at,is_test")
-                .execute()
-            )
+                .eq("student_id", student.student_id),
+                "student_id,class_id,nickname,pin_code,active,created_at,is_test",
+            ))
         except Exception as exc:
             if _is_unique(exc):
                 raise NameTaken("That nickname is already used in this class.") from exc
@@ -576,24 +585,22 @@ class SupabaseFactStore:
 
     def reset_student_pin(self, student_id: str, pin: str) -> None:
         pin = validate_pin(pin)
-        response = (
+        response = _execute_returning(
             self.client.table("students")
             .update({"pin_hash": hash_pin(pin), "pin_code": pin})
-            .eq("student_id", str(student_id))
-            .select("student_id")
-            .execute()
+            .eq("student_id", str(student_id)),
+            "student_id",
         )
         if _first(response) is None:
             raise NotFound("Student not found.")
 
     def set_student_active(self, student_id: str, active: bool) -> StudentRecord:
-        row = _first(
+        row = _first(_execute_returning(
             self.client.table("students")
             .update({"active": bool(active)})
-            .eq("student_id", str(student_id))
-            .select("student_id,class_id,nickname,pin_code,active,created_at,is_test")
-            .execute()
-        )
+            .eq("student_id", str(student_id)),
+            "student_id,class_id,nickname,pin_code,active,created_at,is_test",
+        ))
         if row is None:
             raise NotFound("Student not found.")
         return _student(row)
@@ -605,13 +612,12 @@ class SupabaseFactStore:
         if not any(item.class_id == str(new_class_id) for item in self.list_classes(include_inactive=True)):
             raise NotFound("Class not found.")
         try:
-            row = _first(
+            row = _first(_execute_returning(
                 self.client.table("students")
                 .update({"class_id": str(new_class_id)})
-                .eq("student_id", student.student_id)
-                .select("student_id,class_id,nickname,pin_code,active,created_at,is_test")
-                .execute()
-            )
+                .eq("student_id", student.student_id),
+                "student_id,class_id,nickname,pin_code,active,created_at,is_test",
+            ))
         except Exception as exc:
             if _is_unique(exc):
                 raise NameTaken("That nickname is already used in the destination class.") from exc
@@ -697,12 +703,10 @@ class SupabaseFactStore:
         if existing:
             return existing
         try:
-            row = _first(
+            row = _first(_execute_returning(
                 self.client.table("daily_attempts")
                 .insert({"student_id": str(student_id), "challenge_id": str(challenge_id)})
-                .select("*")
-                .execute()
-            )
+            ))
         except Exception as exc:
             if _is_unique(exc):
                 existing = self.get_attempt_for_student(student_id, challenge_id)
@@ -1185,9 +1189,9 @@ class SupabaseFactStore:
         if row is None:
             try:
                 row = _first(
-                    self.client.table("daily_learning_progress").insert({
+                    _execute_returning(self.client.table("daily_learning_progress").insert({
                         "student_id": str(student_id), "challenge_id": str(challenge_id), "focus_plan": []
-                    }).select("*").execute()
+                    }))
                 )
             except Exception as exc:
                 # If the insert landed but its response was lost—or another rerun created it—re-read safely.
@@ -1213,8 +1217,8 @@ class SupabaseFactStore:
             "updated_at": utc_now().isoformat(),
         }
         row = _first(_retry_transient(lambda: (
-            self.client.table("daily_learning_progress").update(payload)
-            .eq("student_id", str(student_id)).eq("challenge_id", str(challenge_id)).select("*").execute()
+            _execute_returning(self.client.table("daily_learning_progress").update(payload)
+            .eq("student_id", str(student_id)).eq("challenge_id", str(challenge_id)))
         )))
         return _learning(row) if row else self.get_or_create_learning_progress(student_id, challenge_id)
 
@@ -1264,7 +1268,7 @@ class SupabaseFactStore:
             "is_retry": bool(is_retry),
         }
         try:
-            row = _first(self.client.table("practice_answers").insert(payload).select("*").execute())
+            row = _first(_execute_returning(self.client.table("practice_answers").insert(payload)))
         except Exception as exc:
             # v2 created a unique index for first-try Focus slots. Normal submissions
             # therefore need only one INSERT; a duplicate browser submission falls
@@ -1320,11 +1324,9 @@ class SupabaseFactStore:
             })
         if not payloads:
             return []
-        response = _retry_transient(lambda: (
+        response = _retry_transient(lambda: _execute_returning(
             self.client.table("practice_answers")
             .upsert(payloads, on_conflict="client_event_id")
-            .select("*")
-            .execute()
         ))
         return [_practice(row) for row in _rows(response)]
 
@@ -1634,10 +1636,10 @@ class SupabaseFactStore:
             return existing
         try:
             row = _first(
-                self.client.table("weekly_mysteries").insert({
+                _execute_returning(self.client.table("weekly_mysteries").insert({
                     "week_start": week_key,
                     "mystery_key": str(mystery_key),
-                }).select("*").execute()
+                }))
             )
             if row is None:
                 raise FactStoreError("Supabase did not return the weekly mystery.")
@@ -1660,11 +1662,11 @@ class SupabaseFactStore:
         if self.weekly_mystery_locked(week_key):
             raise FactStoreError("This week's mystery is locked because a student has already unlocked a clue.")
         now = utc_now().isoformat()
-        response = self.client.table("weekly_mysteries").upsert({
+        response = _execute_returning(self.client.table("weekly_mysteries").upsert({
             "week_start": week_key,
             "mystery_key": str(mystery_key),
             "updated_at": now,
-        }, on_conflict="week_start").select("*").execute()
+        }, on_conflict="week_start"))
         row = _first(response)
         if row is None:
             raise FactStoreError("Supabase did not return the replaced weekly mystery.")
@@ -1691,7 +1693,7 @@ class SupabaseFactStore:
             "challenge_id": str(challenge_id),
         }
         try:
-            row = _first(self.client.table("weekly_mystery_unlocks").insert(payload).select("*").execute())
+            row = _first(_execute_returning(self.client.table("weekly_mystery_unlocks").insert(payload)))
             if row is None:
                 raise FactStoreError("Supabase did not return the mystery unlock.")
             return _mystery_unlock(row)
@@ -1760,7 +1762,7 @@ class SupabaseFactStore:
             "clue_count": clue_count,
         }
         try:
-            row = _first(self.client.table("weekly_mystery_guesses").insert(payload).select("*").execute())
+            row = _first(_execute_returning(self.client.table("weekly_mystery_guesses").insert(payload)))
             if row is None:
                 raise FactStoreError("Supabase did not return the mystery guess.")
             return _mystery_guess(row)

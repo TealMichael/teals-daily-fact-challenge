@@ -576,7 +576,7 @@ def handle_persistent_student_login(store: SupabaseFactStore | None) -> None:
     try:
         # The signed payload tells us which student to load; validation still
         # requires the student's current visible PIN and active class/account.
-        # v2.11.0.2 keeps the student + class restore in one PostgREST read instead
+        # v2.11.0.3 keeps the student + class restore in one PostgREST read instead
         # of loading the student and then the entire class list.
         student_id = peek_student_id(token)
         if not student_id:

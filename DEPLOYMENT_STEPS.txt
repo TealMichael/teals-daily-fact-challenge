@@ -1,34 +1,39 @@
-TEAL'S DAILY FACT CHALLENGE v2.11.0.2
-DAILY-LOAD RESILIENCE HOTFIX
+TEAL'S DAILY FACT CHALLENGE v2.11.0.3
+SUPABASE 2.28.3 COMPATIBILITY HOTFIX
 
 IMPORTANT BASE:
-- This release is built on v2.11.0.1 Startup Resilience.
+- Built directly on v2.11.0.2 Daily-Load Resilience.
 - v2.11.1 Stability/Foundation is intentionally NOT included yet.
 - This package changes only Teal's Daily Fact Challenge, not Yahtzee.
 
-UPDATING FROM v2.11.0.1:
+WHY THIS HOTFIX IS REQUIRED:
+- v2.11.0.1 pinned supabase-py to 2.28.3.
+- Existing app code used mutation chains such as insert(...).select("*").execute().
+- The 2.28.3 mutation builder does not expose .select(), causing Daily attempt creation to fail.
+- v2.11.0.3 makes all mutation-return paths compatible with the pinned version.
+
+UPDATING FROM v2.11.0.2:
 1. There is NO new Supabase SQL migration.
 2. There is NO new Streamlit Secret.
 3. Upload/replace every file and folder in this package's UPLOAD_TO_GITHUB directory to the existing GitHub repository root.
 4. Let Streamlit redeploy.
-5. Do not separately install the paused v2.11.1 package yet.
+5. Keep the paused v2.11.1 Stability/Foundation package uninstalled for now.
 
 QUICK CHECK AFTER DEPLOYMENT:
 - Sign in as a student and enter Today.
-- Daily 10 should load normally when the backend is responsive.
-- If Daily loading temporarily fails, the student should see “Having trouble reaching today's Daily 10.” plus a large “🔄 Try Again” button.
-- Tapping Try Again should keep the student signed in and should not require a completed Igniter to be redone.
-- For troubleshooting, Streamlit logs can show privacy-safe lines beginning with: [TDFC connection]
+- If the student has completed the Igniter, Daily 10 should create/load the Daily attempt normally.
+- The AttributeError mentioning SyncQueryRequestBuilder/select should be gone.
+- The v2.11.0.2 Try Again screen remains available for genuine temporary connection failures.
 
-RESILIENCE SETTINGS:
+RESILIENCE SETTINGS RETAINED:
 - PostgREST timeout: 12 seconds
 - Storage timeout: 12 seconds
 - Hard timeout retry: at most one retry
-- Streamlit remains pinned to 1.61.1
-- supabase-py remains pinned to 2.28.3
+- Streamlit pinned to 1.61.1
+- supabase-py pinned to 2.28.3
 
 NO SQL TO RUN.
 NO NEW SECRET.
 
 Suggested GitHub commit:
-v2.11.0.2 - make Daily loading recoverable during slow connections
+v2.11.0.3 - fix Supabase 2.28.3 mutation compatibility

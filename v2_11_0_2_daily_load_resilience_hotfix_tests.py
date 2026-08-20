@@ -6,7 +6,7 @@ STORE = (ROOT / "supabase_fact_store.py").read_text()
 ENGINE = (ROOT / "fact_engine.py").read_text()
 
 checks = {}
-checks["version bumped"] = 'APP_VERSION = "2.11.0.2"' in ENGINE
+checks["version bumped"] = 'APP_VERSION = "2.11.0.3"' in ENGINE
 checks["challenge version unchanged"] = 'CHALLENGE_VERSION = "TDFC-DAILY-v1"' in ENGINE
 checks["timeout raised to 12"] = "POSTGREST_TIMEOUT_SECONDS = 12" in STORE
 checks["storage timeout raised to 12"] = "STORAGE_TIMEOUT_SECONDS = 12" in STORE
@@ -25,5 +25,5 @@ checks["dbcheck still available"] = 'if str(st.query_params.get("dbcheck", "0"))
 
 failed = [name for name, ok in checks.items() if not ok]
 if failed:
-    raise AssertionError("Failed v2.11.0.2 hotfix checks: " + ", ".join(failed))
-print(f"v2.11.0.2 Daily-load resilience hotfix: PASS ({len(checks)}/{len(checks)})")
+    raise AssertionError("Failed v2.11.0.3 hotfix checks: " + ", ".join(failed))
+print(f"v2.11.0.3 Daily-load resilience hotfix: PASS ({len(checks)}/{len(checks)})")
