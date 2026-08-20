@@ -1,21 +1,26 @@
-TEAL'S DAILY FACT CHALLENGE v2.11.0
-AFTERSCHOOL TEACHER DATA UPDATE
+TEAL'S DAILY FACT CHALLENGE v2.11.0.1
+STARTUP RESILIENCE PASS
 
-UPDATING FROM v2.10.1.1:
+IMPORTANT BASE:
+- This release is built directly on v2.11.0.
+- v2.11.1 Stability/Foundation is intentionally NOT included yet.
+- This package changes only Teal's Daily Fact Challenge, not Yahtzee.
+
+UPDATING FROM v2.11.0:
 1. There is NO new Supabase SQL migration.
 2. There is NO new Streamlit Secret.
 3. Upload/replace every file and folder in this package's UPLOAD_TO_GITHUB directory to the existing GitHub repository root.
-4. Let Streamlit redeploy.
+4. Let Streamlit perform a full redeploy so the pinned dependency versions are installed.
+5. Do not separately install the paused v2.11.1 package.
 
 QUICK CHECK AFTER DEPLOYMENT:
-- Teacher Dashboard should show 📈 Learning Data instead of 🎯 Mastery & Focus.
-- Learning Data → ⚡ Fact Fluency should lead with Students to Pull, then common fact needs and one compact all-student table.
-- A student with only ordinary Building/developing evidence should NOT automatically appear in Students to Pull.
-- Learning Data → 📚 Standards Tracker should let you choose a standard previously used on an Igniter and see student history.
-- Teacher → Warm-Up should have 🔄 Refresh data. Refresh it before preparing the Outlook email.
-- Test an incorrect Igniter answer, especially Question 2: the student should see ❌ Not quite + the correct answer before the neutral Igniter complete message.
+- Open the app on a device with a remembered student login. The Teal's Daily Fact Challenge shell should appear before backend restore work completes.
+- If saved-login restoration hits a temporary connection failure, the app should offer "Try saved sign-in again" instead of deleting the remembered login.
+- Student Daily/Teacher pages should otherwise look and behave like v2.11.0.
+- If an intermittent spinner occurs, check Streamlit logs for lines beginning with: [TDFC timing]
 
-Do NOT rerun RUN_THIS_ONCE_IN_SUPABASE_v2_10.sql if v2.10 is already installed.
+NO SQL TO RUN.
+NO NEW SECRET.
 
 Suggested GitHub commit:
-v2.11.0 - simplify fact fluency data and add Igniter standards history
+v2.11.0.1 - add startup and Supabase resilience

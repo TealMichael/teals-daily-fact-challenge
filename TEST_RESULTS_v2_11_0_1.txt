@@ -1,0 +1,29 @@
+TEAL'S DAILY FACT CHALLENGE v2.11.0.1 — TEST RESULTS
+
+Startup Resilience Pass
+
+- 49/49 Python regression suites passed.
+- New v2.11.0.1 startup resilience regression: 19/19 checks passed.
+- All 5 browser components passed JavaScript syntax validation.
+- Python compile checks passed for the changed app/store/version files.
+- Existing classroom-scale, Mystery-scale, Warm-Up, Learning Data, Standards Tracker, Outlook, login, privacy, Fact Coach, Daily continuity, and Test Student regressions passed.
+
+Validated resilience behaviors:
+- Visible app shell is rendered before store creation / remembered-login database work.
+- Teacher mode does not wait on remembered student-login restoration.
+- Remembered login restores student + class with one lightweight PostgREST relationship read, with a safe compatibility fallback.
+- Temporary HTTP/network failure does not clear the browser's valid 30-day login token.
+- Saved-login retry control is available after a temporary restore failure.
+- PostgREST client waits are bounded to 6 seconds when ClientOptions is supported.
+- Hard timeouts receive at most one retry; immediate connection/read resets retain the existing short retry behavior.
+- Slow-operation timing logs contain only operation label + duration.
+- Streamlit pinned to 1.61.1; supabase-py pinned to 2.28.3 for this resilience deployment.
+- Daily challenge version remains TDFC-DAILY-v1.
+
+Drift check:
+- No SQL files changed.
+- All 5 browser component files are unchanged from v2.11.0.
+- Fact Coach, adaptive engine, weekly Mystery, standards catalog, persistent-token cryptography, and teacher insight rules are unchanged.
+- No Yahtzee files are included.
+
+No new Supabase SQL migration. No new Streamlit Secret.

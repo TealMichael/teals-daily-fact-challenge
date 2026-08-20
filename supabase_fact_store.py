@@ -16,8 +16,13 @@ import httpx
 
 try:
     from supabase import Client, create_client
+    try:
+        from supabase.client import ClientOptions
+    except ImportError:  # Compatibility with older supabase-py package layouts.
+        from supabase.lib.client_options import ClientOptions
 except ImportError:  # Local/offline Practice can still load before dependencies are installed.
     Client = object  # type: ignore[assignment]
+    ClientOptions = None  # type: ignore[assignment]
 
     def create_client(*_args, **_kwargs):
         raise RuntimeError("The supabase package is not installed. Install requirements.txt for Daily accounts.")
@@ -49,6 +54,35 @@ from fact_store import (
     verify_pin,
     validate_pin,
 )
+
+
+# Classroom pages should fail visibly instead of sitting behind a spinner for an
+# unbounded network wait. Normal Supabase reads are far below this threshold;
+# a request that reaches it is already an infrastructure problem.
+POSTGREST_TIMEOUT_SECONDS = 6
+STORAGE_TIMEOUT_SECONDS = 6
+
+
+def _create_supabase_client(url: str, key: str):
+    """Create a server-side client with bounded request waits when supported.
+
+    ClientOptions has moved between supabase-py releases and had a historical
+    regression in one release line. Keep a safe fallback so resilience settings
+    can never make the app fail to boot.
+    """
+    if ClientOptions is not None:
+        try:
+            options = ClientOptions(
+                postgrest_client_timeout=POSTGREST_TIMEOUT_SECONDS,
+                storage_client_timeout=STORAGE_TIMEOUT_SECONDS,
+                schema="public",
+                auto_refresh_token=False,
+                persist_session=False,
+            )
+            return create_client(url, key, options=options)
+        except (TypeError, AttributeError):
+            pass
+    return create_client(url, key)
 
 
 def normalize_supabase_url(value: str) -> str:
@@ -137,7 +171,13 @@ def _retry_transient(operation: Callable[[], _T], *, attempts: int = 4) -> _T:
             last_exc = exc
             if not _is_transient_http_error(exc) or attempt >= attempts - 1:
                 raise
-            # Keep retries short enough that a student sees a brief pause rather than an error page.
+            # A hard timeout already consumed several seconds. Give it only one
+            # retry so a degraded backend cannot hold a classroom page behind a
+            # spinner for four full timeout windows. Immediate connection/read
+            # resets can still use the existing short retry sequence.
+            timeout_types = (httpx.ReadTimeout, httpx.ConnectTimeout, httpx.PoolTimeout)
+            if isinstance(exc, timeout_types) and attempt >= 1:
+                raise
             delay = (0.12 * (2 ** attempt)) + random.uniform(0.0, 0.06)
             time.sleep(delay)
     assert last_exc is not None
@@ -319,7 +359,7 @@ class SupabaseFactStore:
         if not key:
             raise ValueError("SUPABASE_SECRET_KEY is missing.")
         self.url_was_normalized = url != str(supabase_url or "").strip().rstrip("/")
-        self.client: Client = client or create_client(url, key)
+        self.client: Client = client or _create_supabase_client(url, key)
 
     @classmethod
     def from_secrets(cls, secrets: Mapping[str, str]) -> "SupabaseFactStore":
@@ -378,6 +418,18 @@ class SupabaseFactStore:
             query = query.eq("active", True)
         rows = _rows(query.order("class_name").execute())
         return [_class(row) for row in rows]
+
+    def get_class(self, class_id: str) -> ClassRecord:
+        row = _first(_retry_transient(lambda: (
+            self.client.table("classes")
+            .select("class_id,class_name,class_code,active,created_at")
+            .eq("class_id", str(class_id))
+            .limit(1)
+            .execute()
+        ), attempts=2))
+        if row is None:
+            raise NotFound("Class not found.")
+        return _class(row)
 
     def set_class_active(self, class_id: str, active: bool) -> ClassRecord:
         row = _first(
@@ -451,6 +503,41 @@ class SupabaseFactStore:
         if row is None:
             raise NotFound("Student not found.")
         return _student(row)
+
+    def get_student_login_context(self, student_id: str) -> tuple[StudentRecord, ClassRecord]:
+        """Load the remembered student and their class in one lightweight read.
+
+        This is intentionally separate from get_student(): startup should not fetch
+        the whole active class list just to restore one student's 30-day login.
+        """
+        try:
+            row = _first(_retry_transient(lambda: (
+                self.client.table("students")
+                .select(
+                    "student_id,class_id,nickname,pin_code,active,created_at,is_test,"
+                    "classes(class_id,class_name,class_code,active,created_at)"
+                )
+                .eq("student_id", str(student_id))
+                .limit(1)
+                .execute()
+            ), attempts=2))
+            if row is None:
+                raise NotFound("Student not found.")
+            student = _student(row)
+            class_row = row.get("classes")
+            if isinstance(class_row, list):
+                class_row = class_row[0] if class_row else None
+            if isinstance(class_row, Mapping):
+                return student, _class(class_row)
+        except NotFound:
+            raise
+        except Exception as exc:
+            if _is_transient_http_error(exc):
+                raise
+            # If a deployment happens against an unusual PostgREST relationship
+            # configuration, preserve login compatibility rather than failing hard.
+        student = self.get_student(student_id)
+        return student, self.get_class(student.class_id)
 
     def get_test_student(self, class_id: str | None = None) -> StudentRecord | None:
         query = self.client.table("students").select("student_id,class_id,nickname,pin_code,active,created_at,is_test").eq("is_test", True)

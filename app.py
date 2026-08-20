@@ -5,6 +5,7 @@ import html
 import hmac
 import random
 import re
+import time
 from pathlib import Path
 from urllib.parse import urlencode, quote
 
@@ -430,6 +431,22 @@ def get_store() -> SupabaseFactStore | None:
         return None
 
 
+def _timed_app_call(label: str, operation, *, log_after_seconds: float = 1.0):
+    """Run one app operation and emit a privacy-safe timing line only when it is slow.
+
+    The log deliberately contains no nickname, class name, PIN, question, or answer.
+    It gives us something useful to inspect in Streamlit Cloud after an intermittent
+    spinner instead of guessing whether startup, Supabase, or a page render stalled.
+    """
+    started = time.perf_counter()
+    try:
+        return operation()
+    finally:
+        elapsed = time.perf_counter() - started
+        if elapsed >= float(log_after_seconds):
+            print(f"[TDFC timing] {label}: {elapsed:.2f}s", flush=True)
+
+
 def teacher_password_configured() -> bool:
     try:
         return bool(str(st.secrets.get("TEACHER_PASSWORD") or "").strip())
@@ -464,6 +481,7 @@ def init_state() -> None:
         "persistent_login_pending_action": None,
         "persistent_login_check_complete": False,
         "persistent_login_reader_nonce": 0,
+        "persistent_login_restore_error": None,
         "warmup_feedback": None,
         "warmup_just_completed": None,
         "teacher_warmup_export_ready": False,
@@ -558,22 +576,34 @@ def handle_persistent_student_login(store: SupabaseFactStore | None) -> None:
     try:
         # The signed payload tells us which student to load; validation still
         # requires the student's current visible PIN and active class/account.
+        # v2.11.0.1 restores the student + class in one PostgREST read instead
+        # of loading the student and then the entire class list.
         student_id = peek_student_id(token)
         if not student_id:
             raise ValueError("Missing student id")
-        student = store.get_student(student_id)
-        if not student.active:
-            raise ValueError("Inactive student")
+        student, class_record = _timed_app_call(
+            "remembered_login_db",
+            lambda: store.get_student_login_context(student_id),
+            log_after_seconds=0.75,
+        )
+        if not student.active or not class_record.active:
+            raise ValueError("Inactive student or class")
         payload = verify_student_token(token, student.pin_code, _persistent_login_secret())
         if payload is None:
             raise ValueError("Expired or invalid remembered login")
-        classes = store.list_classes()
-        class_record = next((item for item in classes if item.class_id == student.class_id), None)
-        if class_record is None:
-            raise ValueError("Student class is not active")
         _set_student_session(student, class_record)
+        st.session_state.persistent_login_restore_error = None
         st.rerun()
-    except Exception:
+    except Exception as exc:
+        if _is_transient_classroom_error(exc):
+            # A temporary network problem should never erase a valid 30-day token.
+            # Let the student sign in manually now or retry the saved sign-in.
+            st.session_state.persistent_login_restore_error = (
+                "The saved sign-in is taking longer than usual. You can try it again or sign in below."
+            )
+            st.session_state.persistent_login_check_complete = True
+            return
+        st.session_state.persistent_login_restore_error = None
         st.session_state.persistent_login_pending_action = {"action": "clear"}
         st.session_state.persistent_login_check_complete = False
         st.rerun()
@@ -723,8 +753,19 @@ def render_student_sign_in(store: SupabaseFactStore | None) -> bool:
         render_db_setup_message()
         return False
 
+    restore_error = st.session_state.get("persistent_login_restore_error")
+    if restore_error:
+        st.warning(str(restore_error))
+        if st.button("Try saved sign-in again", use_container_width=True, key="retry_saved_student_login"):
+            st.session_state.persistent_login_restore_error = None
+            st.session_state.persistent_login_check_complete = False
+            st.session_state.persistent_login_reader_nonce = int(
+                st.session_state.get("persistent_login_reader_nonce", 0)
+            ) + 1
+            st.rerun()
+
     try:
-        classes = store.list_classes()
+        classes = _timed_app_call("student_signin_classes", store.list_classes, log_after_seconds=0.75)
     except Exception as exc:
         st.error("The class database could not be loaded. Ask your teacher to check the app setup.")
         if str(st.query_params.get("dbcheck", "0")) == "1":
@@ -3858,14 +3899,23 @@ def maybe_render_db_diagnostic(store: SupabaseFactStore | None) -> None:
             st.exception(exc)
 
 
-store = get_store()
-handle_persistent_student_login(store)
+# Render the visible shell before any database-dependent startup work.  If
+# Streamlit or Supabase is slow, students should see the Fact Challenge title
+# and navigation rather than a blank page with only the framework spinner.
 mode = render_header()
+store = _timed_app_call("create_store", get_store, log_after_seconds=0.75)
+if mode != "Teacher":
+    _timed_app_call(
+        "remembered_login",
+        lambda: handle_persistent_student_login(store),
+        log_after_seconds=0.75,
+    )
+    mode = st.session_state.app_mode
 maybe_render_db_diagnostic(store)
 
 if mode == "Daily Challenge":
-    render_daily(store)
+    _timed_app_call("render_daily", lambda: render_daily(store), log_after_seconds=1.25)
 elif mode == "Practice":
-    render_practice(store)
+    _timed_app_call("render_practice", lambda: render_practice(store), log_after_seconds=1.25)
 else:
-    render_teacher(store)
+    _timed_app_call("render_teacher", lambda: render_teacher(store), log_after_seconds=1.25)

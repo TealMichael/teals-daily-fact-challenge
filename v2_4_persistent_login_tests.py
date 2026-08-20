@@ -27,13 +27,13 @@ def run():
     checks["student id can be peeked before validation"] = peek_student_id(token) == student_id
     checks["PIN not present in browser token"] = pin not in token
 
-    checks["version 2.6"] = 'APP_VERSION = "2.11.0"' in ENGINE
+    checks["version 2.6"] = 'APP_VERSION = "2.11.0.1"' in ENGINE
     checks["remember checkbox shown"] = "Keep me signed in on this device for {REMEMBER_DAYS} days" in APP
     checks["shared-device warning shown"] = "Leave this unchecked on a shared device" in APP
     checks["sign out clears remembered login"] = 'persistent_login_pending_action = {"action": "clear"}' in APP
     checks["manual nonremembered login clears old token"] = "sign-in without the checkbox deliberately clears that old login" in APP and 'persistent_login_pending_action = {"action": "clear"}' in APP
     checks["remembered login re-checks active student"] = "if not student.active" in APP
-    checks["remembered login re-checks active class"] = "Student class is not active" in APP
+    checks["remembered login re-checks active class"] = "not class_record.active" in APP
     checks["current PIN verifies remembered token"] = "verify_student_token(token, student.pin_code" in APP
     checks["no PIN stored by browser component"] = "pin" not in COMPONENT.lower()
     checks["browser component uses localStorage"] = "localStorage.setItem" in COMPONENT and "localStorage.getItem" in COMPONENT

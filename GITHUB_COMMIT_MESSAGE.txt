@@ -1,1 +1,1 @@
-v2.11.0 - simplify fact fluency data and add Igniter standards history
+v2.11.0.1 - add startup and Supabase resilience
