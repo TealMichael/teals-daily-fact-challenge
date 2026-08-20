@@ -16,7 +16,7 @@ def section(name: str, next_name: str | None = None) -> str:
 
 def run():
     checks = {}
-    checks["version 2.9.3"] = APP_VERSION == "2.11.0.1"
+    checks["version 2.9.3"] = APP_VERSION == "2.11.0.2"
 
     mastery = section("render_teacher_mastery_focus", "render_teacher_classes")
     fluency = section("_render_teacher_fact_fluency", "_render_teacher_standards_tracker")

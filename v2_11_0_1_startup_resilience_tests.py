@@ -7,7 +7,7 @@ ENGINE = (ROOT / "fact_engine.py").read_text()
 REQ = (ROOT / "requirements.txt").read_text()
 
 checks = {}
-checks["version bumped"] = 'APP_VERSION = "2.11.0.1"' in ENGINE
+checks["version bumped"] = 'APP_VERSION = "2.11.0.2"' in ENGINE
 checks["challenge version unchanged"] = 'CHALLENGE_VERSION = "TDFC-DAILY-v1"' in ENGINE
 
 # Visible shell must be emitted before database/bootstrap work.
@@ -30,7 +30,7 @@ checks["transient branch does not clear token"] = 'persistent_login_pending_acti
 checks["manual retry visible"] = 'Try saved sign-in again' in APP
 
 # Bound network waits with a safe compatibility fallback.
-checks["postgrest timeout"] = "POSTGREST_TIMEOUT_SECONDS = 6" in STORE
+checks["postgrest timeout"] = "POSTGREST_TIMEOUT_SECONDS = 12" in STORE
 checks["client options"] = "postgrest_client_timeout=POSTGREST_TIMEOUT_SECONDS" in STORE
 checks["client options fallback"] = "return create_client(url, key)" in STORE
 checks["hard timeouts capped to one retry"] = "if isinstance(exc, timeout_types) and attempt >= 1" in STORE
@@ -45,4 +45,4 @@ checks["supabase pinned"] = "supabase==2.28.3" in REQ
 failed = [name for name, ok in checks.items() if not ok]
 if failed:
     raise AssertionError("Failed resilience checks: " + ", ".join(failed))
-print(f"v2.11.0.1 startup resilience regression: PASS ({len(checks)}/{len(checks)})")
+print(f"v2.11.0.2 startup resilience regression: PASS ({len(checks)}/{len(checks)})")

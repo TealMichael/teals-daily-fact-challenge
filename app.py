@@ -576,7 +576,7 @@ def handle_persistent_student_login(store: SupabaseFactStore | None) -> None:
     try:
         # The signed payload tells us which student to load; validation still
         # requires the student's current visible PIN and active class/account.
-        # v2.11.0.1 restores the student + class in one PostgREST read instead
+        # v2.11.0.2 keeps the student + class restore in one PostgREST read instead
         # of loading the student and then the entire class list.
         student_id = peek_student_id(token)
         if not student_id:
@@ -1511,7 +1511,37 @@ def _is_transient_classroom_error(exc: Exception) -> bool:
     ))
 
 
+def _connection_failure_kind(exc: Exception) -> str:
+    if isinstance(exc, (httpx.ReadTimeout, httpx.ConnectTimeout, httpx.PoolTimeout)):
+        return "timeout"
+    if isinstance(exc, httpx.ConnectError):
+        return "connect_error"
+    if isinstance(exc, httpx.ReadError):
+        return "read_error"
+    if isinstance(exc, httpx.RemoteProtocolError):
+        return "remote_protocol"
+    text = f"{type(exc).__name__}: {exc}".lower()
+    if "timeout" in text or "timed out" in text:
+        return "timeout"
+    if "connection reset" in text or "connecterror" in text or "connect error" in text:
+        return "connect_error"
+    if "server disconnected" in text or "remoteprotocolerror" in text:
+        return "remote_protocol"
+    if "readerror" in text or "read error" in text:
+        return "read_error"
+    if _is_transient_classroom_error(exc):
+        return "transient_transport"
+    return "unexpected"
+
+
+def _log_private_connection_failure(label: str, exc: Exception) -> None:
+    """Log only a coarse failure class + exception type; never student data."""
+    kind = _connection_failure_kind(exc)
+    print(f"[TDFC connection] {label}: {kind} ({type(exc).__name__})", flush=True)
+
+
 def render_classroom_connection_retry(exc: Exception, *, key: str = "classroom_retry") -> None:
+    _log_private_connection_failure("completed_daily", exc)
     if _is_transient_classroom_error(exc):
         st.warning("The classroom connection is busy for a moment. Your completed Daily is still saved.")
         st.caption("Wait a second and try again — you do not need to redo your 10 facts.")
@@ -1519,6 +1549,17 @@ def render_classroom_connection_retry(exc: Exception, *, key: str = "classroom_r
         st.error("This part of the finished screen hit an unexpected display error. Your completed Daily is still saved.")
         st.caption("Refresh once and try again. If it keeps happening, your teacher can report it without redoing the Daily 10.")
     if st.button("Try again", use_container_width=True, type="primary", key=key):
+        st.rerun()
+    if str(st.query_params.get("dbcheck", "0")) == "1":
+        st.exception(exc)
+
+
+def render_daily_load_retry(exc: Exception) -> None:
+    """Recover from a temporary Daily-load failure without losing student state."""
+    _log_private_connection_failure("daily_load", exc)
+    st.warning("Having trouble reaching today's Daily 10.")
+    st.caption("Your sign-in and any completed Igniter work are safe. Tap Try Again to retry without signing out.")
+    if st.button("🔄 Try Again", use_container_width=True, type="primary", key="retry_daily_load"):
         st.rerun()
     if str(st.query_params.get("dbcheck", "0")) == "1":
         st.exception(exc)
@@ -1736,9 +1777,7 @@ def render_daily(store: SupabaseFactStore | None) -> None:
         day, facts, challenge = ensure_today(store)
         attempt = store.get_or_create_attempt(st.session_state.student_id, challenge.challenge_id)
     except Exception as exc:
-        st.error("Today's challenge could not be loaded. Your teacher can check the hidden database diagnostic if needed.")
-        if str(st.query_params.get("dbcheck", "0")) == "1":
-            st.exception(exc)
+        render_daily_load_retry(exc)
         return
 
     if attempt.completed_at is not None:

@@ -1,1 +1,1 @@
-v2.11.0.1 - add startup and Supabase resilience
+v2.11.0.2 - make Daily loading recoverable during slow connections

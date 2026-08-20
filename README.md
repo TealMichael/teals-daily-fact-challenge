@@ -1,5 +1,15 @@
 # Teal's Daily Fact Challenge
 
+## v2.11.0.2 — Daily-Load Resilience Hotfix
+
+- Raises the resilience timeout from 6 seconds to **12 seconds** so a normal temporary Supabase slowdown is less likely to fail too aggressively.
+- Hard timeouts still receive at most one retry, keeping waits bounded.
+- Replaces the Daily-load dead-end error with a clear **🔄 Try Again** recovery path that keeps the student signed in and preserves completed Igniter work.
+- Adds privacy-safe connection failure classification to Streamlit logs for troubleshooting without logging student data.
+- Keeps all multiplication learning rules, Daily challenge generation, teacher data, Mystery, rankings, and database schema unchanged.
+- Still based on the v2.11.0 branch; the paused v2.11.1 Stability/Foundation refactor is not included.
+- No SQL migration and no new Streamlit Secret.
+
 ## v2.11.0 — Afterschool Teacher Data Update
 
 - Replaces the crowded teacher **Mastery & Focus** entry with **📈 Learning Data**, built around two clear views: **⚡ Fact Fluency** and **📚 Standards Tracker**.

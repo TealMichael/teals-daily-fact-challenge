@@ -59,8 +59,8 @@ from fact_store import (
 # Classroom pages should fail visibly instead of sitting behind a spinner for an
 # unbounded network wait. Normal Supabase reads are far below this threshold;
 # a request that reaches it is already an infrastructure problem.
-POSTGREST_TIMEOUT_SECONDS = 6
-STORAGE_TIMEOUT_SECONDS = 6
+POSTGREST_TIMEOUT_SECONDS = 12
+STORAGE_TIMEOUT_SECONDS = 12
 
 
 def _create_supabase_client(url: str, key: str):

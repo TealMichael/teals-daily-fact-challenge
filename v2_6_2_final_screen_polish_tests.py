@@ -4,7 +4,7 @@ APP = Path("app.py").read_text()
 ENGINE = Path("fact_engine.py").read_text()
 
 checks = {
-    "version bumped": 'APP_VERSION = "2.11.0.1"' in ENGINE,
+    "version bumped": 'APP_VERSION = "2.11.0.2"' in ENGINE,
     "day complete does not render duplicate mystery strip": 'def render_day_complete' in APP and 'render_routine_strip("mystery")' not in APP[APP.index('def render_day_complete'):APP.index('def _is_transient_classroom_error')],
     "single mystery reward heading": '## 🕵️ Today\'s Mystery Reward' in APP,
     "mystery renderer can suppress inner heading": 'show_heading: bool = True' in APP and 'if show_heading:' in APP,

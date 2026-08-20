@@ -1,26 +1,34 @@
-TEAL'S DAILY FACT CHALLENGE v2.11.0.1
-STARTUP RESILIENCE PASS
+TEAL'S DAILY FACT CHALLENGE v2.11.0.2
+DAILY-LOAD RESILIENCE HOTFIX
 
 IMPORTANT BASE:
-- This release is built directly on v2.11.0.
+- This release is built on v2.11.0.1 Startup Resilience.
 - v2.11.1 Stability/Foundation is intentionally NOT included yet.
 - This package changes only Teal's Daily Fact Challenge, not Yahtzee.
 
-UPDATING FROM v2.11.0:
+UPDATING FROM v2.11.0.1:
 1. There is NO new Supabase SQL migration.
 2. There is NO new Streamlit Secret.
 3. Upload/replace every file and folder in this package's UPLOAD_TO_GITHUB directory to the existing GitHub repository root.
-4. Let Streamlit perform a full redeploy so the pinned dependency versions are installed.
-5. Do not separately install the paused v2.11.1 package.
+4. Let Streamlit redeploy.
+5. Do not separately install the paused v2.11.1 package yet.
 
 QUICK CHECK AFTER DEPLOYMENT:
-- Open the app on a device with a remembered student login. The Teal's Daily Fact Challenge shell should appear before backend restore work completes.
-- If saved-login restoration hits a temporary connection failure, the app should offer "Try saved sign-in again" instead of deleting the remembered login.
-- Student Daily/Teacher pages should otherwise look and behave like v2.11.0.
-- If an intermittent spinner occurs, check Streamlit logs for lines beginning with: [TDFC timing]
+- Sign in as a student and enter Today.
+- Daily 10 should load normally when the backend is responsive.
+- If Daily loading temporarily fails, the student should see “Having trouble reaching today's Daily 10.” plus a large “🔄 Try Again” button.
+- Tapping Try Again should keep the student signed in and should not require a completed Igniter to be redone.
+- For troubleshooting, Streamlit logs can show privacy-safe lines beginning with: [TDFC connection]
+
+RESILIENCE SETTINGS:
+- PostgREST timeout: 12 seconds
+- Storage timeout: 12 seconds
+- Hard timeout retry: at most one retry
+- Streamlit remains pinned to 1.61.1
+- supabase-py remains pinned to 2.28.3
 
 NO SQL TO RUN.
 NO NEW SECRET.
 
 Suggested GitHub commit:
-v2.11.0.1 - add startup and Supabase resilience
+v2.11.0.2 - make Daily loading recoverable during slow connections
