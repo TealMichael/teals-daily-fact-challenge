@@ -7,11 +7,13 @@ from weekly_mystery import MYSTERIES, mystery_for_key, mystery_from_plan, myster
 ROOT = Path(__file__).resolve().parent
 APP = (ROOT / "app.py").read_text(encoding="utf-8")
 STORE = (ROOT / "supabase_fact_store.py").read_text(encoding="utf-8")
+LEARNING = (ROOT / "teacher_learning_ui.py").read_text(encoding="utf-8")
+ALL_UI = APP + "\n" + LEARNING
 
 
 def run():
     checks = {}
-    checks["version 2.7.0"] = APP_VERSION == "2.11.0.3"
+    checks["version 2.7.0"] = APP_VERSION == "2.11.2"
 
     # Friday is a real fifth clue, with no skipped-day backfill.
     checks["all bank mysteries resolve to five clues"] = all(len(mystery_for_key(item.key).clues) == 5 for item in MYSTERIES)
@@ -52,18 +54,18 @@ def run():
     checks["student leaderboard labeled current"] = "### 🏆 Current Top 10" in APP
 
     # Learning Data is decision-oriented and transparent about evidence.
-    checks["fact fluency summary"] = "⚡ Fact Fluency" in APP and "Students to Pull" in APP
-    checks["accuracy and time are separated"] = "Accuracy comes first" in APP and "Accurate, Still Slow" in APP
-    checks["building alone is not intervention"] = "This is not automatically an intervention flag" in APP
-    checks["true class map"] = "Advanced fact map & class-wide Focus controls" in APP and "Fact map filter" in APP
-    checks["fact detail"] = "Look Up a Fact" in APP and "Independent accuracy across recorded attempts" in APP
-    checks["strategy connection"] = "Teaching move for" in APP
-    checks["quick focus action"] = "Optional: assign a Focus fact family" in APP
-    checks["student detail"] = "Look Up a Student" in APP and "Inspect one fact" in APP
-    checks["standards tracker"] = "Igniter Standards Tracker" in APP and "Student History" in APP
-    checks["manual controls secondary"] = "Advanced fact map & class-wide Focus controls" in APP and "Class-wide Focus overrides" in APP
-    checks["teaching/data explanation"] = "How the app teaches & uses data" in APP
-    checks["no placement test claim"] = "No placement test" in APP
+    checks["fact fluency summary"] = "⚡ Fact Fluency" in ALL_UI and "Students to Pull" in ALL_UI
+    checks["accuracy and time are separated"] = "Accuracy comes first" in ALL_UI and "Accurate, Still Slow" in ALL_UI
+    checks["building alone is not intervention"] = "This is not automatically an intervention flag" in ALL_UI
+    checks["true class map"] = "Advanced fact map & class-wide Focus controls" in ALL_UI and "Fact map filter" in ALL_UI
+    checks["fact detail"] = "Look Up a Fact" in ALL_UI and "Independent accuracy across recorded attempts" in ALL_UI
+    checks["strategy connection"] = "Teaching move for" in ALL_UI
+    checks["quick focus action"] = "Optional: assign a Focus fact family" in ALL_UI
+    checks["student detail"] = "Look Up a Student" in ALL_UI and "Inspect one fact" in ALL_UI
+    checks["standards tracker"] = "Igniter Standards Tracker" in ALL_UI and "Student History" in ALL_UI
+    checks["manual controls secondary"] = "Advanced fact map & class-wide Focus controls" in ALL_UI and "Class-wide Focus overrides" in ALL_UI
+    checks["teaching/data explanation"] = "How the app teaches & uses data" in ALL_UI
+    checks["no placement test claim"] = "No placement test" in ALL_UI
 
     # Clear teacher wording.
     checks["teacher logout label"] = 'st.button("Log out"' in APP

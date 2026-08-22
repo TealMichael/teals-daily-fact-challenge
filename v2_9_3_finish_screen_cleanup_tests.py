@@ -12,7 +12,7 @@ completed_end = APP.index("\ndef render_login", completed_start) if "\ndef rende
 completed = APP[completed_start:completed_end]
 
 checks = {
-    "version 2.9.3": 'APP_VERSION = "2.11.0.3"' in ENGINE,
+    "version 2.9.3": 'APP_VERSION = "2.11.2"' in ENGINE,
     "mystery before top ten": finish.index("Today's Mystery Reward") < finish.index("render_final_top10_status"),
     "top ten before streak": finish.index("render_final_top10_status") < finish.index("Learning Streak"),
     "finished screen reuses cached leaderboard": "leaderboard_context=leaderboard_context" in APP,

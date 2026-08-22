@@ -119,3 +119,8 @@ def question_from_mapping(value: Mapping | None, slot: int) -> dict:
         options=value.get("options") or (),
         accepted_answers=value.get("accepted_answers") or (),
     )
+
+def question_for_slot(record, slot: int) -> dict:
+    """Return a defensive copy of one stored Igniter question."""
+    return dict(record.question_one if int(slot) == 1 else record.question_two)
+

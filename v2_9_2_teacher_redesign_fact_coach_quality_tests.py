@@ -6,20 +6,21 @@ from fact_coach import coach_plan
 ROOT = Path(__file__).resolve().parent
 APP = (ROOT / "app.py").read_text(encoding="utf-8")
 HTML = (ROOT / "guided_practice_component" / "index.html").read_text(encoding="utf-8")
+LEARNING_UI = (ROOT / "teacher_learning_ui.py").read_text(encoding="utf-8")
 
 
-def section(name: str, next_name: str | None = None) -> str:
-    start = APP.index(f"def {name}")
-    end = APP.index(f"\ndef {next_name}", start) if next_name else len(APP)
-    return APP[start:end]
+def section(name: str, next_name: str | None = None, source: str = APP) -> str:
+    start = source.index(f"def {name}")
+    end = source.index(f"\ndef {next_name}", start) if next_name else len(source)
+    return source[start:end]
 
 
 def run():
     checks = {}
-    checks["version 2.9.3"] = APP_VERSION == "2.11.0.3"
+    checks["version 2.9.3"] = APP_VERSION == "2.11.2"
 
-    mastery = section("render_teacher_mastery_focus", "render_teacher_classes")
-    fluency = section("_render_teacher_fact_fluency", "_render_teacher_standards_tracker")
+    mastery = section("render_teacher_mastery_focus", source=LEARNING_UI)
+    fluency = section("_render_teacher_fact_fluency", "_render_teacher_standards_tracker", LEARNING_UI)
     checks["learning data has two clear views"] = all(label in mastery for label in ["⚡ Fact Fluency", "📚 Standards Tracker"])
     checks["old four-view wall removed"] = "What Should I Teach?" not in mastery and "Who Needs Help?" not in mastery
     checks["fact fluency leads with pull group"] = "#### 🎯 Students to Pull" in fluency and "Why pull" in fluency

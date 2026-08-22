@@ -69,5 +69,5 @@ checks["Daily attempt mutation uses compatibility helper"] = 'row = _first(_exec
 
 failed = [name for name, ok in checks.items() if not ok]
 if failed:
-    raise AssertionError("Failed v2.11.0.3 compatibility checks: " + ", ".join(failed))
-print(f"v2.11.0.3 Supabase 2.28.3 compatibility: PASS ({len(checks)}/{len(checks)})")
+    raise AssertionError("Failed v2.11.2 compatibility checks: " + ", ".join(failed))
+print(f"v2.11.2 Supabase 2.28.3 compatibility: PASS ({len(checks)}/{len(checks)})")

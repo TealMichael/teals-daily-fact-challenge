@@ -11,12 +11,14 @@ from indiana_math_standards import (
 )
 
 ROOT = Path(__file__).resolve().parent
-APP = (ROOT / "app.py").read_text(encoding="utf-8")
+APP_CORE = (ROOT / "app.py").read_text(encoding="utf-8")
+WARMUP_UI = (ROOT / "teacher_warmup_ui.py").read_text(encoding="utf-8")
+APP = APP_CORE + "\n" + WARMUP_UI
 
 
 def run():
     checks = 0
-    assert APP_VERSION == "2.11.0.3"; checks += 1
+    assert APP_VERSION == "2.11.2"; checks += 1
 
     # Official-grade picker coverage: content standards across Grades 4–7.
     counts = Counter(item.grade for item in STANDARDS)
@@ -43,7 +45,7 @@ def run():
     assert "missed_both_ids = q1_wrong_completed & q2_wrong_completed" in APP; checks += 1
 
     # Execute the actual pure grouping helper from app.py without importing Streamlit.
-    tree = ast.parse(APP)
+    tree = ast.parse(WARMUP_UI)
     helper_nodes = [node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name in {"_warmup_name_list", "_warmup_grouping"}]
     ns = {}
     exec(compile(ast.Module(body=helper_nodes, type_ignores=[]), "app_grouping", "exec"), ns)
@@ -93,7 +95,7 @@ def run():
     assert '"Grade": grade_from_standard_code(row.standard_code)' in APP; checks += 1
     assert '"Date", "Class", "Nickname", "Question", "Question Type", "Grade", "Indiana Standard"' in APP; checks += 1
 
-    print(f"v2.11.0.3 standards/groups/Outlook regression: PASS ({checks} checks)")
+    print(f"v2.11.2 standards/groups/Outlook regression: PASS ({checks} checks)")
 
 
 if __name__ == "__main__":

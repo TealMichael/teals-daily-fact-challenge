@@ -1,39 +1,27 @@
-TEAL'S DAILY FACT CHALLENGE v2.11.0.3
-SUPABASE 2.28.3 COMPATIBILITY HOTFIX
+TEAL'S DAILY FACT CHALLENGE v2.11.2
+RESILIENT STABILITY / FOUNDATION PASS
 
-IMPORTANT BASE:
-- Built directly on v2.11.0.2 Daily-Load Resilience.
-- v2.11.1 Stability/Foundation is intentionally NOT included yet.
-- This package changes only Teal's Daily Fact Challenge, not Yahtzee.
-
-WHY THIS HOTFIX IS REQUIRED:
-- v2.11.0.1 pinned supabase-py to 2.28.3.
-- Existing app code used mutation chains such as insert(...).select("*").execute().
-- The 2.28.3 mutation builder does not expose .select(), causing Daily attempt creation to fail.
-- v2.11.0.3 makes all mutation-return paths compatible with the pinned version.
-
-UPDATING FROM v2.11.0.2:
+UPDATING FROM THE CURRENT WORKING v2.11.0.3:
 1. There is NO new Supabase SQL migration.
 2. There is NO new Streamlit Secret.
-3. Upload/replace every file and folder in this package's UPLOAD_TO_GITHUB directory to the existing GitHub repository root.
-4. Let Streamlit redeploy.
-5. Keep the paused v2.11.1 Stability/Foundation package uninstalled for now.
+3. Do not install the older v2.11.1 foundation ZIP first.
+4. Upload/replace every file and folder in this package's UPLOAD_TO_GITHUB directory to the existing GitHub repository root.
+5. Let Streamlit redeploy.
 
-QUICK CHECK AFTER DEPLOYMENT:
-- Sign in as a student and enter Today.
-- If the student has completed the Igniter, Daily 10 should create/load the Daily attempt normally.
-- The AttributeError mentioning SyncQueryRequestBuilder/select should be gone.
-- The v2.11.0.2 Try Again screen remains available for genuine temporary connection failures.
+WHAT YOU SHOULD NOTICE:
+- Ideally, nothing in the student or teacher experience changes.
+- Student sign-in, Igniter, Daily 10, Fix Misses, Focus, Mystery, Practice, rankings, and feedback should behave exactly as the working v2.11.0.3 app.
+- Teacher Today, Warm-Up/Igniter, Learning Data, standards history, rosters, Mystery, Student Support, Test Student, refresh, and Outlook workflow should behave exactly as v2.11.0.3.
+- The v2.11.0.1–v2.11.0.3 resilience protections remain in place.
 
-RESILIENCE SETTINGS RETAINED:
-- PostgREST timeout: 12 seconds
-- Storage timeout: 12 seconds
-- Hard timeout retry: at most one retry
-- Streamlit pinned to 1.61.1
-- supabase-py pinned to 2.28.3
+FOUNDATION CHANGES ONLY:
+- app.py is reduced from roughly 3,960 lines in v2.11.0.3 to roughly 2,935 lines.
+- Student Igniter, Teacher Warm-Up/Igniter, and Teacher Learning Data live in separate modules.
+- STABILITY_CONTRACT.md records protected workflow, privacy, data, and resilience rules.
+- release_guard.py provides a repeatable critical pre-release gate, including the resilience regressions.
+- No learning rule, scoring rule, Daily generator rule, database schema, browser component, or Supabase behavior was intentionally changed.
 
-NO SQL TO RUN.
-NO NEW SECRET.
+Do NOT rerun any prior RUN_THIS_ONCE_IN_SUPABASE SQL files.
 
 Suggested GitHub commit:
-v2.11.0.3 - fix Supabase 2.28.3 mutation compatibility
+v2.11.2 - rebase stability foundation on proven resilience build

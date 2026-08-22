@@ -1,14 +1,17 @@
 # Teal's Daily Fact Challenge
 
-## v2.11.0.3 — Supabase 2.28.3 Compatibility Hotfix
+## v2.11.2 — Resilient Stability / Foundation Pass
 
-- Raises the resilience timeout from 6 seconds to **12 seconds** so a normal temporary Supabase slowdown is less likely to fail too aggressively.
-- Hard timeouts still receive at most one retry, keeping waits bounded.
-- Replaces the Daily-load dead-end error with a clear **🔄 Try Again** recovery path that keeps the student signed in and preserves completed Igniter work.
-- Adds privacy-safe connection failure classification to Streamlit logs for troubleshooting without logging student data.
-- Keeps all multiplication learning rules, Daily challenge generation, teacher data, Mystery, rankings, and database schema unchanged.
-- Still based on the v2.11.0 branch; the paused v2.11.1 Stability/Foundation refactor is not included.
-- No SQL migration and no new Streamlit Secret.
+- **No intentional student or teacher UI/behavior changes.** This is the Stability/Foundation work rebuilt from the proven classroom **v2.11.0.3** resilience hotfix.
+- Preserves the v2.11.0.1–v2.11.0.3 protections: visible shell before database startup work, safer remembered-login recovery, bounded Supabase waits/retries, recoverable Daily-load retry, privacy-safe timing/connection diagnostics, pinned dependencies, and Supabase 2.28.3-compatible writes.
+- Splits three high-change surfaces out of the monolithic `app.py`: **student Igniter**, **Teacher Warm-Up/Igniter**, and **Teacher Learning Data**. Shared display helpers live in `ui_helpers.py`.
+- Reduces `app.py` from roughly **3,960 lines to 2,935 lines** while preserving the current routing and workflows.
+- Adds/updates `STABILITY_CONTRACT.md` so future releases explicitly protect both classroom behavior and the proven resilience behavior.
+- `release_guard.py` now runs the highest-value workflow/data/privacy tests **plus all three resilience/compatibility regressions** before packaging.
+- Keeps the corrected regression assumption that a collapsed Streamlit expander is visually collapsed but is not truly lazy execution.
+- The Supabase store, pinned dependency versions, adaptive engine, teacher insight logic, Fact Coach, Weekly Mystery logic, persistent-login token logic, Indiana standards catalog, all SQL, and all five browser components are unchanged from v2.11.0.3.
+- `fact_engine.py` changes only the displayed app version to `2.11.2`.
+- **No Supabase migration and no new Streamlit Secret.**
 
 ## v2.11.0 — Afterschool Teacher Data Update
 
@@ -36,7 +39,7 @@
 - No database schema or learning/mastery rules changed.
 
 
-## v2.10.1.1 — Indiana Standards + Warm-Up Small Groups + Outlook
+## v2.10.1 — Indiana Standards + Warm-Up Small Groups + Outlook
 
 - Replaces typed Warm-Up standard codes with a **searchable Indiana Mathematics standards picker for Grades 4–7**, using teacher-friendly summaries of the 2023 content standards. Recently used standards float to the top; **Other / Custom standard** remains available.
 - Saves the standard code and description with each Warm-Up response and adds **Grade** to the weekly CSV export.

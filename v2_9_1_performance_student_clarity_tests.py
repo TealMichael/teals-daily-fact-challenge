@@ -5,17 +5,18 @@ from fact_engine import APP_VERSION
 ROOT = Path(__file__).resolve().parent
 APP = (ROOT / "app.py").read_text(encoding="utf-8")
 STORE = (ROOT / "supabase_fact_store.py").read_text(encoding="utf-8")
+LEARNING_UI = (ROOT / "teacher_learning_ui.py").read_text(encoding="utf-8")
 
 
-def section(name: str, next_name: str | None = None) -> str:
-    start = APP.index(f"def {name}")
-    end = APP.index(f"\ndef {next_name}", start) if next_name else len(APP)
-    return APP[start:end]
+def section(name: str, next_name: str | None = None, source: str = APP) -> str:
+    start = source.index(f"def {name}")
+    end = source.index(f"\ndef {next_name}", start) if next_name else len(source)
+    return source[start:end]
 
 
 def run():
     checks = {}
-    checks["version 2.9.3"] = APP_VERSION == "2.11.0.3"
+    checks["version 2.9.3"] = APP_VERSION == "2.11.2"
 
     teacher = section("render_teacher", "maybe_render_db_diagnostic")
     checks["teacher dashboard is lazy"] = "st.tabs(" not in teacher and 'section = st.radio(' in teacher
@@ -25,7 +26,7 @@ def run():
         'elif section == "🛠️ Student Support"', 'render_teacher_test_student_launcher(store)'
     ])
 
-    today = section("render_teacher_today", "_override_label")
+    today = section("render_teacher_today", "render_teacher_classes")
     checks["today loads roster once"] = today.count("store.list_students(selected.class_id)") == 1
     checks["today reuses roster in status"] = "students=students" in today and "store.daily_status" in today
     checks["today reuses roster in progress"] = "store.class_learning_progress(selected.class_id, challenge.challenge_id, students=students)" in today
@@ -36,11 +37,11 @@ def run():
     projector = section("render_teacher_projector", "render_teacher_today")
     checks["projector derives leaderboard locally"] = "_leaderboard_from_status(status" in projector and "store.leaderboard(" not in projector
 
-    mastery = section("render_teacher_mastery_focus", "render_teacher_classes")
-    fluency = section("_render_teacher_fact_fluency", "_render_teacher_standards_tracker")
+    mastery = section("render_teacher_mastery_focus", source=LEARNING_UI)
+    fluency = section("_render_teacher_fact_fluency", "_render_teacher_standards_tracker", LEARNING_UI)
     checks["learning views are lazy"] = "_render_teacher_fact_fluency(store, selected, students)" in mastery and "_render_teacher_standards_tracker(store, selected, students)" in mastery
     checks["fact fluency uses one detail dataset"] = "class_mastery_summary" not in fluency and fluency.count("class_mastery_detail(selected.class_id, students=students)") == 1
-    checks["manual focus controls truly lazy"] = 'with st.expander("⚙️ Advanced fact map & class-wide Focus controls", expanded=False):' in fluency
+    checks["advanced controls visually collapsed"] = 'with st.expander("⚙️ Advanced fact map & class-wide Focus controls", expanded=False):' in fluency
 
     practice = section("render_practice", "teacher_login")
     checks["practice lifetime summary query removed"] = "practice_summary(" not in practice

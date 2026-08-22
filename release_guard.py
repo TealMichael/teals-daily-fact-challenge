@@ -1,0 +1,43 @@
+from __future__ import annotations
+
+"""Run the highest-value release checks before packaging a deployment."""
+
+from pathlib import Path
+import py_compile
+import subprocess
+import sys
+
+ROOT = Path(__file__).resolve().parent
+CRITICAL_SUITES = [
+    "package_smoke_tests.py",
+    "security_schema_tests.py",
+    "store_tests.py",
+    "ui_contract_tests.py",
+    "component_contract_tests.py",
+    "teacher_workflow_tests.py",
+    "v2_11_2_foundation_stability_tests.py",
+    "v2_11_0_1_startup_resilience_tests.py",
+    "v2_11_0_2_daily_load_resilience_hotfix_tests.py",
+    "v2_11_0_3_supabase_2283_compatibility_tests.py",
+    "v2_11_afterschool_teacher_data_tests.py",
+    "v2_10_warmup_trial_tests.py",
+    "v2_9_raffle_typo_test_student_tests.py",
+    "v2_classroom_scale_tests.py",
+]
+
+
+def run() -> None:
+    py_files = sorted(ROOT.glob("*.py"))
+    for path in py_files:
+        py_compile.compile(str(path), doraise=True)
+    print(f"PASS: compiled {len(py_files)} Python files")
+
+    for suite in CRITICAL_SUITES:
+        result = subprocess.run([sys.executable, str(ROOT / suite)], cwd=ROOT)
+        if result.returncode:
+            raise SystemExit(result.returncode)
+    print(f"release_guard: PASS ({len(CRITICAL_SUITES)} critical suites)")
+
+
+if __name__ == "__main__":
+    run()

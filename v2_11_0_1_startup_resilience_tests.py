@@ -7,7 +7,7 @@ ENGINE = (ROOT / "fact_engine.py").read_text()
 REQ = (ROOT / "requirements.txt").read_text()
 
 checks = {}
-checks["version bumped"] = 'APP_VERSION = "2.11.0.3"' in ENGINE
+checks["version bumped"] = 'APP_VERSION = "2.11.2"' in ENGINE
 checks["challenge version unchanged"] = 'CHALLENGE_VERSION = "TDFC-DAILY-v1"' in ENGINE
 
 # Visible shell must be emitted before database/bootstrap work.
@@ -45,4 +45,4 @@ checks["supabase pinned"] = "supabase==2.28.3" in REQ
 failed = [name for name, ok in checks.items() if not ok]
 if failed:
     raise AssertionError("Failed resilience checks: " + ", ".join(failed))
-print(f"v2.11.0.3 startup resilience regression: PASS ({len(checks)}/{len(checks)})")
+print(f"v2.11.2 startup resilience regression: PASS ({len(checks)}/{len(checks)})")

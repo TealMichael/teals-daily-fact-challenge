@@ -20,13 +20,16 @@ from teacher_insights import (
 
 ROOT = Path(__file__).resolve().parent
 APP = (ROOT / "app.py").read_text(encoding="utf-8")
+LEARNING_UI = (ROOT / "teacher_learning_ui.py").read_text(encoding="utf-8")
+WARMUP_UI = (ROOT / "teacher_warmup_ui.py").read_text(encoding="utf-8")
+STUDENT_IGNITER = (ROOT / "student_igniter_ui.py").read_text(encoding="utf-8")
 SUPABASE = (ROOT / "supabase_fact_store.py").read_text(encoding="utf-8")
 
 
-def section(name: str, next_name: str | None = None) -> str:
-    start = APP.index(f"def {name}")
-    end = APP.index(f"\ndef {next_name}", start) if next_name else len(APP)
-    return APP[start:end]
+def section(name: str, next_name: str | None = None, source: str = APP) -> str:
+    start = source.index(f"def {name}")
+    end = source.index(f"\ndef {next_name}", start) if next_name else len(source)
+    return source[start:end]
 
 
 def snap(a, b, evidence, correct, acc, seconds, streak, status):
@@ -38,7 +41,7 @@ def snap(a, b, evidence, correct, acc, seconds, streak, status):
 
 def run():
     checks = {}
-    checks["version 2.11.0.3"] = APP_VERSION == "2.11.0.3"
+    checks["version 2.11.2"] = APP_VERSION == "2.11.2"
 
     known = snap(2, 2, 5, 5, 0.96, 3.2, 5, STATUS_FLUENT)
     slow = snap(3, 4, 5, 5, 0.95, 7.1, 4, STATUS_BUILDING)
@@ -75,28 +78,28 @@ def run():
     checks["standard history calculates accuracy"] = by_id["s1"]["correct"] == 1 and by_id["s1"]["accuracy"] == 0.5
     checks["standard history includes all current students"] = set(by_id) == {"s1", "s2"}
 
-    learning = section("render_teacher_mastery_focus", "render_teacher_classes")
+    learning = section("render_teacher_mastery_focus", source=LEARNING_UI)
     checks["learning page has two simple views"] = all(text in learning for text in ["⚡ Fact Fluency", "📚 Standards Tracker"])
     checks["old four-view wall removed"] = all(text not in learning for text in ["What Should I Teach?", "Who Needs Help?"])
     checks["teacher nav renamed"] = '"📈 Learning Data"' in APP
 
-    fluency = section("_render_teacher_fact_fluency", "_render_teacher_standards_tracker")
+    fluency = section("_render_teacher_fact_fluency", "_render_teacher_standards_tracker", LEARNING_UI)
     checks["fluency leads with students to pull"] = "#### 🎯 Students to Pull" in fluency
     checks["fluency uses response time"] = "Typical correct recall" in fluency and "Accurate, Still Slow" in fluency
     checks["fluency retains detailed drilldown"] = "🔎 Fact & student detail" in fluency
     checks["advanced controls retained but collapsed"] = "⚙️ Advanced fact map & class-wide Focus controls" in fluency
 
-    standards = section("_render_teacher_standards_tracker", "render_teacher_mastery_focus")
+    standards = section("_render_teacher_standards_tracker", "render_teacher_mastery_focus", LEARNING_UI)
     checks["standards dropdown"] = 'st.selectbox(\n        "Indiana standard"' in standards
     checks["standards student history"] = "#### Student History" in standards and "One Student's Evidence" in standards
     checks["standards avoids mastery overclaim"] = "not an automatic mastery claim" in standards
     checks["standards uses school-year evidence"] = "_school_year_start(today)" in standards and "store.list_warmup_answers(start_date, today" in standards
 
-    warmup_teacher = section("render_teacher_warmup", "render_teacher_test_student_launcher")
-    checks["warmup has true refresh button"] = '_teacher_refresh_control(key="teacher_warmup_refresh")' in warmup_teacher
-    checks["warmup refresh finishes after result read"] = warmup_teacher.index("_warmup_class_snapshot") < warmup_teacher.index("_finish_teacher_refresh()")
+    warmup_teacher = section("render_teacher_warmup", source=WARMUP_UI)
+    checks["warmup has true refresh button"] = 'refresh_control(key="teacher_warmup_refresh")' in warmup_teacher
+    checks["warmup refresh finishes after result read"] = warmup_teacher.index("_warmup_class_snapshot") < warmup_teacher.index("finish_refresh()")
 
-    student_warmup = section("render_quick_warmup", "render_daily")
+    student_warmup = section("render_quick_warmup", source=STUDENT_IGNITER)
     checks["question feedback says correct"] = 'st.success("✅ Correct!")' in student_warmup
     checks["question feedback says not quite"] = 'st.error(f"❌ Not quite. The answer is {answer_text}.")' in student_warmup
     checks["completion is neutral info"] = 'st.markdown("## 🧠 Igniter complete!")' in student_warmup and 'st.info("Both questions are finished. Ready for your Daily 10!")' in student_warmup

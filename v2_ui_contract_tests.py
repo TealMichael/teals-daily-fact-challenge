@@ -2,7 +2,7 @@ from pathlib import Path
 
 
 def run():
-    app = Path("app.py").read_text(encoding="utf-8")
+    app = Path("app.py").read_text(encoding="utf-8") + "\n" + Path("teacher_learning_ui.py").read_text(encoding="utf-8")
     engine = Path("adaptive_engine.py").read_text(encoding="utf-8")
     migration = Path("RUN_THIS_ONCE_IN_SUPABASE_v2.sql").read_text(encoding="utf-8").lower()
 

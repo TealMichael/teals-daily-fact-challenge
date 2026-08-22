@@ -7,11 +7,12 @@ ROOT = Path(__file__).resolve().parent
 APP = (ROOT / "app.py").read_text(encoding="utf-8")
 GUIDED = (ROOT / "guided_practice_component" / "index.html").read_text(encoding="utf-8")
 COACH = (ROOT / "fact_coach.py").read_text(encoding="utf-8")
+UI_HELPERS = (ROOT / "ui_helpers.py").read_text(encoding="utf-8")
 
 
 def run():
     checks = {}
-    checks["version 2.8.0"] = APP_VERSION == "2.11.0.3"
+    checks["version 2.8.0"] = APP_VERSION == "2.11.2"
     checks["coach module imported"] = "from fact_coach import" in APP
     checks["guided items receive coach plan"] = '"coach": coach_plan_for_fact(fact)' in APP
     checks["fix starts in coach"] = 'start_state="coach"' in APP
@@ -80,7 +81,7 @@ def run():
     checks["keyboard retained"] = "document.addEventListener('keydown'" in GUIDED
 
     # Teacher-facing strategy text now uses the same plan rather than a contradictory square-fact rule.
-    checks["teacher strategy aligned to coach"] = "plan = coach_plan(fact.a, fact.b)" in APP and "Put it together" in APP
+    checks["teacher strategy aligned to coach"] = "plan = coach_plan(fact.a, fact.b)" in UI_HELPERS and "Put it together" in UI_HELPERS
     checks["old square-only strategy removed"] = "This is a square fact" not in APP
 
     failed = [name for name, ok in checks.items() if not ok]

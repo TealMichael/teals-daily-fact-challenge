@@ -1,13 +1,11 @@
 from __future__ import annotations
 
-from datetime import date, datetime, timezone, timedelta
+from datetime import datetime, timezone, timedelta
 import html
 import hmac
 import random
-import re
 import time
 from pathlib import Path
-from urllib.parse import urlencode, quote
 
 import pandas as pd
 import httpx
@@ -26,20 +24,8 @@ from fact_engine import (
     repeated_addition_text,
     validate_daily_facts,
 )
-from fact_store import FactStoreError, NameTaken, generate_pin, utc_now
-from fact_coach import coach_plan_for_fact, coach_plan
-from teacher_insights import (
-    BAND_HELP,
-    BAND_KNOWN,
-    BAND_LEARNING,
-    BAND_SLOW,
-    common_fact_needs,
-    pull_reason,
-    rank_students_to_pull,
-    standard_student_history,
-    summarize_student_fluency,
-    teacher_fact_band,
-)
+from fact_store import NameTaken, generate_pin, utc_now
+from fact_coach import coach_plan_for_fact
 from adaptive_engine import (
     FOCUS_SESSION_LENGTH,
     STATUS_BUILDING,
@@ -47,20 +33,13 @@ from adaptive_engine import (
     STATUS_FOCUS,
     STATUS_UNKNOWN,
     build_focus_plan,
-    complete_mastery_map,
-    status_for_display,
 )
 from supabase_fact_store import SupabaseFactStore
 from persistent_login import REMEMBER_DAYS, issue_student_token, peek_student_id, verify_student_token
-from warmup import QUESTION_TYPES, answer_matches as warmup_answer_matches, prepare_question as prepare_warmup_question
-from indiana_math_standards import (
-    BY_CODE as INDIANA_STANDARD_BY_CODE,
-    CUSTOM_CODE as CUSTOM_STANDARD_CODE,
-    display_label as indiana_standard_display_label,
-    grade_from_standard_code,
-    ordered_standard_codes,
-    standard_by_code,
-)
+from ui_helpers import format_seconds, strategy_tip
+from student_igniter_ui import render_quick_warmup
+from teacher_learning_ui import render_teacher_mastery_focus
+from teacher_warmup_ui import render_teacher_warmup as _render_teacher_warmup_module
 from weekly_mystery import (
     MYSTERIES,
     default_mystery_key_for_week,
@@ -623,13 +602,6 @@ def parse_answer(value: str) -> int:
     return number
 
 
-def format_seconds(seconds: float | None) -> str:
-    value = float(seconds or 0.0)
-    if value < 60:
-        return f"{value:.1f}s"
-    minutes = int(value // 60)
-    remainder = value - minutes * 60
-    return f"{minutes}:{remainder:04.1f}"
 
 
 def progress_bar(completed: int, total: int = 10, current: int | None = None) -> None:
@@ -685,14 +657,6 @@ def render_array(fact: Fact) -> None:
     )
 
 
-def strategy_tip(fact: Fact) -> str:
-    """Teacher/student text aligned to the same relationships used by Fact Coach."""
-    plan = coach_plan(fact.a, fact.b)
-    if plan.needs_anchor:
-        anchor = f"{plan.anchor_a} × {plan.anchor_b} = {plan.anchor_answer}"
-        second = f" Then use {plan.second_equation}." if plan.second_equation else ""
-        return f"{plan.relationship} Start with {anchor}.{second} Put it together: {plan.combine_equation}."
-    return f"{plan.relationship} {plan.direct_message or plan.combine_equation}".strip()
 
 
 def render_header() -> str:
@@ -1634,131 +1598,8 @@ def render_completed_daily(store: SupabaseFactStore, day, facts: list[Fact], cha
         return
 
 
-def _warmup_question(record, slot: int) -> dict:
-    return dict(record.question_one if int(slot) == 1 else record.question_two)
 
 
-def render_quick_warmup(store: SupabaseFactStore, day: date) -> bool:
-    """Render the optional two-question curriculum Warm-Up.
-
-    Returns True when no Warm-Up is assigned or the student has already
-    completed it. Warm-Up responses never touch multiplication mastery or the
-    Daily leaderboard.
-    """
-    class_id = str(st.session_state.get("student_class_id") or "")
-    student_id = str(st.session_state.get("student_id") or "")
-    if not class_id or not student_id:
-        return True
-
-    try:
-        warmup = store.get_warmup_set(class_id, day)
-    except Exception as exc:
-        st.error("Today's Igniter could not be loaded. Show your teacher this screen.")
-        if str(st.query_params.get("dbcheck", "0")) == "1":
-            st.exception(exc)
-        return False
-    if warmup is None:
-        return True
-
-    try:
-        answers = store.get_warmup_answers(student_id, warmup.warmup_set_id)
-    except Exception as exc:
-        st.error("Your Igniter progress could not be loaded. Show your teacher this screen.")
-        if str(st.query_params.get("dbcheck", "0")) == "1":
-            st.exception(exc)
-        return False
-
-    answered_slots = {int(row.question_slot) for row in answers}
-    completed = len(answered_slots) >= 2
-    feedback = st.session_state.get("warmup_feedback")
-    feedback_matches = isinstance(feedback, dict) and feedback.get("warmup_set_id") == warmup.warmup_set_id
-
-    if completed:
-        if st.session_state.get("warmup_just_completed") == warmup.warmup_set_id:
-            # Completion and correctness are deliberately separate.  Students
-            # should never read a green completion check as evidence that Q2
-            # was correct.
-            if feedback_matches:
-                if feedback.get("correct"):
-                    st.success("✅ Correct!")
-                else:
-                    answer_text = html.escape(str(feedback.get("correct_answer", "")))
-                    st.error(f"❌ Not quite. The answer is {answer_text}.")
-                st.session_state.warmup_feedback = None
-            st.markdown("## 🧠 Igniter complete!")
-            st.info("Both questions are finished. Ready for your Daily 10!")
-            if st.button("Start Daily 10 →", type="primary", use_container_width=True, key=f"warmup_start_daily_{warmup.warmup_set_id}"):
-                st.session_state.warmup_just_completed = None
-                st.session_state.warmup_feedback = None
-                st.rerun()
-            return False
-        return True
-
-    if feedback_matches:
-        if feedback.get("correct"):
-            st.success("✅ Correct!")
-        else:
-            answer_text = html.escape(str(feedback.get("correct_answer", "")))
-            st.error(f"❌ Not quite. The answer is {answer_text}.")
-        st.session_state.warmup_feedback = None
-
-    slot = 1 if 1 not in answered_slots else 2
-    question = _warmup_question(warmup, slot)
-    st.markdown(f"## 🧠 Igniter Question {slot}")
-    raw_prompt = str(question.get("prompt") or "").strip()
-    # Teacher-entered Markdown should never leak literal ** / __ / backticks to students.
-    clean_prompt = re.sub(r"(?:\*\*|__|`)", "", raw_prompt).strip()
-    prompt_html = html.escape(clean_prompt).replace("\n", "<br>")
-    st.markdown(
-        f"<div style='font-size:1.35rem;font-weight:700;line-height:1.45;margin:0.35rem 0 1rem 0;'>{prompt_html}</div>",
-        unsafe_allow_html=True,
-    )
-
-    form_key = f"warmup_answer_{warmup.warmup_set_id}_{student_id}_{slot}"
-    with st.form(form_key, clear_on_submit=False):
-        if question.get("question_type") == "Multiple choice":
-            options = [str(value) for value in (question.get("options") or [])]
-            response = st.radio("Choose your answer", options, key=f"warmup_choice_{warmup.warmup_set_id}_{slot}") if options else ""
-        else:
-            response = st.text_input("Your answer", key=f"warmup_text_{warmup.warmup_set_id}_{slot}", placeholder="Type your answer")
-        submitted = st.form_submit_button("Check answer →", type="primary", use_container_width=True)
-
-    if submitted:
-        response = str(response or "").strip()
-        if not response:
-            st.warning("Enter an answer first.")
-            return False
-        correct_answer = str(question.get("correct_answer") or "")
-        correct = warmup_answer_matches(response, correct_answer, question.get("accepted_answers") or ())
-        try:
-            store.record_warmup_answer(
-                warmup_set_id=warmup.warmup_set_id,
-                student_id=student_id,
-                class_id=class_id,
-                warmup_date=day,
-                question_slot=slot,
-                question_type=str(question.get("question_type") or "Short answer"),
-                prompt=str(question.get("prompt") or ""),
-                standard_code=str(question.get("standard_code") or ""),
-                standard_description=str(question.get("standard_description") or ""),
-                student_answer=response,
-                correct_answer=correct_answer,
-                correct=correct,
-            )
-        except Exception as exc:
-            st.error("That answer did not save. Tap Check answer again; you do not need to redo anything else.")
-            if str(st.query_params.get("dbcheck", "0")) == "1":
-                st.exception(exc)
-            return False
-        st.session_state.warmup_feedback = {
-            "warmup_set_id": warmup.warmup_set_id,
-            "correct": bool(correct),
-            "correct_answer": correct_answer,
-        }
-        if slot == 2:
-            st.session_state.warmup_just_completed = warmup.warmup_set_id
-        st.rerun()
-    return False
 
 
 def render_daily(store: SupabaseFactStore | None) -> None:
@@ -2251,422 +2092,24 @@ def render_teacher_today(store: SupabaseFactStore) -> None:
         for index, fact in enumerate(facts, start=1):
             st.write(f"{index}. **{fact.label} = {fact.product}** · {fact.tier}")
 
-def _override_label(value: int | None) -> str:
-    return "Automatic" if value is None else f"{value}s"
 
 
-def _override_value(label: str) -> int | None:
-    return None if label == "Automatic" else int(label.rstrip("s"))
 
 
-def _status_icon(status: str) -> str:
-    return {
-        STATUS_FLUENT: "🟢",
-        STATUS_BUILDING: "🟡",
-        STATUS_FOCUS: "🔴",
-        STATUS_UNKNOWN: "⚪",
-    }.get(status, "⚪")
 
 
-def _family_need_text(rows) -> str:
-    counts = {value: 0 for value in range(2, 11)}
-    for row in rows:
-        if row.status != STATUS_FOCUS:
-            continue
-        counts[row.a] += 1
-        if row.b != row.a:
-            counts[row.b] += 1
-    ranked = sorted(counts.items(), key=lambda item: (-item[1], item[0]))
-    ranked = [(family, count) for family, count in ranked if count > 0]
-    if not ranked:
-        return "No clear fact-family need yet"
-    return " / ".join(f"{family}s" for family, _ in ranked[:2])
 
 
-def _teaching_recommendation(*, students: int, observed: int, focus: int, building: int) -> str:
-    if observed < max(4, int(students * 0.25)):
-        return "Keep gathering evidence before making a class-wide decision."
-    focus_ratio = focus / observed if observed else 0
-    developing_ratio = (focus + building) / observed if observed else 0
-    if focus_ratio >= 0.35 or developing_ratio >= 0.70:
-        return "Good candidate for a quick whole-class strategy reminder."
-    if focus >= 2 or developing_ratio >= 0.35:
-        return "Good small-group target while adaptive practice continues."
-    return "Keep this in adaptive practice; whole-class instruction is probably not needed right now."
 
 
-def _teacher_band_icon(band: str) -> str:
-    return {
-        BAND_KNOWN: "🟢",
-        BAND_SLOW: "🟡",
-        BAND_HELP: "🔴",
-        BAND_LEARNING: "⚪",
-    }.get(str(band), "⚪")
 
 
-def _school_year_start(day: date) -> date:
-    return date(day.year if day.month >= 7 else day.year - 1, 7, 1)
 
 
-def _render_teacher_fact_fluency(store: SupabaseFactStore, selected, students) -> None:
-    raw_by_student = store.class_mastery_detail(selected.class_id, students=students)
-    full_by_student = {
-        student.student_id: complete_mastery_map(raw_by_student.get(student.student_id, []))
-        for student in students
-    }
-    fact_keys = [(a, b) for a in range(2, 11) for b in range(a, 11)]
-    fact_labels = {f"{a} × {b}": (a, b) for a, b in fact_keys}
-
-    summaries = [
-        summarize_student_fluency(
-            student.student_id,
-            student.nickname,
-            full_by_student[student.student_id].values(),
-        )
-        for student in students
-    ]
-    summary_by_id = {summary.student_id: summary for summary in summaries}
-    pull_students = rank_students_to_pull(summaries)
-    stable_times = [summary.typical_correct_seconds for summary in summaries if summary.typical_correct_seconds is not None]
-    class_typical_time = float(pd.Series(stable_times).median()) if stable_times else None
-    average_known = sum(summary.known for summary in summaries) / len(summaries)
-    average_evidence = sum(summary.evidence_facts for summary in summaries) / len(summaries)
-
-    st.markdown("#### ⚡ Fact Fluency")
-    st.caption("Accuracy comes first. Speed only matters after a student is retrieving a fact accurately and repeatedly.")
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Students to pull", len(pull_students))
-    c2.metric("Avg facts known", f"{average_known:.0f}/45")
-    c3.metric("Typical correct recall", "—" if class_typical_time is None else format_seconds(class_typical_time))
-    c4.metric("Avg facts with evidence", f"{average_evidence:.0f}/45")
-
-    st.markdown("#### 🎯 Students to Pull")
-    if not pull_students:
-        st.success("No clear accuracy or fluency pull group right now. Keep the normal Daily + Focus routine going.")
-    else:
-        pull_frame = pd.DataFrame([
-            {
-                "Student": summary.nickname,
-                "Why pull": pull_reason(summary),
-                "Start with": " · ".join(summary.start_facts) if summary.start_facts else "—",
-            }
-            for summary in pull_students
-        ])
-        st.dataframe(pull_frame, hide_index=True, use_container_width=True)
-        st.caption("Repeated misses put a student at the top. Accurate-but-slow facts are a secondary fluency signal, not an accuracy penalty.")
-
-    common_needs = common_fact_needs(full_by_student, limit=5)
-    st.markdown("#### Most Common Fact Needs")
-    if not common_needs:
-        st.success("No repeated accuracy or speed pattern is standing out across the class yet.")
-    else:
-        st.dataframe(pd.DataFrame([
-            {
-                "Fact": row["fact"],
-                "🔴 Need help": row["needs_help"],
-                "🟡 Accurate but slow": row["slow"],
-            }
-            for row in common_needs
-        ]), hide_index=True, use_container_width=True)
-
-    st.markdown("#### All Students")
-    ordered_summaries = sorted(
-        summaries,
-        key=lambda summary: (
-            summary not in pull_students,
-            -summary.needs_help,
-            -summary.slow,
-            summary.nickname.casefold(),
-        ),
-    )
-    st.dataframe(pd.DataFrame([
-        {
-            "Student": summary.nickname,
-            "🟢 Knows": summary.known,
-            "🟡 Slow": summary.slow,
-            "🔴 Needs help": summary.needs_help,
-            "Evidence": f"{summary.evidence_facts}/45",
-            "Typical correct recall": "—" if summary.typical_correct_seconds is None else format_seconds(summary.typical_correct_seconds),
-        }
-        for summary in ordered_summaries
-    ]), hide_index=True, use_container_width=True)
-
-    with st.expander("How is Fact Fluency being read?", expanded=False):
-        st.markdown("**🟢 Knows It** — repeated accurate retrieval with a stable correct streak and roughly 5 seconds or less on correct responses.")
-        st.markdown("**🟡 Accurate, Still Slow** — repeated accurate answers, but correct retrieval is still taking more than about 5 seconds.")
-        st.markdown("**🔴 Needs Help** — repeated independent evidence shows an accuracy problem.")
-        st.markdown("**⚪ Still Learning** — the app does not have enough stable evidence yet, or the fact is still developing. This is not automatically an intervention flag.")
-        st.caption("Fact Coach corrections do not erase the original miss and do not count as independent fluency evidence.")
-
-    with st.expander("🔎 Fact & student detail", expanded=False):
-        detail_view = st.radio(
-            "Detail",
-            ["Look Up a Fact", "Look Up a Student"],
-            horizontal=True,
-            key="teacher_learning_detail_view",
-        )
-        if detail_view == "Look Up a Fact":
-            selected_fact_label = st.selectbox("Fact", list(fact_labels), key="teacher_fact_detail")
-            fa, fb = fact_labels[selected_fact_label]
-            snapshots = [(student, full_by_student[student.student_id][(fa, fb)]) for student in students]
-            bands = {band: [(student, snap) for student, snap in snapshots if teacher_fact_band(snap) == band]
-                     for band in (BAND_KNOWN, BAND_SLOW, BAND_HELP, BAND_LEARNING)}
-            d1, d2, d3, d4 = st.columns(4)
-            d1.metric("🟢 Knows", len(bands[BAND_KNOWN]))
-            d2.metric("🟡 Slow", len(bands[BAND_SLOW]))
-            d3.metric("🔴 Needs help", len(bands[BAND_HELP]))
-            d4.metric("⚪ Learning", len(bands[BAND_LEARNING]))
-
-            observed = [(student, snap) for student, snap in snapshots if snap.evidence_count > 0]
-            total_evidence = sum(snap.evidence_count for _, snap in observed)
-            total_correct = sum(snap.correct_count for _, snap in observed)
-            accuracy = (100 * total_correct / total_evidence) if total_evidence else None
-            st.markdown(f"**Teaching move for {fa} × {fb}:** {strategy_tip(Fact(a=fa, b=fb, tier='core'))}")
-            if accuracy is not None:
-                st.caption(f"Independent accuracy across recorded attempts: {accuracy:.0f}%")
-            help_names = [student.nickname for student, _ in bands[BAND_HELP]]
-            slow_names = [student.nickname for student, _ in bands[BAND_SLOW]]
-            if help_names:
-                st.markdown("**Pull for accuracy:** " + ", ".join(sorted(help_names, key=str.casefold)))
-            if slow_names:
-                st.markdown("**Accurate but slow:** " + ", ".join(sorted(slow_names, key=str.casefold)))
-            if not help_names and not slow_names:
-                st.success("No current accuracy or speed concern for this fact.")
-
-            with st.expander("Optional: assign a Focus fact family", expanded=False):
-                st.caption("This is a teacher override. Automatic personalization returns when the override is set back to Automatic.")
-                family_choice = st.selectbox(
-                    "Fact family", [f"{value}s" for value in range(2, 11)], index=fa - 2, key="fact_quick_family"
-                )
-                student_by_name = {student.nickname: student for student in students}
-                default_names = sorted(help_names, key=str.casefold)
-                chosen_names = st.multiselect(
-                    "Students", list(student_by_name), default=default_names, key="fact_quick_students"
-                )
-                if st.button("Assign selected students", use_container_width=True, disabled=not chosen_names, key="fact_quick_assign"):
-                    family = int(family_choice.rstrip("s"))
-                    for name in chosen_names:
-                        store.set_student_focus_override(student_by_name[name].student_id, family)
-                    st.success(f"Assigned {family}s Focus to {len(chosen_names)} student(s).")
-                    st.rerun()
-        else:
-            student_by_label = {student.nickname: student for student in students}
-            student_label = st.selectbox("Student", list(student_by_label), key="mastery_student_select")
-            student = student_by_label[student_label]
-            summary = summary_by_id[student.student_id]
-            individual_map = full_by_student[student.student_id]
-            s1, s2, s3, s4 = st.columns(4)
-            s1.metric("🟢 Knows", summary.known)
-            s2.metric("🟡 Slow", summary.slow)
-            s3.metric("🔴 Needs help", summary.needs_help)
-            s4.metric("Evidence", f"{summary.evidence_facts}/45")
-
-            help_rows = [row for row in individual_map.values() if teacher_fact_band(row) == BAND_HELP]
-            slow_rows = [row for row in individual_map.values() if teacher_fact_band(row) == BAND_SLOW]
-            if help_rows:
-                help_rows = sorted(help_rows, key=lambda row: (row.ema_accuracy if row.ema_accuracy is not None else 1.0, -row.evidence_count, row.a, row.b))
-                st.markdown("**Accuracy needs:** " + " · ".join(f"{row.a}×{row.b}" for row in help_rows[:8]))
-            if slow_rows:
-                slow_rows = sorted(slow_rows, key=lambda row: (-(row.ema_seconds or 0.0), row.a, row.b))
-                st.markdown("**Accurate but slow:** " + " · ".join(f"{row.a}×{row.b}" for row in slow_rows[:8]))
-            if not help_rows and not slow_rows:
-                st.success("No current accuracy or speed concern for this student.")
-
-            student_fact_label = st.selectbox("Inspect one fact", list(fact_labels), key="student_fact_why")
-            sa, sb = fact_labels[student_fact_label]
-            snap = individual_map[(sa, sb)]
-            band = teacher_fact_band(snap)
-            st.markdown(f"**{student_fact_label} — {_teacher_band_icon(band)} {band.replace('_', ' ').title()}**")
-            if snap.evidence_count == 0:
-                st.caption("No independent evidence yet.")
-            else:
-                st.write(f"Independent attempts: **{snap.evidence_count}** · correct: **{snap.correct_count}** · current correct streak: **{snap.correct_streak}**")
-                if snap.ema_accuracy is not None:
-                    st.write(f"Recent weighted accuracy: **{snap.ema_accuracy * 100:.0f}%**")
-                if snap.ema_seconds is not None:
-                    st.write(f"Recent weighted correct-retrieval time: **{format_seconds(snap.ema_seconds)}**")
-
-            with st.expander("View all 45 facts", expanded=False):
-                individual_table = []
-                for key in fact_keys:
-                    row = individual_map[key]
-                    band = teacher_fact_band(row)
-                    individual_table.append({
-                        "Fact": f"{row.a} × {row.b}",
-                        "Teacher read": f"{_teacher_band_icon(band)} {band.replace('_', ' ').title()}",
-                        "Evidence": row.evidence_count,
-                        "Correct": "—" if not row.evidence_count else f"{row.correct_count}/{row.evidence_count}",
-                        "Recent correct time": "—" if row.ema_seconds is None else format_seconds(row.ema_seconds),
-                    })
-                st.dataframe(pd.DataFrame(individual_table), hide_index=True, use_container_width=True)
-            st.caption("Account fixes, PINs, Daily resets, and personal Focus overrides live in Student Support.")
-
-    with st.expander("⚙️ Advanced fact map & class-wide Focus controls", expanded=False):
-        st.caption("The full engine view is still available when you need it, but it stays out of the normal teaching dashboard.")
-        filter_options = ["All facts", "Needs-help facts only"] + [f"{value}s" for value in range(2, 11)]
-        heat_filter = st.selectbox("Fact map filter", filter_options, key="teacher_heatmap_filter")
-        help_keys = [key for key in fact_keys if any(teacher_fact_band(full_by_student[s.student_id][key]) == BAND_HELP for s in students)]
-        family_filters = {f"{value}s": value for value in range(2, 11)}
-        if heat_filter == "Needs-help facts only":
-            shown_keys = help_keys
-        elif heat_filter in family_filters:
-            family = family_filters[heat_filter]
-            shown_keys = [key for key in fact_keys if family in key]
-        else:
-            shown_keys = fact_keys
-        matrix_rows = []
-        for student in students:
-            row = {"Student": student.nickname}
-            for key in shown_keys:
-                row[f"{key[0]}×{key[1]}"] = _teacher_band_icon(teacher_fact_band(full_by_student[student.student_id][key]))
-            matrix_rows.append(row)
-        if shown_keys:
-            st.dataframe(pd.DataFrame(matrix_rows), hide_index=True, use_container_width=True, height=min(650, 78 + len(students) * 35))
-        else:
-            st.success("No facts are currently marked as a repeated accuracy need in this class.")
-
-        with st.expander("Class-wide Focus overrides", expanded=False):
-            st.caption("Leave these on Automatic unless you intentionally want to steer Focus Practice for everyone or this class.")
-            override_options = ["Automatic"] + [f"{value}s" for value in range(2, 11)]
-            current_global = store.get_global_focus_override()
-            global_choice = st.selectbox("Everyone", override_options, index=override_options.index(_override_label(current_global)), key="global_focus_override_ui")
-            if st.button("Save everyone focus", use_container_width=True, key="save_global_focus_mastery"):
-                store.set_global_focus_override(_override_value(global_choice))
-                st.success("Everyone Focus setting saved.")
-                st.rerun()
-            current_class = store.get_class_focus_override(selected.class_id)
-            class_choice = st.selectbox(selected.class_name, override_options, index=override_options.index(_override_label(current_class)), key=f"class_focus_override_{selected.class_id}")
-            if st.button("Save class focus", use_container_width=True, key="save_class_focus_mastery"):
-                store.set_class_focus_override(selected.class_id, _override_value(class_choice))
-                st.success("Class Focus setting saved.")
-                st.rerun()
-
-        with st.expander("How the app teaches & uses data", expanded=False):
-            st.markdown("**Daily 10:** independent first-try retrieval evidence.")
-            st.markdown("**Fix Your Misses:** corrective teaching; the coached retry does not erase the original miss.")
-            st.markdown("**Focus Practice:** eight personalized retrievals using weak/developing facts, some unknowns, spacing, and maintenance facts.")
-            st.markdown("**No placement test:** every fact begins without enough evidence and grows only through normal independent retrieval.")
-            st.markdown("**Accuracy before speed:** response time matters only after accurate retrieval is established.")
 
 
-def _render_teacher_standards_tracker(store: SupabaseFactStore, selected, students) -> None:
-    st.markdown("#### 📚 Igniter Standards Tracker")
-    st.caption("Choose a standard to see the evidence your Igniter questions have collected over time. This is evidence history, not an automatic mastery claim.")
-
-    today = current_daily_date()
-    start_date = _school_year_start(today)
-    try:
-        rows = store.list_warmup_answers(start_date, today, class_id=selected.class_id)
-    except Exception as exc:
-        st.error("Igniter history could not be loaded. Try Refresh data and open this view again.")
-        if str(st.query_params.get("dbcheck", "0")) == "1":
-            st.exception(exc)
-        return
-
-    student_ids = {student.student_id for student in students}
-    rows = [row for row in rows if row.student_id in student_ids and str(row.standard_code or "").strip()]
-    if not rows:
-        st.info("No standards-tagged Igniter responses have been recorded for this class yet.")
-        return
-
-    latest_by_code = {}
-    for row in rows:
-        code = str(row.standard_code or "").strip()
-        current = latest_by_code.get(code)
-        if current is None or (str(row.warmup_date), row.answered_at) > (str(current.warmup_date), current.answered_at):
-            latest_by_code[code] = row
-    codes = sorted(latest_by_code, key=lambda code: (str(latest_by_code[code].warmup_date), latest_by_code[code].answered_at), reverse=True)
-
-    def standard_label(code: str) -> str:
-        row = latest_by_code[code]
-        description = re.sub(r"\s+", " ", str(row.standard_description or "")).strip()
-        return f"{code} — {description}" if description else code
-
-    selected_code = st.selectbox(
-        "Indiana standard",
-        codes,
-        format_func=standard_label,
-        key=f"teacher_standard_tracker_{selected.class_id}",
-        help="Type a standard code or skill word to search the standards you have actually checked with an Igniter.",
-    )
-    matching = [row for row in rows if str(row.standard_code or "").strip() == selected_code]
-    latest = latest_by_code[selected_code]
-    if latest.standard_description:
-        st.caption(str(latest.standard_description))
-
-    history = standard_student_history(students, rows, selected_code)
-    checked = [item for item in history if item["checks"] > 0]
-    total_checks = len(matching)
-    total_correct = sum(bool(row.correct) for row in matching)
-    accuracy = (total_correct / total_checks * 100) if total_checks else None
-    last_date = max(str(row.warmup_date) for row in matching) if matching else None
-
-    t1, t2, t3, t4 = st.columns(4)
-    t1.metric("Students checked", f"{len(checked)}/{len(students)}")
-    t2.metric("Igniter checks", total_checks)
-    t3.metric("Correct", "—" if accuracy is None else f"{accuracy:.0f}%")
-    t4.metric("Last checked", "—" if not last_date else date.fromisoformat(last_date).strftime("%b %d"))
-
-    st.markdown("#### Student History")
-    st.caption("History is shown oldest → newest. Students with the lowest current evidence appear first; students with no evidence are listed last.")
-    history_frame = pd.DataFrame([
-        {
-            "Student": item["nickname"],
-            "Checks": item["checks"],
-            "Correct": "—" if item["checks"] == 0 else f"{item['correct']}/{item['checks']} ({item['accuracy'] * 100:.0f}%)",
-            "History": item["history"],
-        }
-        for item in history
-    ])
-    st.dataframe(history_frame, hide_index=True, use_container_width=True)
-
-    st.markdown("#### One Student's Evidence")
-    student_options = [item["nickname"] for item in history]
-    detail_name = st.selectbox("Student", student_options, key=f"teacher_standard_student_{selected.class_id}_{selected_code}")
-    detail = next(item for item in history if item["nickname"] == detail_name)
-    if not detail["rows"]:
-        st.info(f"No Igniter evidence for {selected_code} has been recorded for this student yet.")
-    else:
-        detail_frame = pd.DataFrame([
-            {
-                "Date": date.fromisoformat(str(row.warmup_date)).strftime("%b %d, %Y"),
-                "Igniter": f"Question {int(row.question_slot)}",
-                "Question": re.sub(r"\s+", " ", str(row.prompt or "")).strip(),
-                "Result": "✅ Correct" if row.correct else "❌ Needs review",
-            }
-            for row in reversed(detail["rows"])
-        ])
-        st.dataframe(detail_frame, hide_index=True, use_container_width=True)
-    st.caption(f"History shown from {start_date.strftime('%b %d, %Y')} through {today.strftime('%b %d, %Y')}.")
 
 
-def render_teacher_mastery_focus(store: SupabaseFactStore) -> None:
-    st.markdown("### 📈 Learning Data")
-    st.caption("A simple view of multiplication fact fluency plus the standards evidence collected by your Igniters.")
-    classes = store.list_classes()
-    if not classes:
-        st.info("Create a class first.")
-        return
-
-    class_by_name = {item.class_name: item for item in classes}
-    class_name = st.selectbox("Class", list(class_by_name), key="teacher_mastery_class")
-    selected = class_by_name[class_name]
-    students = store.list_students(selected.class_id)
-    if not students:
-        st.info("No students are in this class yet.")
-        return
-
-    view = st.radio(
-        "Learning data view",
-        ["⚡ Fact Fluency", "📚 Standards Tracker"],
-        horizontal=True,
-        label_visibility="collapsed",
-        key="teacher_learning_data_view",
-    )
-    if view == "⚡ Fact Fluency":
-        _render_teacher_fact_fluency(store, selected, students)
-    else:
-        _render_teacher_standards_tracker(store, selected, students)
 
 
 def render_teacher_classes(store: SupabaseFactStore) -> None:
@@ -3301,519 +2744,51 @@ def _exit_teacher_test_student() -> None:
     st.rerun()
 
 
-def _next_school_day(value: date) -> date:
-    result = value + timedelta(days=1)
-    while result.weekday() >= 5:
-        result += timedelta(days=1)
-    return result
 
 
-def _lines(value: str) -> list[str]:
-    return [line.strip() for line in str(value or "").splitlines() if line.strip()]
 
 
-def _app_setting(store: SupabaseFactStore, key: str, default=None):
-    """Read a private app setting across both production and in-memory stores."""
-    try:
-        value = store.get_app_setting(key)
-    except TypeError:
-        value = store.get_app_setting(key, default)
-    return default if value is None else value
 
 
-def _recent_warmup_standards(store: SupabaseFactStore) -> list[str]:
-    value = _app_setting(store, "warmup_recent_standards", [])
-    if not isinstance(value, (list, tuple)):
-        return []
-    result = []
-    for code in value:
-        code = str(code or "").strip()
-        if code in INDIANA_STANDARD_BY_CODE and code not in result:
-            result.append(code)
-    return result[:8]
 
 
-def _remember_warmup_standards(store: SupabaseFactStore, codes) -> None:
-    existing = _recent_warmup_standards(store)
-    combined = []
-    for code in list(codes or ()) + existing:
-        code = str(code or "").strip()
-        if code in INDIANA_STANDARD_BY_CODE and code not in combined:
-            combined.append(code)
-    store.set_app_setting("warmup_recent_standards", combined[:8])
 
 
-def _warmup_form_question(existing: dict, slot: int, key_prefix: str, recent_codes=()) -> dict:
-    label = "Spiral Review" if slot == 1 else "Yesterday Check"
-    st.markdown(f"#### {slot}. {label}")
-    prompt = st.text_area(
-        "Question", value=str(existing.get("prompt") or ""),
-        key=f"{key_prefix}_prompt_{slot}", height=90,
-    )
-    current_type = str(existing.get("question_type") or "Short answer")
-    qtype = st.selectbox(
-        "Answer type", list(QUESTION_TYPES),
-        index=list(QUESTION_TYPES).index(current_type) if current_type in QUESTION_TYPES else 0,
-        key=f"{key_prefix}_type_{slot}",
-    )
-    correct = st.text_input(
-        "Correct answer", value=str(existing.get("correct_answer") or ""),
-        key=f"{key_prefix}_correct_{slot}",
-    )
-    options = st.text_area(
-        "Multiple-choice options — one per line (only used for Multiple choice)",
-        value="\n".join(str(value) for value in (existing.get("options") or [])),
-        key=f"{key_prefix}_options_{slot}", height=90,
-    )
-    alternates = st.text_area(
-        "Accepted alternate answers — optional, one per line",
-        value="\n".join(str(value) for value in (existing.get("accepted_answers") or [])),
-        key=f"{key_prefix}_alternates_{slot}", height=70,
-    )
-
-    recent_codes = [code for code in recent_codes if code in INDIANA_STANDARD_BY_CODE]
-    standard_options = ordered_standard_codes(recent_codes) + [CUSTOM_STANDARD_CODE]
-    existing_code = str(existing.get("standard_code") or "").strip()
-    if existing_code in INDIANA_STANDARD_BY_CODE:
-        selected_default = existing_code
-    elif existing_code:
-        selected_default = CUSTOM_STANDARD_CODE
-    elif recent_codes:
-        selected_default = recent_codes[0]
-    else:
-        selected_default = "5.NS.1"
-    selected_index = standard_options.index(selected_default) if selected_default in standard_options else 0
-    standard_choice = st.selectbox(
-        "Indiana Math standard · Grades 4–7",
-        standard_options,
-        index=selected_index,
-        format_func=lambda code: indiana_standard_display_label(code, recent_codes),
-        key=f"{key_prefix}_standard_choice_{slot}",
-        help="Type a standard code or a skill keyword to search the list.",
-    )
-    if standard_choice == CUSTOM_STANDARD_CODE:
-        standard = st.text_input(
-            "Custom standard code", value=existing_code if existing_code not in INDIANA_STANDARD_BY_CODE else "",
-            key=f"{key_prefix}_standard_custom_{slot}",
-        )
-        description = st.text_input(
-            "Custom standard description", value=str(existing.get("standard_description") or "") if existing_code not in INDIANA_STANDARD_BY_CODE else "",
-            key=f"{key_prefix}_description_custom_{slot}",
-        )
-    else:
-        selected_standard = standard_by_code(standard_choice)
-        standard = selected_standard.code
-        description = selected_standard.description
-        st.caption(f"**{selected_standard.domain}** · {selected_standard.description}")
-
-    return {
-        "prompt": prompt, "question_type": qtype, "correct_answer": correct,
-        "options": _lines(options), "accepted_answers": _lines(alternates),
-        "standard_code": standard, "standard_description": description,
-    }
 
 
-def _warmup_name_list(student_ids, name_by_id: dict[str, str]) -> list[str]:
-    return sorted(
-        [name_by_id[student_id] for student_id in student_ids if student_id in name_by_id],
-        key=str.casefold,
-    )
 
 
-def _warmup_instruction_recommendation(miss_count: int) -> str:
-    miss_count = int(miss_count or 0)
-    if miss_count <= 0:
-        return "No reteach group needed from the completed Warm-Ups."
-    if miss_count <= 3:
-        return "Quick individual check-in."
-    if miss_count <= 8:
-        return "Good small-group reteach target."
-    return "Consider a quick whole-class clarification before small groups."
 
 
-def _warmup_grouping(students, rows) -> dict:
-    """Build actionable groups without treating unfinished work as incorrect."""
-    student_ids = {str(student.student_id) for student in students}
-    name_by_id = {str(student.student_id): str(student.nickname) for student in students}
-    by_slot = {
-        1: {str(row.student_id): row for row in rows if int(row.question_slot) == 1 and str(row.student_id) in student_ids},
-        2: {str(row.student_id): row for row in rows if int(row.question_slot) == 2 and str(row.student_id) in student_ids},
-    }
-    completed_ids = set(by_slot[1]) & set(by_slot[2])
-    unfinished_ids = student_ids - completed_ids
-    q1_wrong_completed = {sid for sid in completed_ids if not bool(by_slot[1][sid].correct)}
-    q2_wrong_completed = {sid for sid in completed_ids if not bool(by_slot[2][sid].correct)}
-    missed_both_ids = q1_wrong_completed & q2_wrong_completed
-
-    def accuracy(slot: int):
-        slot_rows = list(by_slot[slot].values())
-        if not slot_rows:
-            return None
-        return sum(bool(row.correct) for row in slot_rows) / len(slot_rows) * 100
-
-    return {
-        "student_count": len(student_ids),
-        "completed_count": len(completed_ids),
-        "answered_q1": len(by_slot[1]),
-        "answered_q2": len(by_slot[2]),
-        "accuracy_q1": accuracy(1),
-        "accuracy_q2": accuracy(2),
-        "correct_q1": sum(bool(row.correct) for row in by_slot[1].values()),
-        "correct_q2": sum(bool(row.correct) for row in by_slot[2].values()),
-        "missed_both": _warmup_name_list(missed_both_ids, name_by_id),
-        "q1_support": _warmup_name_list(q1_wrong_completed, name_by_id),
-        "q2_support": _warmup_name_list(q2_wrong_completed, name_by_id),
-        "q1_only": _warmup_name_list(q1_wrong_completed - missed_both_ids, name_by_id),
-        "q2_only": _warmup_name_list(q2_wrong_completed - missed_both_ids, name_by_id),
-        "unfinished": _warmup_name_list(unfinished_ids, name_by_id),
-        "completed_ids": completed_ids,
-    }
 
 
-def _warmup_class_snapshot(store: SupabaseFactStore, class_record, target_date: date, warmup):
-    students = store.list_students(class_record.class_id)
-    student_ids = {student.student_id for student in students}
-    rows = [
-        row for row in store.list_warmup_answers(target_date, target_date, class_id=class_record.class_id)
-        if row.student_id in student_ids
-    ]
-    grouping = _warmup_grouping(students, rows)
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Warm-Up finished", f"{grouping['completed_count']}/{grouping['student_count']}")
-    c2.metric("Q1 accuracy", "—" if grouping["accuracy_q1"] is None else f"{grouping['accuracy_q1']:.0f}%")
-    c3.metric("Q2 accuracy", "—" if grouping["accuracy_q2"] is None else f"{grouping['accuracy_q2']:.0f}%")
-
-    for slot in (1, 2):
-        question = _warmup_question(warmup, slot)
-        accuracy = grouping[f"accuracy_q{slot}"]
-        answered = grouping[f"answered_q{slot}"]
-        st.markdown(f"**Q{slot} · {question.get('teacher_label', '')} · {question.get('standard_code', '')}**")
-        if question.get("standard_description"):
-            st.caption(str(question.get("standard_description")))
-        st.caption(str(question.get("prompt") or ""))
-        if accuracy is None:
-            st.caption("No responses yet.")
-        else:
-            st.caption(f"{accuracy:.0f}% correct from {answered} response{'s' if answered != 1 else ''}.")
-    return students, rows, grouping
 
 
-def _warmup_email_setting_key(class_id: str) -> str:
-    return f"warmup_email_secondary::{class_id}"
 
 
-def _valid_email(value: str) -> bool:
-    value = str(value or "").strip()
-    return bool(re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", value))
 
 
-def _warmup_email_recipients(store: SupabaseFactStore, class_id: str) -> tuple[str, str]:
-    primary = str(_app_setting(store, "warmup_email_primary", "") or "").strip()
-    secondary = str(_app_setting(store, _warmup_email_setting_key(class_id), "") or "").strip()
-    return primary, secondary
 
 
-def _render_warmup_email_settings(store: SupabaseFactStore, class_record, key_prefix: str) -> None:
-    primary, secondary = _warmup_email_recipients(store, class_record.class_id)
-    with st.expander("📧 Email recipients", expanded=not bool(primary)):
-        st.caption("Your address is used for every class. Add a push-in teacher only for the class that needs one.")
-        with st.form(f"{key_prefix}_email_settings_form"):
-            primary_input = st.text_input(
-                "My school email · every class", value=primary,
-                key=f"{key_prefix}_primary_email", placeholder="you@school.org",
-            )
-            secondary_input = st.text_input(
-                f"Push-in teacher for {class_record.class_name} · optional", value=secondary,
-                key=f"{key_prefix}_secondary_email", placeholder="Leave blank for classes without push-in support",
-            )
-            save_settings = st.form_submit_button("Save email recipients", use_container_width=True)
-        if save_settings:
-            primary_clean = primary_input.strip()
-            secondary_clean = secondary_input.strip()
-            if not _valid_email(primary_clean):
-                st.error("Enter a valid school email for yourself.")
-            elif secondary_clean and not _valid_email(secondary_clean):
-                st.error("The push-in teacher email does not look valid.")
-            else:
-                store.set_app_setting("warmup_email_primary", primary_clean)
-                if secondary_clean:
-                    store.set_app_setting(_warmup_email_setting_key(class_record.class_id), secondary_clean)
-                else:
-                    store.delete_app_setting(_warmup_email_setting_key(class_record.class_id))
-                st.success("Warm-Up email recipients saved.")
-                st.rerun()
 
 
-def _warmup_report_text(class_record, target_date: date, warmup, grouping: dict) -> str:
-    q1 = _warmup_question(warmup, 1)
-    q2 = _warmup_question(warmup, 2)
-
-    def pull_line(names) -> str:
-        return ", ".join(names) if names else "None"
-
-    def clean_question_text(value) -> str:
-        text = str(value or "").replace("**", "").replace("__", "").replace("`", "")
-        return " ".join(text.split())
-
-    lines = [
-        f"Warm-Up Results — {class_record.class_name}",
-        target_date.strftime("%A, %B %d, %Y"),
-        f"Completed: {grouping['completed_count']}/{grouping['student_count']}",
-        "",
-        "QUESTION 1 — SPIRAL REVIEW",
-        f"Standard: {q1.get('standard_code', '')}",
-        f"Question: {clean_question_text(q1.get('prompt', ''))}",
-        "Students to pull: " + pull_line(grouping["q1_support"]),
-        "",
-        "QUESTION 2 — YESTERDAY'S LESSON",
-        f"Standard: {q2.get('standard_code', '')}",
-        f"Question: {clean_question_text(q2.get('prompt', ''))}",
-        "Students to pull: " + pull_line(grouping["q2_support"]),
-        "",
-        "PRIORITY GROUP — MISSED BOTH",
-        pull_line(grouping["missed_both"]),
-        "",
-        "HAVE NOT FINISHED YET",
-        pull_line(grouping["unfinished"]),
-    ]
-    if grouping["unfinished"]:
-        lines.extend([
-            "",
-            "Please check in with these students. They are not counted as incorrect until they finish the Warm-Up.",
-        ])
-    return "\n".join(lines)
 
 
-def _warmup_outlook_url(primary: str, secondary: str, subject: str, body: str) -> str:
-    params = {"to": primary, "subject": subject, "body": body}
-    if secondary:
-        params["cc"] = secondary
-    return "https://outlook.office.com/mail/deeplink/compose?" + urlencode(params, quote_via=quote)
 
 
-def _render_warmup_groups_and_email(
-    store: SupabaseFactStore, class_record, target_date: date, warmup, rows, students, *, key_prefix: str,
-) -> None:
-    grouping = _warmup_grouping(students, rows)
-    q1 = _warmup_question(warmup, 1)
-    q2 = _warmup_question(warmup, 2)
-
-    st.markdown("##### 🎯 Small groups from current results")
-    if grouping["missed_both"]:
-        st.warning("**Priority · missed both:** " + ", ".join(grouping["missed_both"]))
-    else:
-        st.caption("Priority group: no student who has finished both questions missed both.")
-
-    left, right = st.columns(2)
-    with left:
-        st.markdown(f"**🔁 Spiral · {q1.get('standard_code', '')}**")
-        st.caption(_warmup_instruction_recommendation(len(grouping["q1_support"])))
-        st.write(", ".join(grouping["q1_support"]) if grouping["q1_support"] else "No completed-student misses yet.")
-    with right:
-        st.markdown(f"**📚 Yesterday · {q2.get('standard_code', '')}**")
-        st.caption(_warmup_instruction_recommendation(len(grouping["q2_support"])))
-        st.write(", ".join(grouping["q2_support"]) if grouping["q2_support"] else "No completed-student misses yet.")
-
-    if grouping["unfinished"]:
-        st.info("**⚠️ Not finished yet:** " + ", ".join(grouping["unfinished"]) + "\n\nThese students didn't finish, so please check in with them!")
-    else:
-        st.success("Everyone has finished both Warm-Up questions.")
-    st.caption("Unfinished work stays separate from incorrect work. Small groups use students who completed both questions.")
-
-    _render_warmup_email_settings(store, class_record, key_prefix)
-    primary, secondary = _warmup_email_recipients(store, class_record.class_id)
-    prepare_key = f"{key_prefix}_email_ready"
-    if st.button("📧 Prepare Warm-Up Email", use_container_width=True, type="primary", key=f"{key_prefix}_prepare_email"):
-        st.session_state[prepare_key] = True
-    if st.session_state.get(prepare_key):
-        if not primary:
-            st.warning("Save your school email above before preparing the Outlook draft.")
-        elif not any(int(row.question_slot) in (1, 2) for row in rows):
-            st.info("No real-student Warm-Up responses are available yet.")
-        else:
-            report = _warmup_report_text(class_record, target_date, warmup, grouping)
-            subject = f"Warm-Up Results — {class_record.class_name} — {target_date.strftime('%b %d')}"
-            recipients = primary + (f" · CC: {secondary}" if secondary else "")
-            st.caption(f"Draft recipient: {recipients}")
-            with st.expander("Preview email", expanded=True):
-                st.code(report, language=None)
-            st.link_button(
-                "📨 Open this draft in Outlook",
-                _warmup_outlook_url(primary, secondary, subject, report),
-                use_container_width=True,
-                type="primary",
-            )
-            st.caption("Nothing is sent automatically. Outlook opens the draft so you can review it and press Send.")
 
 
-def _warmup_export_frame(store: SupabaseFactStore, start_date: date, end_date: date, class_id: str | None) -> pd.DataFrame:
-    rows = store.list_warmup_answers(start_date, end_date, class_id=class_id, include_test=False)
-    classes = store.list_classes(include_inactive=True)
-    class_names = {item.class_id: item.class_name for item in classes}
-    student_names: dict[str, str] = {}
-    for class_record in classes:
-        for student in store.list_students(class_record.class_id, include_inactive=True, include_test=False):
-            student_names[student.student_id] = student.nickname
-    data = []
-    for row in rows:
-        data.append({
-            "Date": row.warmup_date,
-            "Class": class_names.get(row.class_id, row.class_id),
-            "Nickname": student_names.get(row.student_id, "Student"),
-            "Question": "Spiral Review" if row.question_slot == 1 else "Yesterday Check",
-            "Question Type": row.question_type,
-            "Grade": grade_from_standard_code(row.standard_code) or "",
-            "Indiana Standard": row.standard_code,
-            "Standard Description": row.standard_description,
-            "Prompt": row.prompt,
-            "Student Answer": row.student_answer,
-            "Correct Answer": row.correct_answer,
-            "Correct": "Yes" if row.correct else "No",
-            "Answered At": row.answered_at.isoformat(),
-        })
-    return pd.DataFrame(data, columns=[
-        "Date", "Class", "Nickname", "Question", "Question Type", "Grade", "Indiana Standard",
-        "Standard Description", "Prompt", "Student Answer", "Correct Answer", "Correct", "Answered At",
-    ])
+
+
 
 
 def render_teacher_warmup(store: SupabaseFactStore) -> None:
-    header_left, header_right = st.columns([4.2, 1.4])
-    with header_left:
-        st.markdown("### 🧠 Quick Warm-Up — Trial")
-        st.caption("Two untimed curriculum questions before the Daily 10. Warm-Up accuracy is stored separately from multiplication mastery and Top 10.")
-    with header_right:
-        _teacher_refresh_control(key="teacher_warmup_refresh")
-    classes = store.list_classes()
-    if not classes:
-        st.info("Create a class first.")
-        return
-    class_by_name = {item.class_name: item for item in classes}
-    selected_name = st.selectbox("Class", list(class_by_name), key="teacher_warmup_class")
-    selected = class_by_name[selected_name]
-
-    default_date = _next_school_day(current_daily_date())
-    target_date = st.date_input("Warm-Up date", value=default_date, key="teacher_warmup_date")
-    st.caption("Testing tonight? Choose **today** here, save the Warm-Up, then open 🧪 Test Student for this class.")
-
-    existing = store.get_warmup_set(selected.class_id, target_date)
-    locked = bool(existing and store.warmup_set_locked(existing.warmup_set_id))
-    if locked:
-        st.info("🔒 This Warm-Up is locked because a real student has already answered it. Historical data stays attached to the exact questions they saw.")
-
-    q1_existing = dict(existing.question_one) if existing else {}
-    q2_existing = dict(existing.question_two) if existing else {}
-    key_prefix = f"warmup_plan_{selected.class_id}_{target_date.isoformat()}"
-    recent_standards = _recent_warmup_standards(store)
-    st.caption("Indiana Math standards from Grades 4–7 are built in. Type a code or skill word in the standard box to search; recently used standards float to the top.")
-    with st.form(f"{key_prefix}_form"):
-        q1_values = _warmup_form_question(q1_existing, 1, key_prefix, recent_standards)
-        q2_values = _warmup_form_question(q2_existing, 2, key_prefix, recent_standards)
-        copy_all = st.checkbox("Also copy this Warm-Up to every active class", value=False, key=f"{key_prefix}_copy")
-        save = st.form_submit_button("Save Warm-Up", type="primary", use_container_width=True, disabled=locked)
-    if save:
-        try:
-            q1 = prepare_warmup_question(slot=1, **q1_values)
-            q2 = prepare_warmup_question(slot=2, **q2_values)
-            targets = classes if copy_all else [selected]
-            locked_targets = []
-            for class_record in targets:
-                current = store.get_warmup_set(class_record.class_id, target_date)
-                if current is not None and store.warmup_set_locked(current.warmup_set_id):
-                    locked_targets.append(class_record.class_name)
-            if locked_targets:
-                raise FactStoreError("Cannot copy over a Warm-Up that students already started: " + ", ".join(locked_targets))
-            for class_record in targets:
-                store.save_warmup_set(class_record.class_id, target_date, q1, q2)
-            _remember_warmup_standards(store, [q1.get("standard_code"), q2.get("standard_code")])
-            st.success("Warm-Up saved" + (" for all active classes." if copy_all else f" for {selected.class_name}."))
-            st.rerun()
-        except (ValueError, FactStoreError) as exc:
-            st.error(str(exc))
-        except Exception as exc:
-            st.error("The Warm-Up could not be saved.")
-            if str(st.query_params.get("dbcheck", "0")) == "1":
-                st.exception(exc)
-
-    if existing and not locked:
-        if st.button("Remove this Warm-Up", use_container_width=True, key=f"remove_{key_prefix}"):
-            try:
-                store.delete_warmup_set(selected.class_id, target_date)
-                st.success("Warm-Up removed for this class/date.")
-                st.rerun()
-            except FactStoreError as exc:
-                st.error(str(exc))
-
-    if existing:
-        st.markdown("#### Class results")
-        result_students, result_rows, _ = _warmup_class_snapshot(store, selected, target_date, existing)
-        # A Warm-Up refresh is only marked complete after the current set and
-        # its latest real-student answers have both been read successfully.
-        _finish_teacher_refresh()
-        _render_warmup_groups_and_email(
-            store, selected, target_date, existing, result_rows, result_students,
-            key_prefix=f"teacher_warmup_results_{selected.class_id}_{target_date.isoformat()}",
-        )
-        test_student = store.get_test_student(selected.class_id)
-        if test_student is not None:
-            test_rows = store.get_warmup_answers(test_student.student_id, existing.warmup_set_id)
-            if test_rows:
-                with st.expander("🧪 Test Student answers — sandbox only", expanded=False):
-                    st.caption("These responses let you verify the flow, but they never enter class accuracy, real small groups, email results, or the weekly CSV.")
-                    st.dataframe(pd.DataFrame([
-                        {
-                            "Question": "Spiral Review" if row.question_slot == 1 else "Yesterday Check",
-                            "Answer": row.student_answer,
-                            "Correct": "Yes" if row.correct else "No",
-                        } for row in test_rows
-                    ]), hide_index=True, use_container_width=True)
-                    primary_email, _ = _warmup_email_recipients(store, selected.class_id)
-                    sandbox_ready_key = f"sandbox_warmup_email_{selected.class_id}_{target_date.isoformat()}"
-                    if st.button("🧪 Prepare sandbox Outlook email", key=f"{sandbox_ready_key}_button", use_container_width=True):
-                        st.session_state[sandbox_ready_key] = True
-                    if st.session_state.get(sandbox_ready_key):
-                        if not primary_email:
-                            st.warning("Save your school email in the Warm-Up email recipients section first.")
-                        else:
-                            sandbox_grouping = _warmup_grouping([test_student], test_rows)
-                            sandbox_report = "[SANDBOX TEST — Test Student only]\n\n" + _warmup_report_text(
-                                selected, target_date, existing, sandbox_grouping
-                            )
-                            sandbox_subject = f"[SANDBOX TEST] Warm-Up Results — {selected.class_name} — {target_date.strftime('%b %d')}"
-                            st.code(sandbox_report, language=None)
-                            st.link_button(
-                                "📨 Open sandbox draft in Outlook",
-                                _warmup_outlook_url(primary_email, "", sandbox_subject, sandbox_report),
-                                use_container_width=True,
-                            )
-                            st.caption("Sandbox drafts are addressed only to you. The push-in teacher is never CC'd on a Test Student preview.")
-    else:
-        _finish_teacher_refresh()
-        st.info("No Warm-Up is assigned for this class/date. Students will go straight to the Daily 10.")
-
-    st.markdown("#### 📥 Weekly Warm-Up Data")
-    st.caption("Download standards-tagged student responses whenever you want. Test Student is excluded automatically.")
-    if st.toggle("Prepare weekly CSV", key="teacher_warmup_export_ready"):
-        today = current_daily_date()
-        monday = today - timedelta(days=today.weekday())
-        week_start = st.date_input("Week starting", value=monday, key="teacher_warmup_export_week")
-        week_start = week_start - timedelta(days=week_start.weekday())
-        week_end = week_start + timedelta(days=4)
-        scope_names = ["All classes"] + list(class_by_name)
-        scope = st.selectbox("Export", scope_names, key="teacher_warmup_export_scope")
-        export_class_id = None if scope == "All classes" else class_by_name[scope].class_id
-        frame = _warmup_export_frame(store, week_start, week_end, export_class_id)
-        if frame.empty:
-            st.info(f"No Warm-Up responses found for {week_start.strftime('%b %d')}–{week_end.strftime('%b %d')}.")
-        else:
-            summary = frame.assign(CorrectFlag=frame["Correct"].eq("Yes")).groupby("Indiana Standard", as_index=False).agg(
-                Responses=("CorrectFlag", "size"), Correct=("CorrectFlag", "sum")
-            )
-            summary["Accuracy"] = (summary["Correct"] / summary["Responses"] * 100).round(0).astype(int).astype(str) + "%"
-            st.dataframe(summary[["Indiana Standard", "Responses", "Correct", "Accuracy"]], hide_index=True, use_container_width=True)
-            csv_bytes = frame.to_csv(index=False).encode("utf-8")
-            filename = f"warmup_data_{week_start.isoformat()}_to_{week_end.isoformat()}.csv"
-            st.download_button("⬇️ Download weekly Warm-Up CSV", data=csv_bytes, file_name=filename, mime="text/csv", use_container_width=True)
+    """Render Teacher → Warm-Up using the shared teacher refresh contract."""
+    return _render_teacher_warmup_module(
+        store,
+        refresh_control=_teacher_refresh_control,
+        finish_refresh=_finish_teacher_refresh,
+    )
 
 
 def render_teacher_test_student_launcher(store: SupabaseFactStore) -> None:

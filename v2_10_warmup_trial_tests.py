@@ -6,7 +6,11 @@ from fact_store import FactStoreError, InMemoryFactStore
 from warmup import answer_matches, prepare_question
 
 ROOT = Path(__file__).resolve().parent
-APP = (ROOT / "app.py").read_text()
+APP = "\n".join([
+    (ROOT / "app.py").read_text(),
+    (ROOT / "student_igniter_ui.py").read_text(),
+    (ROOT / "teacher_warmup_ui.py").read_text(),
+])
 SCHEMA = (ROOT / "SUPABASE_SCHEMA.sql").read_text()
 MIGRATION = (ROOT / "RUN_THIS_ONCE_IN_SUPABASE_v2_10.sql").read_text()
 SUPABASE = (ROOT / "supabase_fact_store.py").read_text()
@@ -14,7 +18,7 @@ SUPABASE = (ROOT / "supabase_fact_store.py").read_text()
 
 def run():
     checks = 0
-    assert APP_VERSION == "2.11.0.3"; checks += 1
+    assert APP_VERSION == "2.11.2"; checks += 1
 
     # Matching is useful for decimals/fractions without fuzzy grading.
     assert answer_matches("14.40", "14.4"); checks += 1

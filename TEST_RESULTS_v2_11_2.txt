@@ -1,0 +1,27 @@
+TEAL'S DAILY FACT CHALLENGE v2.11.2 — TEST RESULTS
+RESILIENT STABILITY / FOUNDATION PASS
+
+BASELINE:
+- Rebuilt directly from the proven v2.11.0.3 classroom build.
+- Older v2.11.1 foundation package is superseded and should not be installed.
+
+VALIDATION:
+- 52 historical/current *_tests.py suites accounted for and passing across the final production code; the only interim mismatch was an old persistent-login regression expectation, which was updated to the already-proven v2.11.0.3 active-class restore behavior and then passed.
+- release_guard includes 14 critical suites, including v2.11.0.1 startup resilience, v2.11.0.2 Daily-load recovery, v2.11.0.3 Supabase compatibility, and v2.11.2 foundation stability.
+- v2.11.2 foundation stability regression: 22/22 checks passed.
+- v2.11.0.1 startup resilience regression: 19/19 passed on the rebased code.
+- v2.11.0.2 Daily-load resilience regression: 16/16 passed on the rebased code.
+- v2.11.0.3 Supabase 2.28.3 compatibility regression: 6/6 passed on the rebased code.
+- Python compile/release guard passed.
+
+DRIFT CHECK AGAINST v2.11.0.3:
+- All 8 SQL/schema files: byte-for-byte unchanged.
+- All 5 browser components: byte-for-byte unchanged.
+- supabase_fact_store.py: byte-for-byte unchanged.
+- requirements.txt: byte-for-byte unchanged.
+- adaptive_engine.py, teacher_insights.py, fact_store.py, fact_coach.py, weekly_mystery.py, persistent_login.py, indiana_math_standards.py: byte-for-byte unchanged.
+- warmup.py only gains the same defensive question accessor moved out of app.py during modularization; behavior is unchanged.
+- app.py changes are the validated module extraction plus the already-proven v2.11.0.1–v2.11.0.3 resilience hunks.
+- fact_engine.py changes only APP_VERSION to 2.11.2; CHALLENGE_VERSION remains TDFC-DAILY-v1.
+
+NO SQL MIGRATION. NO NEW STREAMLIT SECRET.

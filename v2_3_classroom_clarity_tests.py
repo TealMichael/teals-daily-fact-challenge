@@ -4,6 +4,8 @@ import re
 ROOT = Path(__file__).resolve().parent
 APP = (ROOT / "app.py").read_text(encoding="utf-8")
 ENGINE = (ROOT / "fact_engine.py").read_text(encoding="utf-8")
+LEARNING = (ROOT / "teacher_learning_ui.py").read_text(encoding="utf-8")
+ALL_UI = APP + "\n" + LEARNING
 
 
 def function_body(name: str, next_name: str) -> str:
@@ -15,7 +17,7 @@ leader_context = function_body("load_leaderboard_context", "_leaderboard_cache_k
 leader_render = function_body("render_leaderboard", "render_daily_review")
 
 a = {
-    "version 2.6": 'APP_VERSION = "2.11.0.3"' in ENGINE,
+    "version 2.6": 'APP_VERSION = "2.11.2"' in ENGINE,
     "four-step routine strip": 'def render_routine_strip(stage: str)' in APP and '1 · Daily 10' in APP and '4 · Mystery' in APP,
     "daily shows routine strip": 'render_routine_strip("daily")' in APP,
     "done screen is unmistakable": "YOU'RE DONE FOR TODAY!" in APP,
@@ -47,8 +49,8 @@ a = {
     "student support keeps move": "Move student" in APP,
     "student support keeps deactivate/reactivate": "Deactivate student" in APP and "Reactivate student" in APP,
     "student support keeps permanent delete": "Delete student permanently" in APP,
-    "mastery keeps global override": "Save everyone focus" in APP,
-    "mastery keeps class override": "Save class focus" in APP,
+    "mastery keeps global override": "Save everyone focus" in ALL_UI,
+    "mastery keeps class override": "Save class focus" in ALL_UI,
 }
 
 failed = [name for name, ok in a.items() if not ok]

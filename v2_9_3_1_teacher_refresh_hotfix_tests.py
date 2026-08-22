@@ -14,10 +14,10 @@ request = section('_request_teacher_refresh', '_finish_teacher_refresh')
 finish = section('_finish_teacher_refresh', '_teacher_refresh_control')
 control = section('_teacher_refresh_control', 'render_teacher_projector')
 projector = section('render_teacher_projector', 'render_teacher_today')
-today = section('render_teacher_today', '_override_label')
+today = section('render_teacher_today', 'render_teacher_classes')
 
 checks = {
-    'version 2.10.0': APP_VERSION == '2.11.0.3',
+    'version 2.10.0': APP_VERSION == '2.11.2',
     'refresh clears cached Supabase store': 'load_store.clear()' in request,
     'refresh marks fresh read pending': 'teacher_refresh_pending' in request,
     'button uses pre-rerun callback': 'on_click=_request_teacher_refresh' in control,
