@@ -1382,11 +1382,11 @@ def render_mastery_card(store: SupabaseFactStore) -> None:
 
 
 def render_final_top10_status(challenge, leaderboard_context: dict | None) -> None:
-    """Show only the student's current Top 10 status on the finished screen.
+    """Show the student's status plus the full rank-and-nickname Top 10 at finish.
 
     Reuse the leaderboard snapshot already loaded for this Daily so the final
-    celebration does not add another classroom database round trip. Lower
-    exact ranks remain private.
+    celebration does not add another classroom database round trip. Only Top
+    10 rank + nickname are shown; lower exact ranks remain private.
     """
     st.markdown("## 🏆 Current Top 10")
     if leaderboard_context is None:
@@ -1407,6 +1407,24 @@ def render_final_top10_status(challenge, leaderboard_context: dict | None) -> No
         st.caption(f"{finished} of {roster_count} finished · standings may change as classmates finish")
     else:
         st.caption("Standings may change as classmates finish.")
+
+    if not rows:
+        st.info("No one has finished yet. The first completed challenge will start the board!")
+        return
+
+    medal = {1: "🥇", 2: "🥈", 3: "🥉"}
+    html_rows = []
+    for row in rows:
+        rank = int(row.get("rank") or 0)
+        marker = medal.get(rank, str(rank))
+        name = html.escape(str(row.get("nickname") or ""))
+        own = row.get("student_id") == st.session_state.student_id
+        suffix = " · you" if own else ""
+        html_rows.append(
+            f'<div class="leader-row"><div class="leader-rank">{marker}</div>'
+            f'<div class="leader-name">{name}{suffix}</div></div>'
+        )
+    st.markdown('<div class="soft-card">' + "".join(html_rows) + "</div>", unsafe_allow_html=True)
 
 
 def render_day_complete(
