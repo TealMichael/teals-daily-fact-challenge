@@ -8,8 +8,8 @@ def run():
 
     required_app = [
         "Daily 10 complete",
-        "Learning Step 2 of 3 · Fix Your Misses",
-        "Learning Step 3 of 3 · 🎯 Your Focus Practice",
+        "### Next: Fix Your Misses",
+        "### Next: Focus Practice",
         "YOU'RE DONE FOR TODAY!",
         "Learning Streak",
         "Current Top 10",

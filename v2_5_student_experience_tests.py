@@ -33,10 +33,11 @@ def run():
     checks["optional practice uses guided coach"] = 'guided_free_practice_' in APP and 'mode="practice"' in APP
     checks["legacy multiplication answer forms removed"] = 'text_input("Answer"' not in APP
 
-    # Top 10 is displayed immediately using the already-cached context, then
-    # hidden on later Fix/Focus reruns so it does not create scrolling/noise.
-    checks["cached top 10 displayed"] = "context=leaderboard_context" in APP
-    checks["top 10 only once per session"] = "student_top10_seen_" in APP
+    # Mid-routine Top 10 was intentionally removed so the required learning
+    # step stays above the fold; standings remain on the final screen.
+    completed = APP[APP.index("def render_completed_daily"):APP.index("def render_daily(store", APP.index("def render_completed_daily"))]
+    checks["no midpoint leaderboard"] = "render_leaderboard(" not in completed and "render_daily_result_summary(" not in completed
+    checks["final leaderboard context retained"] = "get_cached_leaderboard_context(store, challenge, refresh=True)" in completed
     checks["student leaderboard privacy retained"] = '"correct_count"' not in APP[APP.index("def load_leaderboard_context"):APP.index("def _leaderboard_cache_key")]
 
     # Finish screen is intentionally short; detail is optional/collapsed.

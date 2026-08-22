@@ -1,5 +1,15 @@
 # Teal's Daily Fact Challenge
 
+## v2.11.2 — Post-Daily Student Flow UI Patch
+
+- Keeps the v2.11.2 resilient foundation unchanged except for the student midpoint UI after Daily 10.
+- The displayed app version intentionally remains `2.11.2` so this small patch does not force version-only edits across the historical regression suite.
+- Removes the midpoint result-card / Top 10 / routine-strip clutter so the required next step is immediately visible.
+- Shows a compact `Daily 10 complete!` message followed by `Next: Fix Your Misses` or `Next: Focus Practice`.
+- Defers Top 10 standings until the true end-of-day reward screen.
+- Keeps `Review your Daily 10` available as a collapsed optional section below the active learning step.
+- No scoring, mastery, Daily generation, Mystery, teacher-data, Supabase schema, or resilience rules changed.
+
 ## v2.11.2 — Resilient Stability / Foundation Pass
 
 - **No intentional student or teacher UI/behavior changes.** This is the Stability/Foundation work rebuilt from the proven classroom **v2.11.0.3** resilience hotfix.

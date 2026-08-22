@@ -16,6 +16,7 @@ CRITICAL_SUITES = [
     "component_contract_tests.py",
     "teacher_workflow_tests.py",
     "v2_11_2_foundation_stability_tests.py",
+    "v2_11_2_post_daily_flow_cleanup_tests.py",
     "v2_11_0_1_startup_resilience_tests.py",
     "v2_11_0_2_daily_load_resilience_hotfix_tests.py",
     "v2_11_0_3_supabase_2283_compatibility_tests.py",

@@ -1206,8 +1206,6 @@ def render_fix_misses(store: SupabaseFactStore, challenge, facts: list[Fact], an
         for q, fact, ans in remaining
     ]
 
-    st.markdown("## Learning Step 2 of 3 · Fix Your Misses")
-    st.caption("A miss is useful information. Learn it, answer it correctly, then move on.")
     events = render_guided_practice(
         key=f"guided_fix_{challenge.challenge_id}",
         mode="fix",
@@ -1314,12 +1312,9 @@ def render_focus_practice(store: SupabaseFactStore, day, challenge, answers, pro
         ))
 
     override = get_cached_focus_override(store, challenge)
-    st.markdown("## Learning Step 3 of 3 · 🎯 Your Focus Practice")
     if override:
-        st.caption(f"8 facts picked for you · your teacher has you practicing the {override}s today.")
-    else:
-        st.caption("8 facts picked just for you.")
-    st.caption("Try all 8. If one is tricky, the app will teach it and let you try again.")
+        st.caption(f"Your teacher has you practicing the {override}s today.")
+    st.caption("If one is tricky, the app will teach it and let you try again.")
 
     events = render_guided_practice(
         key=f"guided_focus_{challenge.challenge_id}",
@@ -1537,22 +1532,16 @@ def render_completed_daily(store: SupabaseFactStore, day, facts: list[Fact], cha
         render_classroom_connection_retry(exc, key="retry_completed_load")
         return
 
-    # Keep one leaderboard snapshot through Fix Your Misses + Focus Practice.
-    # Every submitted Focus answer reruns Streamlit, so reloading roster + standings
-    # here was making the Top 10 compete with the student's personalized practice.
-    try:
-        leaderboard_context = get_cached_leaderboard_context(
-            store, challenge, refresh=bool(progress.completed_at)
-        )
-    except Exception:
-        leaderboard_context = st.session_state.get(_leaderboard_cache_key(challenge))
-
-    # Once the full routine is complete, go directly to the true end-of-day
-    # screen. The Daily-result card already appeared immediately after the
-    # Daily 10 and should not compete with the final Mystery → Top 10 → Streak
-    # hierarchy.
+    # The midpoint between Daily 10 and the required learning steps should stay
+    # extremely light.  Do not load or render standings here: the leaderboard is
+    # a reward/status item for the true end-of-day screen, not a roadblock before
+    # Fix Your Misses or Focus Practice.
     if progress.completed_at is not None:
         try:
+            try:
+                leaderboard_context = get_cached_leaderboard_context(store, challenge, refresh=True)
+            except Exception:
+                leaderboard_context = st.session_state.get(_leaderboard_cache_key(challenge))
             render_day_complete(
                 store, day, facts, challenge, attempt, answers,
                 leaderboard_context=leaderboard_context,
@@ -1561,34 +1550,28 @@ def render_completed_daily(store: SupabaseFactStore, day, facts: list[Fact], cha
             render_classroom_connection_retry(exc, key="retry_day_complete")
         return
 
-    if leaderboard_context is not None:
-        render_daily_result_summary(store, day, challenge, attempt, leaderboard_context=leaderboard_context)
-    else:
-        st.markdown(f"## Daily 10 complete · {day.strftime('%B %d').replace(' 0', ' ')}")
-        st.success("Daily 10 saved ✓")
-        st.caption("The class Top 10 is updating. It will reappear when the classroom connection settles.")
-
-    leaderboard_seen_key = f"student_top10_seen_{st.session_state.student_id}_{challenge.challenge_id}"
-    if leaderboard_context is not None and not st.session_state.get(leaderboard_seen_key):
-        render_leaderboard(
-            store, challenge, highlight_student_id=st.session_state.student_id, context=leaderboard_context
-        )
-        # Show the board once immediately after the Daily. Later Fix/Focus reruns
-        # reuse the cached standings without making students scroll past it again.
-        st.session_state[leaderboard_seen_key] = True
-
     missed_count = sum(not answer.correct for answer in answers)
-    render_learning_path(progress, missed_count)
+    st.success("✅ Daily 10 complete!")
 
     try:
         if progress.fix_completed_at is None:
+            if missed_count:
+                st.markdown("### Next: Fix Your Misses")
+                st.caption(f"You have {missed_count} fact{'s' if missed_count != 1 else ''} to fix.")
+            else:
+                st.markdown("### Next: Focus Practice")
+                st.caption("You got all 10 correct. Keep building fluency with your personalized practice.")
             if render_fix_misses(store, challenge, facts, answers):
                 st.rerun()
+            render_daily_review(facts, answers)
             return
 
         if progress.focus_completed_at is None:
+            st.markdown("### Next: Focus Practice")
+            st.caption("8 facts picked just for you.")
             if render_focus_practice(store, day, challenge, answers, progress=progress):
                 st.rerun()
+            render_daily_review(facts, answers)
             return
 
         store.mark_focus_complete(st.session_state.student_id, challenge.challenge_id)

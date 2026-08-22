@@ -65,7 +65,8 @@ def run():
     checks["growth mastery query not unconditional"] = complete.index("if show_growth:") < complete.index("render_mastery_card(store)")
 
     focus = section("render_focus_practice", "render_mastery_card")
-    checks["focus wording is kid friendly"] = "8 facts picked just for you." in focus and "8 short retrievals" not in focus
+    completed = section("render_completed_daily", "render_daily")
+    checks["focus wording is kid friendly"] = "8 facts picked just for you." in completed and "8 short retrievals" not in focus
     checks["technical focus save errors removed"] = all(x not in focus for x in [
         "did not finish cleanly", "could not verify the first attempt", "duplicated a first attempt"
     ])
