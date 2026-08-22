@@ -49,6 +49,7 @@ create table if not exists public.daily_attempts (
     completed_at timestamptz,
     correct_count smallint,
     timed_seconds numeric(10,3),
+    learning_evidence_applied_at timestamptz,
     unique (student_id, challenge_id),
     constraint correct_count_range check (correct_count is null or correct_count between 0 and 10),
     constraint timed_seconds_nonnegative check (timed_seconds is null or timed_seconds >= 0),
@@ -68,13 +69,20 @@ create table if not exists public.daily_answers (
     student_answer integer not null,
     correct_answer integer not null,
     correct boolean not null,
+    first_student_answer integer,
+    first_correct boolean,
     submitted_at timestamptz not null default now(),
     unique (attempt_id, question_number),
     constraint question_number_range check (question_number between 1 and 10),
     constraint factor_a_range check (a between 2 and 12),
     constraint factor_b_range check (b between 2 and 12),
     constraint product_is_correct check (correct_answer = a * b),
-    constraint correctness_is_consistent check (correct = (student_answer = correct_answer))
+    constraint correctness_is_consistent check (correct = (student_answer = correct_answer)),
+    constraint first_correctness_is_consistent check (
+        (first_student_answer is null and first_correct is null)
+        or
+        (first_student_answer is not null and first_correct is not null and first_correct = (first_student_answer = correct_answer))
+    )
 );
 
 create table if not exists public.practice_answers (

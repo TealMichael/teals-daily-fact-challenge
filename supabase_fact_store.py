@@ -241,6 +241,7 @@ def _attempt(row: Mapping) -> AttemptRecord:
         completed_at=_dt(row.get("completed_at")),
         correct_count=None if row.get("correct_count") is None else int(row["correct_count"]),
         timed_seconds=None if row.get("timed_seconds") is None else float(row["timed_seconds"]),
+        learning_evidence_applied_at=_dt(row.get("learning_evidence_applied_at")),
     )
 
 
@@ -255,6 +256,16 @@ def _answer(row: Mapping) -> AnswerRecord:
         correct=bool(row["correct"]),
         submitted_at=_dt(row.get("submitted_at")) or utc_now(),
         response_seconds=None if row.get("response_seconds") is None else float(row["response_seconds"]),
+        first_student_answer=(
+            int(row["first_student_answer"])
+            if row.get("first_student_answer") is not None
+            else int(row["student_answer"])
+        ),
+        first_correct=(
+            bool(row["first_correct"])
+            if row.get("first_correct") is not None
+            else bool(row["correct"])
+        ),
     )
 
 
@@ -381,6 +392,8 @@ class SupabaseFactStore:
 
     def health_check(self) -> bool:
         self.client.table("classes").select("class_id").limit(1).execute()
+        self.client.table("daily_attempts").select("attempt_id,learning_evidence_applied_at").limit(1).execute()
+        self.client.table("daily_answers").select("answer_id,first_student_answer,first_correct").limit(1).execute()
         self.client.table("student_fact_mastery").select("student_id").limit(1).execute()
         self.client.table("daily_learning_progress").select("student_id").limit(1).execute()
         self.client.table("weekly_mysteries").select("week_start").limit(1).execute()
@@ -778,6 +791,8 @@ class SupabaseFactStore:
             "student_answer": int(student_answer),
             "correct_answer": fact.product,
             "correct": int(student_answer) == fact.product,
+            "first_student_answer": int(student_answer),
+            "first_correct": int(student_answer) == fact.product,
             "submitted_at": when.isoformat(),
         }
         try:
@@ -817,6 +832,8 @@ class SupabaseFactStore:
                 "student_answer": int(value),
                 "correct_answer": fact.product,
                 "correct": int(value) == fact.product,
+                "first_student_answer": int(value),
+                "first_correct": int(value) == fact.product,
                 "submitted_at": when.isoformat(),
             })
         # Upsert makes completion retry-safe if a network hiccup lands between
@@ -843,13 +860,17 @@ class SupabaseFactStore:
         timed_seconds: float,
         *,
         response_seconds: Sequence[float | None] | None = None,
+        first_answers: Sequence[tuple[Fact, int]] | None = None,
         completed_at: datetime | None = None,
     ) -> AttemptRecord:
         attempt = self.get_attempt(attempt_id)
         if attempt.completed_at is not None:
-            return attempt
+            return self.ensure_daily_learning_evidence(attempt_id)
         if len(answers) != 10:
             raise ValueError("A Daily completion must contain exactly 10 answers.")
+        evidence_answers = list(first_answers or answers)
+        if len(evidence_answers) != 10:
+            raise ValueError("Daily first-answer evidence must contain exactly 10 answers.")
         seconds = float(timed_seconds)
         if not 0.1 <= seconds <= 3600:
             raise ValueError("Timed sprint duration is outside the allowed range.")
@@ -859,7 +880,11 @@ class SupabaseFactStore:
         when = completed_at or utc_now()
         started = when - timedelta(seconds=seconds)
         payloads = []
-        for question_number, ((fact, value), latency) in enumerate(zip(answers, latencies), start=1):
+        for question_number, (((fact, value), (evidence_fact, first_value)), latency) in enumerate(
+            zip(zip(answers, evidence_answers), latencies), start=1
+        ):
+            if fact.key != evidence_fact.key:
+                raise ValueError("Daily first-answer evidence does not match the Daily fact order.")
             payloads.append({
                 "attempt_id": str(attempt_id),
                 "question_number": question_number,
@@ -868,6 +893,8 @@ class SupabaseFactStore:
                 "student_answer": int(value),
                 "correct_answer": fact.product,
                 "correct": int(value) == fact.product,
+                "first_student_answer": int(first_value),
+                "first_correct": int(first_value) == fact.product,
                 "submitted_at": when.isoformat(),
                 "response_seconds": None if latency is None else round(float(latency), 3),
             })
@@ -883,20 +910,46 @@ class SupabaseFactStore:
             "completed_at": when.isoformat(),
             "correct_count": correct_count,
             "timed_seconds": round(seconds, 3),
+            "learning_evidence_applied_at": None,
         }).eq("attempt_id", str(attempt_id)).execute())
-        # Daily retrievals are the first source of evidence for the gradual
-        # mastery map. Batch all ten facts so a class finishing together does not
-        # create ~20 mastery database calls per student.
+        return self.ensure_daily_learning_evidence(attempt_id)
+
+    def ensure_daily_learning_evidence(self, attempt_id: str) -> AttemptRecord:
+        """Apply or repair Daily mastery/progress evidence exactly once in effect.
+
+        The official Daily score continues to use the student's final answers.
+        Teacher mastery evidence uses the first submitted answer for each fact.
+        A completion marker is written only after mastery/progress succeeds, so a
+        network interruption after the official attempt save can repair itself.
+        """
+        attempt = self.get_attempt(attempt_id)
+        if attempt.completed_at is None or attempt.learning_evidence_applied_at is not None:
+            return attempt
+        saved = self.get_answers(attempt_id)
+        if len(saved) != 10:
+            raise FactStoreError("Daily evidence repair requires all 10 saved answers.")
+        when = attempt.completed_at
+        # Batch all ten facts so a class finishing together does not create
+        # ~20 mastery database calls per student. The batch updater is also
+        # timestamp-idempotent, which makes this repair path safe to retry.
         self.record_mastery_evidence_batch(
             attempt.student_id,
             [
-                (Fact(a=answer.a, b=answer.b, tier="core"), answer.correct, answer.response_seconds, when)
+                (
+                    Fact(a=answer.a, b=answer.b, tier="core"),
+                    bool(answer.first_correct if answer.first_correct is not None else answer.correct),
+                    answer.response_seconds,
+                    when,
+                )
                 for answer in saved
             ],
         )
         self.get_or_create_learning_progress(attempt.student_id, attempt.challenge_id)
-        if correct_count == 10:
+        if int(attempt.correct_count or 0) == 10:
             self.mark_fix_complete(attempt.student_id, attempt.challenge_id)
+        _retry_transient(lambda: self.client.table("daily_attempts").update({
+            "learning_evidence_applied_at": utc_now().isoformat(),
+        }).eq("attempt_id", str(attempt_id)).is_("learning_evidence_applied_at", "null").execute())
         return self.get_attempt(attempt_id)
 
     def rebuild_mastery(self, student_id: str) -> list[MasterySnapshot]:
@@ -908,7 +961,7 @@ class SupabaseFactStore:
         daily_rows = []
         if attempt_ids:
             daily_rows = _rows(
-                self.client.table("daily_answers").select("a,b,correct,response_seconds,submitted_at")
+                self.client.table("daily_answers").select("a,b,correct,first_correct,response_seconds,submitted_at")
                 .in_("attempt_id", attempt_ids).range(0, 9999).execute()
             )
         focus_rows = _rows(
@@ -920,7 +973,11 @@ class SupabaseFactStore:
         for row in daily_rows:
             a, b = int(row["a"]), int(row["b"])
             if max(a, b) <= 10:
-                events.append((_dt(row.get("submitted_at")) or utc_now(), a, b, bool(row["correct"]), None if row.get("response_seconds") is None else float(row["response_seconds"])))
+                events.append((
+                    _dt(row.get("submitted_at")) or utc_now(), a, b,
+                    bool(row.get("first_correct") if row.get("first_correct") is not None else row["correct"]),
+                    None if row.get("response_seconds") is None else float(row["response_seconds"]),
+                ))
         for row in focus_rows:
             a, b = int(row["a"]), int(row["b"])
             if max(a, b) <= 10:

@@ -1544,6 +1544,10 @@ def render_daily_load_retry(exc: Exception) -> None:
 
 def render_completed_daily(store: SupabaseFactStore, day, facts: list[Fact], challenge, attempt) -> None:
     try:
+        evidence_key = f"daily_evidence_verified::{attempt.attempt_id}"
+        if not st.session_state.get(evidence_key, False):
+            store.ensure_daily_learning_evidence(attempt.attempt_id)
+            st.session_state[evidence_key] = True
         answers = store.get_answers(attempt.attempt_id)
         progress = store.get_or_create_learning_progress(st.session_state.student_id, challenge.challenge_id)
     except Exception as exc:
@@ -1645,11 +1649,15 @@ def render_daily(store: SupabaseFactStore | None) -> None:
     if isinstance(component_result, dict) and component_result.get("status") == "complete":
         try:
             raw_answers = component_result.get("answers")
+            raw_first_answers = component_result.get("first_answers")
             raw_response_seconds = component_result.get("response_seconds")
             timed_seconds = float(component_result.get("timed_seconds"))
             if not isinstance(raw_answers, list) or len(raw_answers) != 10:
                 raise ValueError("Daily component returned an incomplete answer set.")
             values = [int(value) for value in raw_answers]
+            if not isinstance(raw_first_answers, list) or len(raw_first_answers) != 10:
+                raw_first_answers = raw_answers
+            first_values = [int(value) for value in raw_first_answers]
             if not isinstance(raw_response_seconds, list) or len(raw_response_seconds) != 10:
                 raw_response_seconds = [None] * 10
             response_seconds = [None if value is None else float(value) for value in raw_response_seconds]
@@ -1660,6 +1668,7 @@ def render_daily(store: SupabaseFactStore | None) -> None:
                 list(zip(facts, values)),
                 timed_seconds,
                 response_seconds=response_seconds,
+                first_answers=list(zip(facts, first_values)),
                 completed_at=utc_now(),
             )
             st.rerun()

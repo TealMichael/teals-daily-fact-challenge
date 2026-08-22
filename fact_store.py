@@ -80,6 +80,7 @@ class AttemptRecord:
     completed_at: datetime | None = None
     correct_count: int | None = None
     timed_seconds: float | None = None
+    learning_evidence_applied_at: datetime | None = None
 
 
 @dataclass(frozen=True)
@@ -93,6 +94,8 @@ class AnswerRecord:
     correct: bool
     submitted_at: datetime
     response_seconds: float | None = None
+    first_student_answer: int | None = None
+    first_correct: bool | None = None
 
 
 @dataclass(frozen=True)
@@ -529,6 +532,8 @@ class InMemoryFactStore:
                     correct_answer=fact.product,
                     correct=int(value) == fact.product,
                     submitted_at=when,
+                    first_student_answer=int(value),
+                    first_correct=int(value) == fact.product,
                 )
             )
         answers = self.get_answers(attempt_id)
@@ -550,13 +555,17 @@ class InMemoryFactStore:
         timed_seconds: float,
         *,
         response_seconds: Sequence[float | None] | None = None,
+        first_answers: Sequence[tuple[Fact, int]] | None = None,
         completed_at: datetime | None = None,
     ) -> AttemptRecord:
         attempt = self.get_attempt(attempt_id)
         if attempt.completed_at is not None:
-            return attempt
+            return self.ensure_daily_learning_evidence(attempt_id)
         if len(answers) != 10:
             raise ValueError("A Daily completion must contain exactly 10 answers.")
+        evidence_answers = list(first_answers or answers)
+        if len(evidence_answers) != 10:
+            raise ValueError("Daily first-answer evidence must contain exactly 10 answers.")
         seconds = float(timed_seconds)
         if not 0.1 <= seconds <= 3600:
             raise ValueError("Timed sprint duration is outside the allowed range.")
@@ -566,7 +575,11 @@ class InMemoryFactStore:
         when = completed_at or utc_now()
         started = when - timedelta(seconds=seconds)
         self.answers[attempt_id] = []
-        for question_number, ((fact, value), latency) in enumerate(zip(answers, latencies), start=1):
+        for question_number, (((fact, value), (evidence_fact, first_value)), latency) in enumerate(
+            zip(zip(answers, evidence_answers), latencies), start=1
+        ):
+            if fact.key != evidence_fact.key:
+                raise ValueError("Daily first-answer evidence does not match the Daily fact order.")
             answer = AnswerRecord(
                 attempt_id=attempt_id,
                 question_number=question_number,
@@ -577,13 +590,10 @@ class InMemoryFactStore:
                 correct=int(value) == fact.product,
                 submitted_at=when,
                 response_seconds=None if latency is None else float(latency),
+                first_student_answer=int(first_value),
+                first_correct=int(first_value) == fact.product,
             )
             self.answers[attempt_id].append(answer)
-            if max(fact.key) <= 10:
-                self.record_mastery_evidence(
-                    attempt.student_id, fact, answer.correct,
-                    response_seconds=answer.response_seconds, practiced_at=when,
-                )
         correct_count = sum(answer.correct for answer in self.answers[attempt_id])
         updated = replace(
             attempt,
@@ -591,11 +601,42 @@ class InMemoryFactStore:
             completed_at=when,
             correct_count=correct_count,
             timed_seconds=seconds,
+            learning_evidence_applied_at=None,
         )
         self.attempts[attempt_id] = updated
+        return self.ensure_daily_learning_evidence(attempt_id)
+
+    def ensure_daily_learning_evidence(self, attempt_id: str) -> AttemptRecord:
+        """Repair-safe application of Daily evidence after the official score is saved.
+
+        The official Daily result uses the student's final submitted answers.
+        Mastery evidence uses the first answer to each fact.  Marking evidence as
+        applied only after mastery/progress updates makes a connection interruption
+        repairable the next time the completed Daily is opened.
+        """
+        attempt = self.get_attempt(attempt_id)
+        if attempt.completed_at is None or attempt.learning_evidence_applied_at is not None:
+            return attempt
+        answers = self.get_answers(attempt_id)
+        if len(answers) != 10:
+            raise FactStoreError("Daily evidence repair requires all 10 saved answers.")
+        when = attempt.completed_at
+        for answer in answers:
+            if max(answer.a, answer.b) <= 10:
+                a, b = canonical_pair(answer.a, answer.b)
+                existing = self.mastery.get((attempt.student_id, a, b))
+                if existing is not None and existing.last_practiced_at is not None and when <= existing.last_practiced_at:
+                    continue
+                self.record_mastery_evidence(
+                    attempt.student_id, Fact(a=answer.a, b=answer.b, tier="core"),
+                    bool(answer.first_correct if answer.first_correct is not None else answer.correct),
+                    response_seconds=answer.response_seconds, practiced_at=when,
+                )
         self.get_or_create_learning_progress(attempt.student_id, attempt.challenge_id)
-        if correct_count == 10:
+        if int(attempt.correct_count or 0) == 10:
             self.mark_fix_complete(attempt.student_id, attempt.challenge_id)
+        updated = replace(attempt, learning_evidence_applied_at=utc_now())
+        self.attempts[attempt_id] = updated
         return updated
 
     def rebuild_mastery(self, student_id: str) -> list[MasterySnapshot]:
@@ -609,7 +650,11 @@ class InMemoryFactStore:
         for attempt_id in completed_attempt_ids:
             for answer in self.answers.get(attempt_id, []):
                 if max(answer.a, answer.b) <= 10:
-                    events.append((answer.submitted_at, answer.a, answer.b, answer.correct, answer.response_seconds))
+                    events.append((
+                        answer.submitted_at, answer.a, answer.b,
+                        bool(answer.first_correct if answer.first_correct is not None else answer.correct),
+                        answer.response_seconds,
+                    ))
         for row in self.practice:
             if row.student_id == student_id and row.activity_type == "focus" and not row.is_retry and max(row.a, row.b) <= 10:
                 events.append((row.created_at, row.a, row.b, row.correct, row.response_seconds))

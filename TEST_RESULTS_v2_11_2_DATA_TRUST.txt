@@ -1,0 +1,11 @@
+TEAL'S DAILY FACT CHALLENGE v2.11.2 — DATA TRUST PASS TEST RESULTS
+
+- New data-trust regression: 20/20 checks passed.
+- Critical release guard: 16/16 suites passed.
+- Historical/current regression suites: 55/55 passed across the complete suite.
+- Classroom-scale simulation: 3 classes × 30 students passed.
+- Daily generator: 5,111 checks across 730 generated Daily Challenges passed.
+- Browser component JavaScript syntax: 5/5 components passed.
+- No adaptive-engine / Focus Practice rules were changed.
+- Official Daily score remains based on final answers; teacher mastery uses first submitted answers.
+- Supabase migration is additive/backward-compatible.

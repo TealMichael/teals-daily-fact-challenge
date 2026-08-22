@@ -11,11 +11,7 @@ from dataclasses import dataclass
 from statistics import median
 from typing import Iterable, Mapping, Sequence
 
-from adaptive_engine import (
-    STATUS_FLUENT,
-    STATUS_FOCUS,
-    MasterySnapshot,
-)
+from adaptive_engine import MasterySnapshot
 
 BAND_KNOWN = "known"
 BAND_SLOW = "slow"
@@ -45,27 +41,51 @@ class StudentFluencySummary:
 
 
 def teacher_fact_band(snapshot: MasterySnapshot) -> str:
-    """Translate one fact snapshot into teacher-friendly classroom language.
+    """Translate mastery evidence into conservative teacher-facing bands.
 
-    Accuracy remains primary.  A fact is only called "slow" when the student
-    has repeated accurate retrieval evidence and the weighted correct-response
-    time is still above five seconds.  Unknown/limited evidence is never treated
-    as a deficit.
+    The adaptive engine remains untouched for Focus Practice.  Teacher-facing
+    intervention labels intentionally require stronger evidence:
+
+    * Needs Help requires at least two independent misses and no three-answer
+      recovery streak. One isolated miss can never create a red flag.
+    * Accurate, Still Slow requires six or more independent attempts, a strong
+      recent correct streak, strong accuracy, and a weighted correct time above
+      seven seconds. This keeps one classroom interruption from creating yellow.
+    * Knows It requires stable accurate retrieval; borderline speed stays in
+      Still Learning rather than being treated as an intervention concern.
     """
     if snapshot.evidence_count < 2 or snapshot.ema_accuracy is None:
         return BAND_LEARNING
-    if snapshot.status == STATUS_FOCUS:
-        return BAND_HELP
-    if snapshot.status == STATUS_FLUENT:
-        return BAND_KNOWN
+
+    misses = max(0, int(snapshot.evidence_count) - int(snapshot.correct_count))
+    raw_accuracy = snapshot.accuracy
     if (
         snapshot.evidence_count >= 3
-        and snapshot.ema_accuracy >= 0.80
-        and snapshot.correct_streak >= 2
-        and snapshot.ema_seconds is not None
-        and snapshot.ema_seconds > 5.0
+        and misses >= 2
+        and snapshot.correct_streak < 3
+        and (
+            (raw_accuracy is not None and raw_accuracy <= 0.70)
+            or snapshot.ema_accuracy < 0.68
+        )
     ):
-        return BAND_SLOW
+        return BAND_HELP
+
+    stable_accuracy = (
+        snapshot.evidence_count >= 4
+        and snapshot.ema_accuracy >= 0.88
+        and snapshot.correct_streak >= 3
+    )
+    if stable_accuracy:
+        if (
+            snapshot.evidence_count >= 6
+            and snapshot.correct_streak >= 4
+            and snapshot.ema_seconds is not None
+            and snapshot.ema_seconds > 7.0
+        ):
+            return BAND_SLOW
+        if snapshot.ema_seconds is None or snapshot.ema_seconds <= 5.5:
+            return BAND_KNOWN
+
     return BAND_LEARNING
 
 

@@ -46,3 +46,11 @@ This contract was rebased in v2.11.2 on the proven v2.11.0.3 classroom build to 
 ## Release rule
 
 Future releases should run `python release_guard.py` plus the full `*_tests.py` suite before packaging. A feature should not be considered complete merely because source text exists; behavior-oriented checks should be preferred whenever practical.
+
+## Data-trust protections added after the foundation pass
+
+- Teacher **Needs Help** must require repeated independent misses; one isolated miss must never create a red intervention flag.
+- Teacher **Accurate, Still Slow** must require sustained evidence; one classroom pause must not create a yellow speed concern.
+- The Daily browser may let a student revisit an answer, but persistent mastery evidence must preserve the **first submitted answer** separately from the official/final Daily score.
+- A completed Daily must be repairable if the network fails between saving the official attempt and applying mastery/learning-progress evidence. The repair path must be idempotent.
+- Historical pre-patch Daily answers may fall back to their stored official answer as the best available first-answer evidence.

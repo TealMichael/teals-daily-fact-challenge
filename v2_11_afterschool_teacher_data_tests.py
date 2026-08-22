@@ -44,7 +44,7 @@ def run():
     checks["version 2.11.2"] = APP_VERSION == "2.11.2"
 
     known = snap(2, 2, 5, 5, 0.96, 3.2, 5, STATUS_FLUENT)
-    slow = snap(3, 4, 5, 5, 0.95, 7.1, 4, STATUS_BUILDING)
+    slow = snap(3, 4, 6, 6, 0.95, 8.0, 5, STATUS_BUILDING)
     help_fact = snap(7, 8, 4, 1, 0.42, 4.0, 0, STATUS_FOCUS)
     too_little = snap(6, 6, 1, 1, 1.0, 2.0, 1, STATUS_UNKNOWN)
     developing = snap(4, 6, 3, 2, 0.76, 4.1, 1, STATUS_BUILDING)
@@ -57,7 +57,7 @@ def run():
 
     summary = summarize_student_fluency("s1", "Student A", [known, slow, help_fact, too_little, developing])
     checks["student summary separates known slow help"] = (summary.known, summary.slow, summary.needs_help) == (1, 1, 1)
-    checks["typical time uses stable accurate facts"] = 3.2 < summary.typical_correct_seconds < 7.1
+    checks["typical time uses stable accurate facts"] = 3.2 < summary.typical_correct_seconds < 8.0
     checks["start facts puts accuracy need first"] = summary.start_facts[0] == "7×8"
     checks["pull reason plain language"] = "repeated miss" in pull_reason(summary)
 

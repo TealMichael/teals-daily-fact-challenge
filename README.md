@@ -1,5 +1,18 @@
 # Teal's Daily Fact Challenge
 
+## v2.11.2 — Data Trust Pass
+
+This patch keeps the student Daily experience and official Daily scoring unchanged while tightening four data-trust areas:
+
+- Teacher **Needs Help** now requires repeated independent misses; one isolated miss cannot create a red flag.
+- Teacher **Accurate, Still Slow** now requires sustained accurate-but-slow evidence; one classroom pause is not enough.
+- Daily 10 now preserves the **first submitted answer** separately for mastery evidence while the official Daily score still uses the student's final answer.
+- Completed Daily attempts now have an idempotent repair marker so mastery/learning-progress evidence can recover after a connection interruption.
+
+Run `RUN_THIS_ONCE_IN_SUPABASE_v2_11_2_DATA_TRUST.sql` once before deploying this code. The migration is backward-compatible with the currently installed v2.11.2 app.
+
+---
+
 ## v2.11.2 — Post-Daily Student Flow UI Patch
 
 - Keeps the v2.11.2 resilient foundation unchanged except for the student midpoint UI after Daily 10.

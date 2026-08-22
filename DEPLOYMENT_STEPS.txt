@@ -1,27 +1,18 @@
-TEAL'S DAILY FACT CHALLENGE v2.11.2
-RESILIENT STABILITY / FOUNDATION PASS
+TEAL'S DAILY FACT CHALLENGE v2.11.2 — DATA TRUST PASS
 
-UPDATING FROM THE CURRENT WORKING v2.11.0.3:
-1. There is NO new Supabase SQL migration.
-2. There is NO new Streamlit Secret.
-3. Do not install the older v2.11.1 foundation ZIP first.
-4. Upload/replace every file and folder in this package's UPLOAD_TO_GITHUB directory to the existing GitHub repository root.
-5. Let Streamlit redeploy.
+IMPORTANT: this patch adds a small backward-compatible Supabase migration.
 
-WHAT YOU SHOULD NOTICE:
-- Ideally, nothing in the student or teacher experience changes.
-- Student sign-in, Igniter, Daily 10, Fix Misses, Focus, Mystery, Practice, rankings, and feedback should behave exactly as the working v2.11.0.3 app.
-- Teacher Today, Warm-Up/Igniter, Learning Data, standards history, rosters, Mystery, Student Support, Test Student, refresh, and Outlook workflow should behave exactly as v2.11.0.3.
-- The v2.11.0.1–v2.11.0.3 resilience protections remain in place.
+1. In Supabase SQL Editor, run the entire file:
+   RUN_THIS_ONCE_IN_SUPABASE_v2_11_2_DATA_TRUST.sql
 
-FOUNDATION CHANGES ONLY:
-- app.py is reduced from roughly 3,960 lines in v2.11.0.3 to roughly 2,935 lines.
-- Student Igniter, Teacher Warm-Up/Igniter, and Teacher Learning Data live in separate modules.
-- STABILITY_CONTRACT.md records protected workflow, privacy, data, and resilience rules.
-- release_guard.py provides a repeatable critical pre-release gate, including the resilience regressions.
-- No learning rule, scoring rule, Daily generator rule, database schema, browser component, or Supabase behavior was intentionally changed.
+2. Confirm the SQL finishes successfully. The currently installed v2.11.2 app remains compatible after this migration, so there is no need to rush the GitHub push.
 
-Do NOT rerun any prior RUN_THIS_ONCE_IN_SUPABASE SQL files.
+3. Copy the patch files into your cloned GitHub repository using GitHub Desktop workflow.
 
-Suggested GitHub commit:
-v2.11.2 - rebase stability foundation on proven resilience build
+4. Commit with:
+   v2.11.2 - strengthen Daily and Fact Fluency data trust
+
+5. Push origin when ready for Streamlit to redeploy.
+
+No new Streamlit Secret is required.
+Do not rerun older Supabase migrations.

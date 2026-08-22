@@ -91,7 +91,7 @@ def run():
     # Fact-fluency translation remains teacher-friendly and does not make limited
     # evidence an intervention label.
     learning = MasterySnapshot(a=3, b=4, evidence_count=1, correct_count=1, ema_accuracy=1.0, ema_seconds=8.0, correct_streak=1, status=STATUS_BUILDING)
-    slow = MasterySnapshot(a=6, b=7, evidence_count=4, correct_count=4, ema_accuracy=0.95, ema_seconds=7.0, correct_streak=3, status=STATUS_BUILDING)
+    slow = MasterySnapshot(a=6, b=7, evidence_count=6, correct_count=6, ema_accuracy=0.95, ema_seconds=8.0, correct_streak=5, status=STATUS_BUILDING)
     help_fact = MasterySnapshot(a=7, b=8, evidence_count=3, correct_count=1, ema_accuracy=0.50, ema_seconds=5.0, correct_streak=0, status=STATUS_FOCUS)
     known = MasterySnapshot(a=5, b=6, evidence_count=5, correct_count=5, ema_accuracy=0.97, ema_seconds=3.5, correct_streak=4, status=STATUS_FLUENT)
     checks["limited evidence stays learning"] = teacher_fact_band(learning) == BAND_LEARNING

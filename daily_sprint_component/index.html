@@ -43,12 +43,13 @@
   function setHeight(height=590){ post('streamlit:setFrameHeight',{height}); }
   function setValue(value){ post('streamlit:setComponentValue',{value,dataType:'json'}); }
   function storageKey(){ return `tdfc_daily_v1:${args.attempt_key}`; }
-  function freshState(){ return {version:args.challenge_version,index:0,answers:Array(10).fill(null),responseSeconds:Array(10).fill(null),startedMs:null,shownMs:Date.now(),completePayload:null}; }
+  function freshState(){ return {version:args.challenge_version,index:0,answers:Array(10).fill(null),firstAnswers:Array(10).fill(null),responseSeconds:Array(10).fill(null),startedMs:null,shownMs:Date.now(),completePayload:null}; }
   function loadState(){
     try {
       const raw=localStorage.getItem(storageKey()); if(!raw) return freshState();
       const parsed=JSON.parse(raw);
       if(parsed.version!==args.challenge_version || !Array.isArray(parsed.answers) || parsed.answers.length!==10) return freshState();
+      if(!Array.isArray(parsed.firstAnswers)||parsed.firstAnswers.length!==10) parsed.firstAnswers=parsed.answers.slice();
       if(!Array.isArray(parsed.responseSeconds)||parsed.responseSeconds.length!==10) parsed.responseSeconds=Array(10).fill(null);
       if(!parsed.shownMs) parsed.shownMs=Date.now(); return parsed;
     } catch(_){ return freshState(); }
@@ -63,13 +64,14 @@
   function submitAnswer(){
     const value=Number(digits); const error=document.getElementById('error');
     if(!digits || !Number.isInteger(value) || value<0 || value>200){ if(error)error.textContent='Enter a whole-number answer.'; return; }
-    const current=loadState(); const firstSubmission=current.answers[current.index]===null;
+    const current=loadState(); const firstSubmission=current.firstAnswers[current.index]===null;
     current.answers[current.index]=value;
+    if(firstSubmission){ current.firstAnswers[current.index]=value; }
     if(firstSubmission && current.index>0 && current.responseSeconds[current.index]===null){ current.responseSeconds[current.index]=Number(Math.max(0,(Date.now()-(current.shownMs||Date.now()))/1000).toFixed(3)); }
     current.responseSeconds[0]=null;
     if(current.index===0 && !current.startedMs) current.startedMs=Date.now();
     if(current.index===9){
-      const payload={status:'complete',answers:current.answers,response_seconds:current.responseSeconds,timed_seconds:Number(elapsedSeconds(current).toFixed(3))};
+      const payload={status:'complete',answers:current.answers,first_answers:current.firstAnswers,response_seconds:current.responseSeconds,timed_seconds:Number(elapsedSeconds(current).toFixed(3))};
       current.completePayload=payload; saveState(current); setValue(payload);
       document.getElementById('root').innerHTML='<div class="card"><div class="help">Saving your Daily result…</div></div>'; setHeight(110); return;
     }

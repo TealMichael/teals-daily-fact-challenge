@@ -168,8 +168,8 @@ def _render_teacher_fact_fluency(store: SupabaseFactStore, selected, students) -
 
     with st.expander("How is Fact Fluency being read?", expanded=False):
         st.markdown("**🟢 Knows It** — repeated accurate retrieval with a stable correct streak and roughly 5 seconds or less on correct responses.")
-        st.markdown("**🟡 Accurate, Still Slow** — repeated accurate answers, but correct retrieval is still taking more than about 5 seconds.")
-        st.markdown("**🔴 Needs Help** — repeated independent evidence shows an accuracy problem.")
+        st.markdown("**🟡 Accurate, Still Slow** — several accurate retrievals show the fact is known, but recall is consistently taking noticeably longer (about 7+ seconds).")
+        st.markdown("**🔴 Needs Help** — at least two independent misses show a real accuracy pattern. One isolated miss never creates a red flag.")
         st.markdown("**⚪ Still Learning** — the app does not have enough stable evidence yet, or the fact is still developing. This is not automatically an intervention flag.")
         st.caption("Fact Coach corrections do not erase the original miss and do not count as independent fluency evidence.")
 
