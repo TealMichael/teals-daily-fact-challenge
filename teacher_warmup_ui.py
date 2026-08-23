@@ -437,8 +437,8 @@ def render_teacher_warmup(store: SupabaseFactStore, *, refresh_control, finish_r
         save = st.form_submit_button("Save Warm-Up", type="primary", use_container_width=True, disabled=locked)
     if save:
         try:
-            q1 = preparequestion_for_slot(slot=1, **q1_values)
-            q2 = preparequestion_for_slot(slot=2, **q2_values)
+            q1 = prepare_warmup_question(slot=1, **q1_values)
+            q2 = prepare_warmup_question(slot=2, **q2_values)
             targets = classes if copy_all else [selected]
             locked_targets = []
             for class_record in targets:
