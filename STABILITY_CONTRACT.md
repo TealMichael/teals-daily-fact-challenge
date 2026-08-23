@@ -23,6 +23,8 @@ This contract was rebased in v2.11.2 on the proven v2.11.0.3 classroom build to 
 5. Unfinished Igniter work is never counted as incorrect or placed into reteach groups.
 6. Outlook reports are prepared for teacher review; the app does not auto-send email.
 7. Historical Igniter standards evidence is described as evidence, not automatic mastery.
+8. Teacher Today Warm-Up groups/email and Student Support Focus controls must remain callable after module refactors.
+9. A failure to remember Recently Used standards must never make a successfully saved Igniter appear unsaved.
 
 ## Protected resilience behavior
 

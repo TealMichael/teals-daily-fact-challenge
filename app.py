@@ -38,8 +38,9 @@ from supabase_fact_store import SupabaseFactStore
 from persistent_login import REMEMBER_DAYS, issue_student_token, peek_student_id, verify_student_token
 from ui_helpers import format_seconds, strategy_tip
 from student_igniter_ui import render_quick_warmup
-from teacher_learning_ui import render_teacher_mastery_focus
+from teacher_learning_ui import render_teacher_mastery_focus, _override_label, _override_value
 from teacher_warmup_ui import render_teacher_warmup as _render_teacher_warmup_module
+from teacher_warmup_ui import _render_warmup_groups_and_email
 from weekly_mystery import (
     MYSTERIES,
     default_mystery_key_for_week,
