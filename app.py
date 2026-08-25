@@ -1898,12 +1898,24 @@ def render_teacher_projector(store: SupabaseFactStore) -> None:
 
     day, _, challenge = ensure_today(store)
     students = store.list_students(class_id)
-    status = store.daily_status(class_id, challenge.challenge_id, students=students)
+    status_error = None
+    try:
+        status = store.daily_status(class_id, challenge.challenge_id, students=students)
+    except Exception as exc:
+        # Keep Back/Refresh available during a transient Daily-status API failure.
+        status = []
+        status_error = exc
     completed = sum(row["status"] == "Complete" for row in status)
-    total = len(status)
-    final = _leaderboard_is_final(store, day, class_id, completed=completed, total=total)
-    board = _leaderboard_from_status(status, limit=10)
-    _finish_teacher_refresh()
+    total = len(status) if status_error is None else len(students)
+    final = False if status_error is not None else _leaderboard_is_final(
+        store, day, class_id, completed=completed, total=total
+    )
+    if status_error is None:
+        board = _leaderboard_from_status(status, limit=10)
+        _finish_teacher_refresh()
+    else:
+        board = []
+        st.session_state.pop("teacher_refresh_pending", False)
 
     top_a, top_b = st.columns([1, 1])
     with top_a:
@@ -1912,6 +1924,12 @@ def render_teacher_projector(store: SupabaseFactStore) -> None:
             st.rerun()
     with top_b:
         _teacher_refresh_control(key="projector_refresh")
+
+    if status_error is not None:
+        st.warning("Daily 10 status could not load just now. Tap Refresh data to try again, or go back to the Teacher Dashboard.")
+        if str(st.query_params.get("dbcheck", "0")) == "1":
+            st.exception(status_error)
+        return
 
     status_text = "FINAL TOP 10" if final else "LIVE TOP 10"
     sub = "Final standings for today" if final else f"{completed} of {total} finished · standings may change"
@@ -1956,9 +1974,19 @@ def render_teacher_today(store: SupabaseFactStore) -> None:
     # One roster read feeds every Today section. The remaining reads are the
     # actual data sets we need rather than reloading the roster for each one.
     students = store.list_students(selected.class_id)
-    status = store.daily_status(selected.class_id, challenge.challenge_id, students=students)
-    progress_map = store.class_learning_progress(selected.class_id, challenge.challenge_id, students=students)
-    learning_stats = store.class_learning_stats(selected.class_id, day, students=students)
+    daily_status_error = None
+    try:
+        status = store.daily_status(selected.class_id, challenge.challenge_id, students=students)
+    except Exception as exc:
+        # Daily status cannot block independently loaded Igniter/teacher tools.
+        status = []
+        daily_status_error = exc
+    if daily_status_error is None:
+        progress_map = store.class_learning_progress(selected.class_id, challenge.challenge_id, students=students)
+        learning_stats = store.class_learning_stats(selected.class_id, day, students=students)
+    else:
+        progress_map = {}
+        learning_stats = {}
     warmup_error = None
     try:
         warmup_today = store.get_warmup_set(selected.class_id, day)
@@ -1971,15 +1999,18 @@ def render_teacher_today(store: SupabaseFactStore) -> None:
         warmup_rows = []
         warmup_error = exc
     completed_rows = [row for row in status if row.get("status") == "Complete"]
-    _finish_teacher_refresh()
+    if daily_status_error is None:
+        _finish_teacher_refresh()
+    else:
+        st.session_state.pop("teacher_refresh_pending", False)
 
-    total = len(status)
+    total = len(status) if daily_status_error is None else len(students)
     full_complete = sum(
         bool(progress_map.get(row["student_id"]) and progress_map[row["student_id"]].completed_at)
         for row in status
     )
     not_started = sum(row["status"] == "Not started" for row in status)
-    working = max(0, total - full_complete - not_started)
+    working = max(0, total - full_complete - not_started) if daily_status_error is None else 0
     daily_complete = len(completed_rows)
     average_accuracy = (
         sum(int(row["correct_count"]) for row in completed_rows) / len(completed_rows)
@@ -1991,11 +2022,19 @@ def render_teacher_today(store: SupabaseFactStore) -> None:
     )
 
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("🟢 Done", f"{full_complete}/{total}")
-    c2.metric("🟡 Working", working)
-    c3.metric("⚪ Not started", not_started)
-    c4.metric("Daily 10 finished", f"{daily_complete}/{total}")
-
+    if daily_status_error is None:
+        c1.metric("🟢 Done", f"{full_complete}/{total}")
+        c2.metric("🟡 Working", working)
+        c3.metric("⚪ Not started", not_started)
+        c4.metric("Daily 10 finished", f"{daily_complete}/{total}")
+    else:
+        c1.metric("🟢 Done", "—")
+        c2.metric("🟡 Working", "—")
+        c3.metric("⚪ Not started", "—")
+        c4.metric("Daily 10 finished", "—")
+        st.warning("Daily 10 status could not load just now. Igniter results and other teacher tools are still available; tap Refresh data to retry the Daily snapshot.")
+        if str(st.query_params.get("dbcheck", "0")) == "1":
+            st.exception(daily_status_error)
     if warmup_error is not None:
         st.warning("Warm-Up data could not load just now. The rest of Today is still available; try Refresh data once.")
         if str(st.query_params.get("dbcheck", "0")) == "1":
@@ -2022,36 +2061,39 @@ def render_teacher_today(store: SupabaseFactStore) -> None:
             )
 
     st.markdown("#### 🏆 Class Top 10")
-    board = _leaderboard_from_status(status, limit=10)
-    final = _leaderboard_is_final(store, day, selected.class_id, completed=daily_complete, total=total)
-    if final:
-        st.success("**Final Top 10** · final standings for today")
+    if daily_status_error is not None:
+        st.caption("Daily standings are temporarily unavailable. Igniter results above are unaffected; tap Refresh data to retry.")
     else:
-        st.info(f"**Live Top 10** · {daily_complete} of {total} finished · standings may change")
-    board_frame = pd.DataFrame([{"Rank": row["rank"], "Nickname": row["nickname"]} for row in board]) if board else pd.DataFrame(columns=["Rank", "Nickname"])
-    if board:
-        st.dataframe(board_frame, hide_index=True, use_container_width=True)
-    else:
-        st.caption("No completed Daily attempts yet today.")
-
-    top10_a, top10_b = st.columns(2)
-    with top10_a:
-        if st.button("🏆 Display Top 10", use_container_width=True, key=f"display_top10_{selected.class_id}"):
-            st.session_state["teacher_projector_mode"] = True
-            st.session_state["teacher_projector_class_id"] = selected.class_id
-            st.session_state["teacher_projector_class_name"] = selected.class_name
-            st.rerun()
-    with top10_b:
-        if final and not (total > 0 and daily_complete >= total):
-            if st.button("Return standings to Live", use_container_width=True, key=f"unfinal_top10_{selected.class_id}"):
-                store.set_app_setting(_leaderboard_final_key(day, selected.class_id), False)
-                st.rerun()
-        elif not final:
-            if st.button("Mark standings Final", use_container_width=True, key=f"final_top10_{selected.class_id}"):
-                store.set_app_setting(_leaderboard_final_key(day, selected.class_id), True)
-                st.rerun()
+        board = _leaderboard_from_status(status, limit=10)
+        final = _leaderboard_is_final(store, day, selected.class_id, completed=daily_complete, total=total)
+        if final:
+            st.success("**Final Top 10** · final standings for today")
         else:
-            st.caption("Everyone has finished the Daily 10, so standings are automatically Final.")
+            st.info(f"**Live Top 10** · {daily_complete} of {total} finished · standings may change")
+        board_frame = pd.DataFrame([{"Rank": row["rank"], "Nickname": row["nickname"]} for row in board]) if board else pd.DataFrame(columns=["Rank", "Nickname"])
+        if board:
+            st.dataframe(board_frame, hide_index=True, use_container_width=True)
+        else:
+            st.caption("No completed Daily attempts yet today.")
+
+        top10_a, top10_b = st.columns(2)
+        with top10_a:
+            if st.button("🏆 Display Top 10", use_container_width=True, key=f"display_top10_{selected.class_id}"):
+                st.session_state["teacher_projector_mode"] = True
+                st.session_state["teacher_projector_class_id"] = selected.class_id
+                st.session_state["teacher_projector_class_name"] = selected.class_name
+                st.rerun()
+        with top10_b:
+            if final and not (total > 0 and daily_complete >= total):
+                if st.button("Return standings to Live", use_container_width=True, key=f"unfinal_top10_{selected.class_id}"):
+                    store.set_app_setting(_leaderboard_final_key(day, selected.class_id), False)
+                    st.rerun()
+            elif not final:
+                if st.button("Mark standings Final", use_container_width=True, key=f"final_top10_{selected.class_id}"):
+                    store.set_app_setting(_leaderboard_final_key(day, selected.class_id), True)
+                    st.rerun()
+            else:
+                st.caption("Everyone has finished the Daily 10, so standings are automatically Final.")
 
     if st.button("📟 Send Top 10 to Clock Now", use_container_width=True, key=f"send_clock_top10_{selected.class_id}"):
         try:

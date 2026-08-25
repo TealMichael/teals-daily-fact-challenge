@@ -1,31 +1,26 @@
-TEAL'S DAILY FACT CHALLENGE v2.12.0 — AWTRIX LIVE HOTFIX 1
+TEAL'S DAILY FACT CHALLENGE v2.12.0 — HOTFIX 3 CLASSROOM SAFETY + TOP 10 CHIME
 
-This hotfix follows the successful live v2.12.0 physical-clock test.
+BASE
+This combined patch is for the currently installed v2.12.0 Hotfix 1 AWTRIX Live Fix build.
+It includes the not-yet-installed Hotfix 2 Teacher Today API-resilience protection plus the Top 10 chime.
 
 STEP 1 — SUPABASE
-If you already ran the two-line live fix in Supabase during setup, there is nothing else to run now.
-If you deployed the original v2.12.0 but have NOT applied that fix, run:
-  RUN_THIS_ONCE_IN_SUPABASE_v2_12_HOTFIX1.sql
-For a brand-new deployment, RUN_THIS_ONCE_IN_SUPABASE_v2_12.sql now contains the correction automatically.
+No new SQL for Hotfix 3.
+Keep the v2.12.0 and AWTRIX Hotfix 1 database changes already applied.
+Do NOT rerun older migrations for this patch.
 
 STEP 2 — GITHUB / STREAMLIT
-Copy the contents of UPLOAD_TO_GITHUB into the repository, replacing existing files, commit, and push.
+Copy the contents of COPY_INTO_GITHUB_REPO (patch package) or UPLOAD_TO_GITHUB (full archive) into the repository, replacing existing files, then commit and push.
 Commit message:
-  v2.12.0 Hotfix 1 - fix AWTRIX live Supabase auth and mapping confirmation
+  v2.12.0 Hotfix 3 - restore Teacher Today resilience and add Top 10 chime
 
-STEP 3 — AWTRIX
-No clock-script reinstall is required. Keep both existing background scripts active:
-  • Class Schedule
-  • Fact Top 10
+STEP 3 — AWTRIX CLOCK
+Update ONLY the Fact Top 10 script. Keep the Class Schedule script unchanged.
+1. Open the AWTRIX web UI.
+2. Open Scripts and select the installed Fact Top 10 script.
+3. Replace its source with AWTRIX_FactTop10.berry from this package (or import/copy it into the editor under the same app name).
+4. Save/install it. Keeping the same app preserves the script's stored configuration on the device.
+5. Confirm the global AWTRIX Sound setting is enabled.
+6. Use Teacher > Clock > Send Top 10 to Clock Now for a manual test.
 
-LIVE AUTOMATIC WINDOWS (UNCHANGED)
-Monday–Thursday:
-  • Block 1: 10:35–10:40
-  • Block 2: 1:05–1:10
-  • Block 3: 3:25–3:30
-Friday:
-  • Block 1: 10:25–10:30
-  • Block 2: 12:55–1:00
-  • Block 3: 3:00–3:05
-
-The full Block X Top 10 sequence still scrolls twice and then returns to Time.
+The sound is a single three-note RTTTL chime when the Top 10 notification first appears. It does not loop or play before each nickname.

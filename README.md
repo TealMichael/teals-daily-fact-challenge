@@ -1,5 +1,7 @@
 # Teal's Daily Fact Challenge
 
+> **v2.12.0 Hotfix 2:** restores the previously proven Teacher Today / projector API-resilience behavior after the AWTRIX branch merge. A transient Daily-status PostgREST failure no longer crashes Teacher Today or blocks independently loaded Igniter results. No AWTRIX, student-flow, scoring, mastery, or SQL changes.
+
 > **v2.12.0 Hotfix 1:** fixes the live AWTRIX Supabase `digest()` search path and preserves the Clock mapping save confirmation across Streamlit reruns. No clock script reinstall is required.
 
 
@@ -580,3 +582,7 @@ Added **Daily 10 → Fix Your Misses → Your Focus Practice → Done**, persist
 ### v1.0.0 — Full classroom beta
 
 Initial shared Daily 10, class Top 10, student nickname/PIN accounts, visual Practice, teacher roster/dashboard tools, and Supabase persistence.
+
+### v2.12.0 Hotfix 3 — Top 10 chime
+The separate `AWTRIX_FactTop10.berry` script now adds a short three-note RTTTL chime (`c,e,g`) when either an automatic or teacher-manual Top 10 notification begins. The melody plays once per notification; it does not loop or repeat before each student. AWTRIX global Sound must be enabled. The Class Schedule script is unchanged.
+

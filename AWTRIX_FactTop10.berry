@@ -1,6 +1,6 @@
 # @name Fact Top 10
 # @desc Pulls student-safe Daily Top 10 standings from Teal's Daily Fact Challenge
-# @version 1.0
+# @version 1.1
 # @headless true
 # @config apiBase text "Supabase REST URL" default="" help="Example: https://YOUR-PROJECT.supabase.co/rest/v1" maxlen=180
 # @config apiKey text "Supabase publishable key" default="" help="Use the publishable key or legacy anon key, never the secret key" maxlen=220
@@ -149,7 +149,7 @@ class FactTop10
       if data.find("manual", false) == true
         var manual_text = data.find("text")
         if manual_text != nil && manual_text != ""
-          notify({"text":str(manual_text), "repeat":2, "stack":true})
+          notify({"text":str(manual_text), "repeat":2, "stack":true, "soundRtttl":"top10:d=8,o=6,b=150:c,e,g"})
         end
       end
 
@@ -157,7 +157,7 @@ class FactTop10
       var count = num(data.find("count", 0))
       var auto_text = data.find("text")
       if count != nil && count > 0 && auto_text != nil && auto_text != ""
-        if notify({"text":str(auto_text), "repeat":2, "stack":true})
+        if notify({"text":str(auto_text), "repeat":2, "stack":true, "soundRtttl":"top10:d=8,o=6,b=150:c,e,g"})
           self.last_auto_key = self.request_auto_key
           store.set("lastAuto", self.last_auto_key)
         end

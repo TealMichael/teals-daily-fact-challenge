@@ -68,3 +68,16 @@ Future releases should run `python release_guard.py` plus the full `*_tests.py` 
 6. Automatic Top 10 timing lives on the clock and may use outbound HTTPS only; the cloud app must not depend on reaching a private classroom IP address.
 7. Top 10 ordering must remain the same accuracy-first Daily leaderboard contract: correct count first, time only as tie-breaker, then completion timestamp. Test Student remains excluded.
 8. The teacher must retain a manual **Send Top 10 to Clock Now** control so the integration can be tested/replayed independently of automatic schedule timing.
+
+## v2.12 classroom-clock safety additions
+- AWTRIX/clock work stays teacher-only; it must not add database/network work to Student Sign In, Igniter, Daily 10, Fix Misses, Focus Practice, or Practice.
+- A transient `daily_status()` / PostgREST failure must not crash Teacher Today or block access to independently loaded Igniter results. Projector mode must keep Back/Refresh usable.
+- Clock integration must continue to expose only the student-safe Top 10 payload and must never place the Supabase secret/service key on the physical clock.
+
+## v2.12.0 Hotfix 3 — Top 10 chime contract
+- The Fact Top 10 AWTRIX script may play one short RTTTL chime when a Top 10 notification first appears.
+- The chime is attached to both automatic and teacher-manual Top 10 notifications.
+- It must not loop and must not play before each ranked nickname.
+- The separate Class Schedule script and its sounds remain untouched.
+- Student app flow and student database workload remain unchanged by clock sound behavior.
+

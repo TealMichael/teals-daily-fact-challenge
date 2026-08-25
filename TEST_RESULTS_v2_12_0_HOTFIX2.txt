@@ -1,0 +1,29 @@
+TEAL'S DAILY FACT CHALLENGE v2.12.0 — CLASSROOM SAFETY HOTFIX 2 — TEST RESULTS
+
+RESULT: PASS
+
+AUDIT FINDING
+- v2.12.0 Hotfix 1 preserved the v2.11.2 Teacher Safety/Data Trust/student behavior, but it did not include the later Teacher Today API-resilience hotfix.
+- Hotfix 2 restores that exact behavior while preserving AWTRIX v2.12.0 Hotfix 1.
+
+FINAL VALIDATION
+- release_guard.py: PASS (24/24 critical suites).
+- Full *_tests.py inventory: PASS (62/62 test files).
+- Teacher Today API-resilience regression: PASS (12 checks).
+- v2.12 classroom-safety audit: PASS (7 protections).
+- v2.12 AWTRIX Top 10 regression: PASS (37/37).
+- v2.12 AWTRIX Live Hotfix 1 regression: PASS (18/18).
+- Python compileall: PASS.
+- Browser JavaScript syntax: PASS (5/5 components).
+- Existing classroom-scale simulation: PASS (3 classes x 30 students).
+
+DRIFT CHECKS
+- Student Igniter module: unchanged from pre-clock current build.
+- Teacher Warm-Up/Igniter module: unchanged.
+- Teacher Learning Data module: unchanged.
+- Adaptive engine / Fact Coach / Weekly Mystery / persistent login: unchanged.
+- requirements.txt: unchanged (Streamlit 1.61.1 / Supabase 2.28.3 pins retained).
+- Five browser components: unchanged.
+- Daily challenge version remains TDFC-DAILY-v1.
+- AWTRIX script and SQL are unchanged from Hotfix 1.
+- Production behavior change is limited to restoring Teacher Today / Projector API-failure recovery.

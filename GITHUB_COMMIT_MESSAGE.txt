@@ -1,1 +1,1 @@
-v2.12.0 Hotfix 1 - fix AWTRIX live Supabase auth and mapping confirmation
+v2.12.0 Hotfix 3 - restore Teacher Today resilience and add Top 10 chime
