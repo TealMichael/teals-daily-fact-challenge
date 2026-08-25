@@ -6,7 +6,7 @@ APP = (ROOT / "app.py").read_text(encoding="utf-8")
 SUPABASE = (ROOT / "supabase_fact_store.py").read_text(encoding="utf-8")
 
 checks = {
-    "version bumped": APP_VERSION == "2.11.2",
+    "version bumped": APP_VERSION == "2.12.0",
     "store cache takes app version": "def load_store(app_version: str)" in APP,
     "store cache called with current version": "store = load_store(APP_VERSION)" in APP,
     "stale store interface is detected": 'required = ("get_warmup_set", "get_warmup_answers", "list_warmup_answers")' in APP,

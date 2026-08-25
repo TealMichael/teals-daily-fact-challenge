@@ -1,5 +1,22 @@
 # Teal's Daily Fact Challenge
 
+## v2.12.0 — AWTRIX Top 10 Clock Integration · Phase 1
+
+This release adds a student-safe bridge between the Daily Fact Challenge and a Ulanzi TC001 running AWTRIX NG, while leaving the existing Daily, Practice, mastery, Igniter, Mystery, and teacher-data workflows unchanged.
+
+- Adds Teacher → **🖥️ Clock** to map the app's three classes to **Block 1, Block 2, and Block 3**.
+- Adds a separate revocable clock token. Only its SHA-256 hash is stored in Supabase; the full token is shown only when generated/rotated.
+- Adds **📟 Send Top 10 to Clock Now** for teacher-controlled testing/replay. The same control is also available from Teacher → Today for the selected class.
+- Adds `AWTRIX_FactTop10.berry`, a second **headless** AWTRIX script. Keep the existing classroom schedule script unchanged.
+- Automatic Top 10 windows are the final five minutes of each class block: Mon–Thu **10:35, 1:05, 3:25** windows and Friday **10:25, 12:55, 3:00** windows.
+- The clock receives **rank + assigned nickname only**. It never receives real student names, scores, completion times, PINs, student IDs, or teacher-only data.
+- The full display string begins with `BLOCK X TOP 10!`, lists #1 through #10, and scrolls the complete sequence **twice** before returning to the clock.
+- If the existing Class Schedule banner is already on screen, the Top 10 queues behind it instead of replacing it.
+- The clock makes ordinary outbound HTTPS requests, so it does not need a direct local connection to the Streamlit server or teacher laptop. School Wi-Fi or a phone hotspot can provide the connection.
+- Requires the one-time `RUN_THIS_ONCE_IN_SUPABASE_v2_12.sql` migration. No new Streamlit Secret is required; `SUPABASE_PUBLISHABLE_KEY` is optional convenience only. Never put `SUPABASE_SECRET_KEY` on the clock.
+
+---
+
 ## v2.11.2 — Data Trust Pass
 
 This patch keeps the student Daily experience and official Daily scoring unchanged while tightening four data-trust areas:

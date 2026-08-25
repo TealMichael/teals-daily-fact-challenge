@@ -38,8 +38,10 @@ from supabase_fact_store import SupabaseFactStore
 from persistent_login import REMEMBER_DAYS, issue_student_token, peek_student_id, verify_student_token
 from ui_helpers import format_seconds, strategy_tip
 from student_igniter_ui import render_quick_warmup
-from teacher_learning_ui import render_teacher_mastery_focus
+from teacher_learning_ui import render_teacher_mastery_focus, _override_label, _override_value
 from teacher_warmup_ui import render_teacher_warmup as _render_teacher_warmup_module
+from teacher_warmup_ui import _render_warmup_groups_and_email
+from teacher_clock_ui import render_teacher_clock, queue_clock_top10_for_class
 from weekly_mystery import (
     MYSTERIES,
     default_mystery_key_for_week,
@@ -2051,6 +2053,13 @@ def render_teacher_today(store: SupabaseFactStore) -> None:
         else:
             st.caption("Everyone has finished the Daily 10, so standings are automatically Final.")
 
+    if st.button("📟 Send Top 10 to Clock Now", use_container_width=True, key=f"send_clock_top10_{selected.class_id}"):
+        try:
+            block = queue_clock_top10_for_class(store, selected.class_id)
+            st.success(f"Block {block} Top 10 queued for the classroom clock. An online clock should pick it up within about 15 seconds.")
+        except Exception as exc:
+            st.warning(f"Clock send is not ready yet: {exc}")
+
     teacher_students = {student.student_id: student for student in students}
     summary_rows = []
     performance_rows = []
@@ -2880,7 +2889,7 @@ def render_teacher(store: SupabaseFactStore | None) -> None:
     st.caption("Start with Today. Only the section you open loads, which keeps the dashboard faster.")
     teacher_sections = [
         "📊 Today", "🧠 Warm-Up", "👥 Classes & Rosters", "📈 Learning Data",
-        "🕵️ Weekly Mystery", "🛠️ Student Support", "🧪 Test Student",
+        "🕵️ Weekly Mystery", "🛠️ Student Support", "🖥️ Clock", "🧪 Test Student",
     ]
     section = st.radio(
         "Teacher section", teacher_sections, horizontal=True, label_visibility="collapsed", key="teacher_section"
@@ -2897,6 +2906,8 @@ def render_teacher(store: SupabaseFactStore | None) -> None:
         render_teacher_weekly_mystery(store)
     elif section == "🛠️ Student Support":
         render_teacher_student_tools(store)
+    elif section == "🖥️ Clock":
+        render_teacher_clock(store)
     else:
         render_teacher_test_student_launcher(store)
 

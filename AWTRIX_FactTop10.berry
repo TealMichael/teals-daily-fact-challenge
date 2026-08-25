@@ -1,0 +1,171 @@
+# @name Fact Top 10
+# @desc Pulls student-safe Daily Top 10 standings from Teal's Daily Fact Challenge
+# @version 1.0
+# @headless true
+# @config apiBase text "Supabase REST URL" default="" help="Example: https://YOUR-PROJECT.supabase.co/rest/v1" maxlen=180
+# @config apiKey text "Supabase publishable key" default="" help="Use the publishable key or legacy anon key, never the secret key" maxlen=220
+# @config clockToken text "Clock token" default="" help="Generate this in Teacher Dashboard > Clock" maxlen=96
+# @config pollSeconds number "Manual check" default=15 min=10 max=120 unit=sec
+
+import json
+
+class FactTop10
+  var api_base
+  var api_key
+  var clock_token
+  var poll_seconds
+  var ticks
+  var in_flight
+  var last_command
+  var last_auto_key
+  var request_kind
+  var request_block
+  var request_auto_key
+
+  def init()
+    self.api_base = store.get("apiBase")
+    self.api_key = store.get("apiKey")
+    self.clock_token = store.get("clockToken")
+    var configured_poll = store.get("pollSeconds")
+    if configured_poll == nil
+      self.poll_seconds = 15
+    else
+      self.poll_seconds = int(configured_poll)
+      if self.poll_seconds < 10
+        self.poll_seconds = 15
+      end
+    end
+    self.ticks = 3
+    self.in_flight = false
+    var saved_command = store.get("lastCommand")
+    if saved_command == nil
+      self.last_command = 0
+    else
+      self.last_command = int(saved_command)
+    end
+    var saved_auto = store.get("lastAuto")
+    if saved_auto == nil
+      self.last_auto_key = ""
+    else
+      self.last_auto_key = str(saved_auto)
+    end
+    self.request_kind = ""
+    self.request_block = 0
+    self.request_auto_key = ""
+  end
+
+  def loop()
+    if hour() < 0 || self.in_flight
+      return
+    end
+
+    self.ticks -= 1
+    if self.ticks > 0
+      return
+    end
+    self.ticks = self.poll_seconds
+
+    if self.api_base == nil || self.api_base == "" || self.api_key == nil || self.api_key == "" || self.clock_token == nil || self.clock_token == ""
+      return
+    end
+
+    var wd = weekday()
+    var now = hour() * 60 + minute()
+    var block = 0
+
+    # Monday-Thursday: last five minutes of Blocks 1, 2, and 3.
+    if wd >= 1 && wd <= 4
+      if now >= 635 && now < 640
+        block = 1
+      elif now >= 785 && now < 790
+        block = 2
+      elif now >= 925 && now < 930
+        block = 3
+      end
+
+    # Friday schedule.
+    elif wd == 5
+      if now >= 625 && now < 630
+        block = 1
+      elif now >= 775 && now < 780
+        block = 2
+      elif now >= 900 && now < 905
+        block = 3
+      end
+    end
+
+    if block > 0
+      var auto_key = str(year()) + "-" + str(month()) + "-" + str(day()) + "-" + str(block)
+      if auto_key != self.last_auto_key
+        self.in_flight = true
+        self.request_kind = "auto"
+        self.request_block = block
+        self.request_auto_key = auto_key
+        var url = self.api_base + "/rpc/awtrix_top10?p_block=" + str(block)
+        http.get(url, / b, st -> self.on_body(b, st), {
+          'headers': {
+            'apikey': self.api_key,
+            'X-AWTRIX-Token': self.clock_token
+          }
+        })
+        return
+      end
+    end
+
+    # Outside an unfinished automatic window, check for the teacher's manual
+    # "Send Top 10 to Clock Now" command.
+    self.in_flight = true
+    self.request_kind = "manual"
+    self.request_block = 0
+    self.request_auto_key = ""
+    var poll_url = self.api_base + "/rpc/awtrix_poll?p_after_id=" + str(self.last_command)
+    http.get(poll_url, / b, st -> self.on_body(b, st), {
+      'headers': {
+        'apikey': self.api_key,
+        'X-AWTRIX-Token': self.clock_token
+      }
+    })
+  end
+
+  def on_body(body, status)
+    self.in_flight = false
+    if body == nil || status < 200 || status >= 300
+      self.request_kind = ""
+      return
+    end
+
+    var data = json.load(body)
+    if !isinstance(data, map) || data.find("ok", false) != true
+      self.request_kind = ""
+      return
+    end
+
+    if self.request_kind == "manual"
+      var command_id = num(data.find("command_id", self.last_command))
+      if command_id != nil && command_id > self.last_command
+        self.last_command = int(command_id)
+        store.set("lastCommand", self.last_command)
+      end
+      if data.find("manual", false) == true
+        var manual_text = data.find("text")
+        if manual_text != nil && manual_text != ""
+          notify({"text":str(manual_text), "repeat":2, "stack":true})
+        end
+      end
+
+    elif self.request_kind == "auto"
+      var count = num(data.find("count", 0))
+      var auto_text = data.find("text")
+      if count != nil && count > 0 && auto_text != nil && auto_text != ""
+        if notify({"text":str(auto_text), "repeat":2, "stack":true})
+          self.last_auto_key = self.request_auto_key
+          store.set("lastAuto", self.last_auto_key)
+        end
+      end
+    end
+
+    self.request_kind = ""
+  end
+end
+
+return FactTop10()

@@ -16,7 +16,7 @@ def section(name: str, next_name: str | None = None, source: str = APP) -> str:
 
 def run():
     checks = {}
-    checks["version 2.9.3"] = APP_VERSION == "2.11.2"
+    checks["version 2.9.3"] = APP_VERSION == "2.12.0"
 
     teacher = section("render_teacher", "maybe_render_db_diagnostic")
     checks["teacher dashboard is lazy"] = "st.tabs(" not in teacher and 'section = st.radio(' in teacher

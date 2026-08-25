@@ -67,6 +67,16 @@ def _remember_warmup_standards(store: SupabaseFactStore, codes) -> None:
     store.set_app_setting("warmup_recent_standards", combined[:8])
 
 
+def _remember_warmup_standards_safely(store: SupabaseFactStore, codes) -> bool:
+    """Best-effort convenience write; core Igniter saves must not depend on it."""
+    try:
+        _remember_warmup_standards(store, codes)
+        return True
+    except Exception as exc:
+        print(f"[TDFC teacher] recent_standards_save_failed type={type(exc).__name__}")
+        return False
+
+
 def _warmup_form_question(existing: dict, slot: int, key_prefix: str, recent_codes=()) -> dict:
     label = "Spiral Review" if slot == 1 else "Yesterday Check"
     st.markdown(f"#### {slot}. {label}")
@@ -437,8 +447,8 @@ def render_teacher_warmup(store: SupabaseFactStore, *, refresh_control, finish_r
         save = st.form_submit_button("Save Warm-Up", type="primary", use_container_width=True, disabled=locked)
     if save:
         try:
-            q1 = preparequestion_for_slot(slot=1, **q1_values)
-            q2 = preparequestion_for_slot(slot=2, **q2_values)
+            q1 = prepare_warmup_question(slot=1, **q1_values)
+            q2 = prepare_warmup_question(slot=2, **q2_values)
             targets = classes if copy_all else [selected]
             locked_targets = []
             for class_record in targets:
@@ -449,7 +459,11 @@ def render_teacher_warmup(store: SupabaseFactStore, *, refresh_control, finish_r
                 raise FactStoreError("Cannot copy over a Warm-Up that students already started: " + ", ".join(locked_targets))
             for class_record in targets:
                 store.save_warmup_set(class_record.class_id, target_date, q1, q2)
-            _remember_warmup_standards(store, [q1.get("standard_code"), q2.get("standard_code")])
+
+            # Remembering recent standards is only a teacher convenience. A failure
+            # here must never make a successfully saved Igniter look like it failed.
+            _remember_warmup_standards_safely(store, [q1.get("standard_code"), q2.get("standard_code")])
+
             st.success("Warm-Up saved" + (" for all active classes." if copy_all else f" for {selected.class_name}."))
             st.rerun()
         except (ValueError, FactStoreError) as exc:

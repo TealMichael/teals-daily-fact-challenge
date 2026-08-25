@@ -258,6 +258,12 @@ class InMemoryFactStore:
         self.student_focus_overrides: dict[str, int | None] = {}
         self.global_focus_override: int | None = None
         self.app_settings: dict[str, object] = {}
+        self.awtrix_clock_config: dict[str, object] = {
+            "block1_class_id": None, "block2_class_id": None, "block3_class_id": None,
+            "token_hash": None, "token_hint": None,
+        }
+        self.awtrix_clock_commands: list[dict] = []
+        self._awtrix_command_id = 0
         self.weekly_mysteries: dict[str, WeeklyMysteryRecord] = {}
         self.mystery_unlocks: dict[tuple[str, str, int], MysteryUnlockRecord] = {}
         self.mystery_guesses: dict[tuple[str, str, int], MysteryGuessRecord] = {}
@@ -1026,6 +1032,54 @@ class InMemoryFactStore:
         if not include_test:
             rows = [row for row in rows if row.student_id not in test_ids]
         return sorted(rows, key=lambda row: (row.warmup_date, row.class_id, row.student_id, row.question_slot))
+
+    # ----- AWTRIX classroom clock integration (reference backend) -----
+    def get_awtrix_clock_config(self) -> dict:
+        cfg = dict(self.awtrix_clock_config)
+        cfg["has_token"] = bool(cfg.get("token_hash"))
+        cfg.pop("token_hash", None)
+        return cfg
+
+    def save_awtrix_clock_mapping(self, block1_class_id: str, block2_class_id: str, block3_class_id: str) -> None:
+        class_ids = [str(block1_class_id), str(block2_class_id), str(block3_class_id)]
+        if len(set(class_ids)) != 3:
+            raise ValueError("Block 1, Block 2, and Block 3 must map to three different classes.")
+        if any(class_id not in self.classes for class_id in class_ids):
+            raise NotFound("One of the selected classes was not found.")
+        self.awtrix_clock_config.update({
+            "block1_class_id": class_ids[0],
+            "block2_class_id": class_ids[1],
+            "block3_class_id": class_ids[2],
+        })
+
+    def rotate_awtrix_clock_token(self) -> str:
+        token = secrets.token_urlsafe(24)
+        self.awtrix_clock_config["token_hash"] = hashlib.sha256(token.encode("utf-8")).hexdigest()
+        self.awtrix_clock_config["token_hint"] = token[-6:]
+        return token
+
+    def awtrix_block_for_class(self, class_id: str) -> int | None:
+        target = str(class_id)
+        for block in (1, 2, 3):
+            if self.awtrix_clock_config.get(f"block{block}_class_id") == target:
+                return block
+        return None
+
+    def queue_awtrix_top10(self, block_number: int) -> int:
+        block = int(block_number)
+        if block not in (1, 2, 3):
+            raise ValueError("Block number must be 1, 2, or 3.")
+        if not self.awtrix_clock_config.get(f"block{block}_class_id"):
+            raise FactStoreError(f"Block {block} is not mapped to a class yet.")
+        if not self.awtrix_clock_config.get("token_hash"):
+            raise FactStoreError("The classroom clock token has not been generated yet.")
+        self._awtrix_command_id += 1
+        self.awtrix_clock_commands.append({
+            "command_id": self._awtrix_command_id,
+            "block_number": block,
+            "requested_at": utc_now(),
+        })
+        return self._awtrix_command_id
 
     # ----- Private app settings (reference backend) -----
     def get_app_setting(self, setting_key: str):

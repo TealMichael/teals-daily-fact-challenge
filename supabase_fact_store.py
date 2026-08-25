@@ -9,7 +9,9 @@ receive direct database credentials.
 
 from datetime import date, datetime, timedelta, timezone
 from typing import Callable, Mapping, Sequence, TypeVar
+import hashlib
 import random
+import secrets
 import time
 
 import httpx
@@ -1525,6 +1527,78 @@ class SupabaseFactStore:
             .in_("student_id", student_ids).eq("is_test", True).range(0, 9999).execute()))
         test_ids = {str(row["student_id"]) for row in test_rows}
         return [row for row in records if row.student_id not in test_ids]
+
+    # ----- AWTRIX classroom clock integration -----
+    def get_awtrix_clock_config(self) -> dict | None:
+        row = _first(_retry_transient(lambda: (
+            self.client.table("awtrix_clock_config")
+            .select("block1_class_id,block2_class_id,block3_class_id,token_hash,token_hint,updated_at")
+            .eq("config_id", 1)
+            .limit(1)
+            .execute()
+        ), attempts=2))
+        if row is None:
+            return None
+        return {
+            "block1_class_id": None if row.get("block1_class_id") is None else str(row.get("block1_class_id")),
+            "block2_class_id": None if row.get("block2_class_id") is None else str(row.get("block2_class_id")),
+            "block3_class_id": None if row.get("block3_class_id") is None else str(row.get("block3_class_id")),
+            "has_token": bool(row.get("token_hash")),
+            "token_hint": row.get("token_hint"),
+            "updated_at": row.get("updated_at"),
+        }
+
+    def save_awtrix_clock_mapping(self, block1_class_id: str, block2_class_id: str, block3_class_id: str) -> None:
+        class_ids = [str(block1_class_id), str(block2_class_id), str(block3_class_id)]
+        if len(set(class_ids)) != 3:
+            raise ValueError("Block 1, Block 2, and Block 3 must map to three different classes.")
+        payload = {
+            "config_id": 1,
+            "block1_class_id": class_ids[0],
+            "block2_class_id": class_ids[1],
+            "block3_class_id": class_ids[2],
+            "updated_at": utc_now().isoformat(),
+        }
+        _retry_transient(lambda: self.client.table("awtrix_clock_config").upsert(payload, on_conflict="config_id").execute())
+
+    def rotate_awtrix_clock_token(self) -> str:
+        token = secrets.token_urlsafe(24)
+        digest = hashlib.sha256(token.encode("utf-8")).hexdigest()
+        payload = {
+            "config_id": 1,
+            "token_hash": digest,
+            "token_hint": token[-6:],
+            "updated_at": utc_now().isoformat(),
+        }
+        _retry_transient(lambda: self.client.table("awtrix_clock_config").upsert(payload, on_conflict="config_id").execute())
+        return token
+
+    def awtrix_block_for_class(self, class_id: str) -> int | None:
+        cfg = self.get_awtrix_clock_config()
+        if not cfg:
+            return None
+        target = str(class_id)
+        for block in (1, 2, 3):
+            if cfg.get(f"block{block}_class_id") == target:
+                return block
+        return None
+
+    def queue_awtrix_top10(self, block_number: int) -> int:
+        block = int(block_number)
+        if block not in (1, 2, 3):
+            raise ValueError("Block number must be 1, 2, or 3.")
+        cfg = self.get_awtrix_clock_config()
+        if not cfg or not cfg.get(f"block{block}_class_id"):
+            raise FactStoreError(f"Block {block} is not mapped to a class yet.")
+        if not cfg.get("has_token"):
+            raise FactStoreError("The classroom clock token has not been generated yet.")
+        row = _first(_execute_returning(self.client.table("awtrix_clock_commands").insert({
+            "block_number": block,
+            "requested_at": utc_now().isoformat(),
+        })))
+        if row is None or row.get("command_id") is None:
+            raise FactStoreError("The clock command could not be queued.")
+        return int(row["command_id"])
 
     def get_app_setting(self, setting_key: str, default=None):
         row = _first(_retry_transient(lambda: self.client.table("app_settings")

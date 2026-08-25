@@ -1,1 +1,1 @@
-v2.11.2 - strengthen Daily and Fact Fluency data trust
+v2.12.0 - add AWTRIX Top 10 clock integration
