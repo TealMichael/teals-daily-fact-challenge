@@ -27,7 +27,7 @@ def _warmup_helpers():
 
 def run():
     checks = {}
-    checks["foundation version"] = APP_VERSION == "2.11.2"
+    checks["foundation version or newer"] = tuple(int(part) for part in APP_VERSION.split(".")) >= (2, 11, 2)
 
     # Architecture guard: the largest shared file is now meaningfully smaller and
     # the high-change teacher/student Igniter surfaces live behind module boundaries.

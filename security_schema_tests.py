@@ -12,6 +12,7 @@ def run():
         "student_fact_mastery", "daily_learning_progress", "app_settings",
         "weekly_mysteries", "weekly_mystery_unlocks", "weekly_mystery_guesses",
         "warmup_sets", "warmup_answers",
+        "awtrix_clock_config", "awtrix_clock_commands",
     ]
     for table in tables:
         assert f"alter table public.{table} enable row level security" in schema
@@ -40,6 +41,14 @@ def run():
     assert "warmup_sets" in warmup_migration and "warmup_answers" in warmup_migration
     assert "alter table public.warmup_sets enable row level security" in warmup_migration
     assert "alter table public.warmup_answers enable row level security" in warmup_migration
+
+
+    awtrix_migration = Path("RUN_THIS_ONCE_IN_SUPABASE_v2_12.sql").read_text(encoding="utf-8").lower()
+    assert "alter table public.awtrix_clock_config enable row level security" in awtrix_migration
+    assert "alter table public.awtrix_clock_commands enable row level security" in awtrix_migration
+    assert "x-awtrix-token" in awtrix_migration and "digest(v_token, 'sha256')" in awtrix_migration
+    assert "grant execute on function public.awtrix_top10(integer) to anon, authenticated" in awtrix_migration
+    assert "grant execute on function public.awtrix_poll(bigint) to anon, authenticated" in awtrix_migration
 
     encoded = hash_pin("2468")
     assert "2468" not in encoded and encoded.startswith("scrypt$")

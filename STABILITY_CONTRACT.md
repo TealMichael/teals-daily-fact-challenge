@@ -41,6 +41,7 @@ This contract was rebased in v2.11.2 on the proven v2.11.0.3 classroom build to 
 - `student_igniter_ui.py` — student Igniter only.
 - `teacher_warmup_ui.py` — teacher Igniter planning/results/email/export only.
 - `teacher_learning_ui.py` — Fact Fluency + Standards Tracker only.
+- `teacher_clock_ui.py` — teacher-only AWTRIX class mapping, token setup, and manual Top 10 queue controls only.
 - `ui_helpers.py` — small shared presentation helpers.
 - `fact_engine.py`, `adaptive_engine.py`, `teacher_insights.py` — domain logic; no Streamlit page routing.
 - `fact_store.py`, `supabase_fact_store.py` — persistence boundary.
@@ -56,3 +57,14 @@ Future releases should run `python release_guard.py` plus the full `*_tests.py` 
 - The Daily browser may let a student revisit an answer, but persistent mastery evidence must preserve the **first submitted answer** separately from the official/final Daily score.
 - A completed Daily must be repairable if the network fails between saving the official attempt and applying mastery/learning-progress evidence. The repair path must be idempotent.
 - Historical pre-patch Daily answers may fall back to their stored official answer as the best available first-answer evidence.
+
+## Physical clock / AWTRIX protections added in v2.12.0
+
+1. The physical clock receives **rank + assigned nickname only**. Never send real names, scores, completion times, PINs, student IDs, teacher data, or answer-level student data to AWTRIX.
+2. `SUPABASE_SECRET_KEY` must never be stored on or sent to the clock. The clock uses only a public Supabase client key plus a separate scoped/revocable clock token.
+3. The clock token is stored in Supabase only as a SHA-256 hash; rotating it invalidates the previous clock token.
+4. AWTRIX clock tables remain RLS-protected with no direct browser policies. Only the narrow clock RPC functions may be executed by public client roles.
+5. The existing classroom `Class Schedule` script remains independent. Fact Challenge integration is a second headless script so leaderboard work does not alter schedule banners.
+6. Automatic Top 10 timing lives on the clock and may use outbound HTTPS only; the cloud app must not depend on reaching a private classroom IP address.
+7. Top 10 ordering must remain the same accuracy-first Daily leaderboard contract: correct count first, time only as tie-breaker, then completion timestamp. Test Student remains excluded.
+8. The teacher must retain a manual **Send Top 10 to Clock Now** control so the integration can be tested/replayed independently of automatic schedule timing.
