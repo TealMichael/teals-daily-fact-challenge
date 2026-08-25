@@ -23,6 +23,7 @@ CRITICAL_SUITES = [
     "runtime_name_guard_tests.py",
     "v2_11_2_final_top10_restore_tests.py",
     "v2_12_0_awtrix_top10_tests.py",
+    "v2_12_0_awtrix_live_hotfix_tests.py",
     "v2_11_0_1_startup_resilience_tests.py",
     "v2_11_0_2_daily_load_resilience_hotfix_tests.py",
     "v2_11_0_3_supabase_2283_compatibility_tests.py",

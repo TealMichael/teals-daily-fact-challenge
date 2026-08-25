@@ -1,0 +1,27 @@
+TEAL'S DAILY FACT CHALLENGE v2.12.0 — AWTRIX LIVE HOTFIX 1 — TEST RESULTS
+
+RESULT: PASS
+
+Final validation after the live physical-clock test and hotfix changes:
+- Python compile check: PASS for 77 production/test Python files.
+- v2.12.0 AWTRIX Top 10 regression: PASS (37/37).
+- AWTRIX live hotfix regression: PASS (18/18).
+- release_guard.py: PASS (22/22 critical suites).
+- Full *_tests.py regression suite: PASS (60/60 test files).
+- Existing v2.11.2 stability, resilience, data-trust, teacher-safety, and final-Top-10 protections: PASS.
+- Package/security/schema/UI/store/classroom-scale regressions: PASS.
+
+HOTFIX-SPECIFIC PROTECTIONS
+- public.awtrix_top10(integer) can resolve pgcrypto.digest() via search_path public, extensions, pg_temp.
+- public.awtrix_poll(bigint) can resolve pgcrypto.digest() via search_path public, extensions, pg_temp.
+- Fresh-project SUPABASE_SCHEMA.sql contains the same correction.
+- A standalone RUN_THIS_ONCE_IN_SUPABASE_v2_12_HOTFIX1.sql is included for already-deployed v2.12 installs.
+- Teacher → Clock mapping success confirmation persists across Streamlit rerun.
+- Automatic Top 10 windows remain exactly:
+  Mon–Thu: 10:35–10:40, 1:05–1:10, 3:25–3:30.
+  Friday: 10:25–10:30, 12:55–1:00, 3:00–3:05.
+- Full Top 10 still repeats twice and queues behind Class Schedule banners.
+
+LIVE ACCEPTANCE
+Manual end-to-end TC001 test succeeded after the Supabase search-path correction:
+Fact Challenge → Supabase → AWTRIX → rank + nickname Top 10 → full sequence twice → return to Time.

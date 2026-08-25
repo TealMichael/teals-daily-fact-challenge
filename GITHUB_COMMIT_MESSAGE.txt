@@ -1,1 +1,1 @@
-v2.12.0 - add AWTRIX Top 10 clock integration
+v2.12.0 Hotfix 1 - fix AWTRIX live Supabase auth and mapping confirmation

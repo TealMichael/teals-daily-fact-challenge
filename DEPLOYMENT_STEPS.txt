@@ -1,59 +1,31 @@
-TEAL'S DAILY FACT CHALLENGE v2.12.0 — AWTRIX TOP 10 CLOCK INTEGRATION · PHASE 1
+TEAL'S DAILY FACT CHALLENGE v2.12.0 — AWTRIX LIVE HOTFIX 1
 
-This is a full-app release built from the v2.11.2 Teacher Safety Hotfix source of truth.
-The existing AWTRIX Class Schedule script stays unchanged; this release adds a SECOND headless script for Fact Challenge Top 10 data.
+This hotfix follows the successful live v2.12.0 physical-clock test.
 
-STEP 1 — RUN THE NEW SUPABASE MIGRATION ONCE
-1. Open Supabase → SQL Editor.
-2. Run the entire file:
-   RUN_THIS_ONCE_IN_SUPABASE_v2_12.sql
-3. Do not rerun older migrations.
+STEP 1 — SUPABASE
+If you already ran the two-line live fix in Supabase during setup, there is nothing else to run now.
+If you deployed the original v2.12.0 but have NOT applied that fix, run:
+  RUN_THIS_ONCE_IN_SUPABASE_v2_12_HOTFIX1.sql
+For a brand-new deployment, RUN_THIS_ONCE_IN_SUPABASE_v2_12.sql now contains the correction automatically.
 
-The migration adds two private RLS-protected tables and two narrow clock RPCs. The clock feed returns rank + nickname only.
+STEP 2 — GITHUB / STREAMLIT
+Copy the contents of UPLOAD_TO_GITHUB into the repository, replacing existing files, commit, and push.
+Commit message:
+  v2.12.0 Hotfix 1 - fix AWTRIX live Supabase auth and mapping confirmation
 
-STEP 2 — DEPLOY THE FULL APP
-1. Copy the contents of UPLOAD_TO_GITHUB into the GitHub repository, replacing the existing app files.
-2. Commit with:
-   v2.12.0 - add AWTRIX Top 10 clock integration
-3. Push origin and let Streamlit redeploy.
+STEP 3 — AWTRIX
+No clock-script reinstall is required. Keep both existing background scripts active:
+  • Class Schedule
+  • Fact Top 10
 
-No new Streamlit Secret is required.
-Optional convenience: add SUPABASE_PUBLISHABLE_KEY (or legacy SUPABASE_ANON_KEY) to Streamlit Secrets so Teacher → Clock can display that public setup value for you. Never use SUPABASE_SECRET_KEY on the clock.
+LIVE AUTOMATIC WINDOWS (UNCHANGED)
+Monday–Thursday:
+  • Block 1: 10:35–10:40
+  • Block 2: 1:05–1:10
+  • Block 3: 3:25–3:30
+Friday:
+  • Block 1: 10:25–10:30
+  • Block 2: 12:55–1:00
+  • Block 3: 3:00–3:05
 
-STEP 3 — SET UP THE CLOCK IN THE TEACHER DASHBOARD
-1. Sign in as Teacher.
-2. Open Teacher → 🖥️ Clock.
-3. Map your three classes to Block 1, Block 2, and Block 3, then save.
-4. Generate a Clock Token. Copy it immediately; only the hash is stored, so the same full token cannot be shown again.
-5. Copy the Supabase REST URL shown on the page.
-6. Copy the Supabase Publishable key shown there, or get it from Supabase → Project Settings/API if it is not displayed.
-
-STEP 4 — INSTALL THE SECOND AWTRIX SCRIPT
-1. Open the AWTRIX NG web dashboard.
-2. Leave the existing Class Schedule background script exactly as it is.
-3. Open Scripts → + and create a new script named FactTop10.
-4. Paste the full contents of AWTRIX_FactTop10.berry and Save.
-5. Open Apps. Fact Top 10 should appear under Background. Leave it activated.
-6. Open the ... menu for Fact Top 10 → Settings and enter:
-   • Supabase REST URL
-   • Supabase publishable/anon key
-   • Clock token
-   • Manual check: 15 seconds is the recommended default
-7. Recommended on a shared network: enable AWTRIX web authentication under System before storing the clock token.
-
-STEP 5 — TEST BEFORE WAITING FOR A BLOCK
-1. In Teacher → Clock, choose a class under Manual test.
-2. Click 📟 Send Top 10 to Clock Now.
-3. An online clock should pick it up in about 15 seconds.
-4. The display should show BLOCK X TOP 10!, rank + nickname only, scroll the full sequence twice, then return to Time.
-5. You can also use 📟 Send Top 10 to Clock Now from Teacher → Today for the selected class.
-
-AUTOMATIC DISPLAY WINDOWS
-The Fact Top 10 script automatically tries during the last five minutes of each class block:
-• Monday–Thursday: Block 1 10:35–10:40; Block 2 1:05–1:10; Block 3 3:25–3:30.
-• Friday: Block 1 10:25–10:30; Block 2 12:55–1:00; Block 3 3:00–3:05.
-
-If no student has finished yet, the automatic script keeps checking during that five-minute window and displays as soon as a Top 10 exists. If the clock is offline for the entire window, it cannot retrieve live standings; use the manual button later if you want to replay them.
-
-NETWORK REQUIREMENT
-The clock needs ordinary outbound HTTPS access at display time. It does NOT need the Streamlit server or teacher laptop to reach the clock's local IP. This is intended to work over school Wi-Fi or a phone hotspot.
+The full Block X Top 10 sequence still scrolls twice and then returns to Time.

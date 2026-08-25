@@ -20,6 +20,7 @@ def run():
     checks["manual queue is class-mapped"] = "queue_clock_top10_for_class(store, selected.class_id)" in APP
     checks["teacher UI protects secret key"] = "SUPABASE_SECRET_KEY" not in CLOCK_UI
     checks["teacher UI accepts public key only"] = "SUPABASE_PUBLISHABLE_KEY" in CLOCK_UI and "SUPABASE_ANON_KEY" in CLOCK_UI
+    checks["mapping confirmation survives rerun"] = "awtrix_mapping_saved" in CLOCK_UI and 'st.session_state["awtrix_mapping_saved"] = True' in CLOCK_UI
 
     # SQL security boundary: the underlying tables stay private; only the two
     # narrow RPCs are granted to anonymous/public-key callers.
@@ -28,6 +29,7 @@ def run():
     checks["no table browser policy"] = "create policy" not in SQL.lower()
     checks["separate token header"] = "x-awtrix-token" in SQL.lower()
     checks["token stored hashed"] = "digest(v_token, 'sha256')" in SQL.lower() and "token_hash" in SQL.lower()
+    checks["pgcrypto visible to clock auth RPCs"] = SQL.lower().count("set search_path = public, extensions, pg_temp") >= 2
     checks["only public RPCs granted"] = (
         "grant execute on function public.awtrix_top10(integer) to anon, authenticated" in SQL.lower()
         and "grant execute on function public.awtrix_poll(bigint) to anon, authenticated" in SQL.lower()

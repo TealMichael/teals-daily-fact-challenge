@@ -69,6 +69,9 @@ def render_teacher_clock(store: SupabaseFactStore) -> None:
     class_by_name = {item.class_name: item for item in classes}
     class_names = list(class_by_name)
 
+    if st.session_state.pop("awtrix_mapping_saved", False):
+        st.success("Clock class mapping saved.")
+
     st.markdown("#### Class → block mapping")
     with st.form("awtrix_clock_mapping"):
         block1_name = st.selectbox(
@@ -91,7 +94,7 @@ def render_teacher_clock(store: SupabaseFactStore) -> None:
             st.error("Choose a different class for each block.")
         else:
             store.save_awtrix_clock_mapping(*ids)
-            st.success("Clock class mapping saved.")
+            st.session_state["awtrix_mapping_saved"] = True
             st.rerun()
 
     st.markdown("#### Clock access token")

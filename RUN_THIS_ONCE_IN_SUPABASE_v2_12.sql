@@ -138,7 +138,7 @@ returns jsonb
 language plpgsql
 stable
 security definer
-set search_path = public, pg_temp
+set search_path = public, extensions, pg_temp
 as $$
 declare
     v_headers jsonb;
@@ -168,7 +168,7 @@ returns jsonb
 language plpgsql
 stable
 security definer
-set search_path = public, pg_temp
+set search_path = public, extensions, pg_temp
 as $$
 declare
     v_headers jsonb;

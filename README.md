@@ -1,5 +1,8 @@
 # Teal's Daily Fact Challenge
 
+> **v2.12.0 Hotfix 1:** fixes the live AWTRIX Supabase `digest()` search path and preserves the Clock mapping save confirmation across Streamlit reruns. No clock script reinstall is required.
+
+
 ## v2.12.0 — AWTRIX Top 10 Clock Integration · Phase 1
 
 This release adds a student-safe bridge between the Daily Fact Challenge and a Ulanzi TC001 running AWTRIX NG, while leaving the existing Daily, Practice, mastery, Igniter, Mystery, and teacher-data workflows unchanged.
