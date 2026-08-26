@@ -1,1 +1,1 @@
-v2.12.0 Hotfix 3 - restore Teacher Today resilience and add Top 10 chime
+v2.13.0 - add flexible Daily 10 modes and expanded Igniter answers

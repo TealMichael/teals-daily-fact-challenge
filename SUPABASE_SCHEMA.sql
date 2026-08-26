@@ -50,9 +50,15 @@ create table if not exists public.daily_attempts (
     correct_count smallint,
     timed_seconds numeric(10,3),
     learning_evidence_applied_at timestamptz,
+    daily_mode text not null default 'Multiplication',
+    custom_questions jsonb,
+    custom_answers jsonb,
     unique (student_id, challenge_id),
     constraint correct_count_range check (correct_count is null or correct_count between 0 and 10),
     constraint timed_seconds_nonnegative check (timed_seconds is null or timed_seconds >= 0),
+    constraint daily_mode_allowed check (daily_mode in ('Multiplication','Addition Facts','Subtraction Facts','Division Facts','Integers','Mixed')),
+    constraint custom_questions_is_ten_array check (custom_questions is null or (jsonb_typeof(custom_questions) = 'array' and jsonb_array_length(custom_questions) = 10)),
+    constraint custom_answers_is_ten_array check (custom_answers is null or (jsonb_typeof(custom_answers) = 'array' and jsonb_array_length(custom_answers) = 10)),
     constraint completion_summary_consistent check (
         (completed_at is null and correct_count is null and timed_seconds is null)
         or
@@ -279,7 +285,7 @@ create table if not exists public.warmup_answers (
     answered_at timestamptz not null default now(),
     unique (student_id, warmup_set_id, question_slot),
     constraint warmup_question_slot_range check (question_slot in (1, 2)),
-    constraint warmup_question_type_allowed check (question_type in ('Short answer', 'Multiple choice')),
+    constraint warmup_question_type_allowed check (question_type in ('Short answer', 'Multiple choice', 'Expanded Form', 'Equivalent Number', 'Multi-Part — 2 answers')),
     constraint warmup_prompt_not_blank check (length(btrim(prompt)) between 1 and 1000),
     constraint warmup_standard_not_blank check (length(btrim(standard_code)) between 1 and 120)
 );

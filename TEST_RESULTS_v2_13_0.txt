@@ -1,0 +1,43 @@
+TEAL'S DAILY FACT CHALLENGE v2.13.0 — FINAL RELEASE TEST SUMMARY
+
+BASELINE
+- Built from v2.12.0 Hotfix 3 FULL_CURRENT_APP.
+- Protected multiplication/classroom components are frozen by SHA-256 regression checks.
+- fact_engine.py changes only APP_VERSION 2.12.0 -> 2.13.0; CHALLENGE_VERSION remains TDFC-DAILY-v1.
+
+COMPLETE DEVELOPMENT REGRESSION INVENTORY
+- 64/64 regression test files passed in the complete v2.13 development audit.
+- Includes historical student flow, teacher workflow, privacy, classroom load, login/PIN, mastery/data trust, Weekly Mystery, AWTRIX, Supabase compatibility, Igniter, and v2.13 feature regressions.
+
+FINAL PACKAGE CHECKS
+- Python compile: 84/84 top-level Python files passed.
+- Package smoke: PASS; 84 Python files parsed and 37 required app/release files verified.
+- v2.13 feature/protection regression: 50/50 checks passed.
+- Runtime-name audit: PASS across 19 production modules.
+- Browser JavaScript syntax: 6/6 components passed.
+- Four-class simulation: 4 classes x 30 students passed; each class maintained its own Top 10.
+- Multiplication mode wrote normal mastery evidence.
+- Addition/Mixed/Integers wrote zero multiplication mastery evidence.
+- Mixed mode generated exactly 2 questions from each of the five Daily categories.
+- Expanded Form structural-grading regression passed, including rejection of standard-form-only and partially expanded answers.
+- Raw-response retention regression passed: older student answer text clears while correctness and standard evidence remain.
+
+PROTECTED HOTFIX 3 SURFACES VERIFIED BYTE-FOR-BYTE
+- daily_sprint_component/index.html
+- fact_coach.py
+- adaptive_engine.py
+- guided_practice_component/index.html
+- answer_pad_component/index.html
+- persistent_login.py
+- persistent_login_component/index.html
+- pin_entry_component/index.html
+- weekly_mystery.py
+- AWTRIX_FactTop10.berry
+- requirements.txt
+- teacher_insights.py
+- teacher_learning_ui.py
+
+DEPLOYMENT REQUIREMENT
+- Run RUN_THIS_ONCE_IN_SUPABASE_v2_13.sql once BEFORE deploying the v2.13 GitHub files.
+- No new Streamlit Secret.
+- No AWTRIX script reinstall.

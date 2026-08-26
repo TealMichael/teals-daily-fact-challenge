@@ -18,7 +18,8 @@ def test_teacher_warmup_module_parses():
 
 
 def test_save_uses_imported_prepare_helper_for_both_questions():
-    assert "from warmup import QUESTION_TYPES, prepare_question as prepare_warmup_question, question_for_slot" in SOURCE
+    assert "prepare_question as prepare_warmup_question" in SOURCE
+    assert "question_for_slot" in SOURCE
     assert SOURCE.count("prepare_warmup_question(slot=") >= 2
 
 

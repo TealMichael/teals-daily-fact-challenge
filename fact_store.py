@@ -81,6 +81,9 @@ class AttemptRecord:
     correct_count: int | None = None
     timed_seconds: float | None = None
     learning_evidence_applied_at: datetime | None = None
+    daily_mode: str = "Multiplication"
+    custom_questions: tuple[dict, ...] = ()
+    custom_answers: tuple[int, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -458,14 +461,26 @@ class InMemoryFactStore:
     def get_challenge(self, challenge_date: date | str) -> ChallengeRecord | None:
         return self.challenges.get(_as_date_key(challenge_date))
 
-    def get_or_create_attempt(self, student_id: str, challenge_id: str) -> AttemptRecord:
+    def get_or_create_attempt(
+        self, student_id: str, challenge_id: str, *, daily_mode: str = "Multiplication",
+        custom_questions: Sequence[Mapping] | None = None,
+    ) -> AttemptRecord:
         self.get_student(student_id)
         if not any(c.challenge_id == challenge_id for c in self.challenges.values()):
             raise NotFound("Challenge not found.")
         for attempt in self.attempts.values():
             if attempt.student_id == student_id and attempt.challenge_id == challenge_id:
                 return attempt
-        record = AttemptRecord(_uuid(), student_id, challenge_id, utc_now())
+        mode = str(daily_mode or "Multiplication")
+        questions = tuple(dict(item) for item in (custom_questions or ()))
+        if mode != "Multiplication" and len(questions) != 10:
+            raise ValueError("Alternate Daily 10 attempts require exactly 10 stored questions.")
+        if mode == "Multiplication":
+            questions = ()
+        record = AttemptRecord(
+            _uuid(), student_id, challenge_id, utc_now(),
+            daily_mode=mode, custom_questions=questions,
+        )
         self.attempts[record.attempt_id] = record
         self.answers[record.attempt_id] = []
         return record
@@ -612,6 +627,36 @@ class InMemoryFactStore:
         self.attempts[attempt_id] = updated
         return self.ensure_daily_learning_evidence(attempt_id)
 
+    def complete_custom_attempt(
+        self, attempt_id: str, answers: Sequence[int], timed_seconds: float, *,
+        completed_at: datetime | None = None,
+    ) -> AttemptRecord:
+        attempt = self.get_attempt(attempt_id)
+        if attempt.daily_mode == "Multiplication":
+            raise ValueError("Multiplication Daily attempts must use complete_full_attempt().")
+        if attempt.completed_at is not None:
+            return attempt
+        questions = list(attempt.custom_questions)
+        values = [int(value) for value in answers]
+        if len(questions) != 10 or len(values) != 10:
+            raise ValueError("An alternate Daily completion must contain exactly 10 questions and answers.")
+        seconds = float(timed_seconds)
+        if not 0.1 <= seconds <= 3600:
+            raise ValueError("Timed sprint duration is outside the allowed range.")
+        when = completed_at or utc_now()
+        started = when - timedelta(seconds=seconds)
+        correct_count = sum(
+            int(value) == int(question.get("correct_answer"))
+            for question, value in zip(questions, values)
+        )
+        updated = replace(
+            attempt, timed_started_at=started, completed_at=when,
+            correct_count=correct_count, timed_seconds=seconds,
+            learning_evidence_applied_at=when, custom_answers=tuple(values),
+        )
+        self.attempts[attempt_id] = updated
+        return updated
+
     def ensure_daily_learning_evidence(self, attempt_id: str) -> AttemptRecord:
         """Repair-safe application of Daily evidence after the official score is saved.
 
@@ -623,6 +668,10 @@ class InMemoryFactStore:
         attempt = self.get_attempt(attempt_id)
         if attempt.completed_at is None or attempt.learning_evidence_applied_at is not None:
             return attempt
+        if attempt.daily_mode != "Multiplication":
+            updated = replace(attempt, learning_evidence_applied_at=utc_now())
+            self.attempts[attempt_id] = updated
+            return updated
         answers = self.get_answers(attempt_id)
         if len(answers) != 10:
             raise FactStoreError("Daily evidence repair requires all 10 saved answers.")
@@ -651,7 +700,7 @@ class InMemoryFactStore:
         events = []
         completed_attempt_ids = {
             attempt.attempt_id for attempt in self.attempts.values()
-            if attempt.student_id == student_id and attempt.completed_at is not None
+            if attempt.student_id == student_id and attempt.completed_at is not None and attempt.daily_mode == "Multiplication"
         }
         for attempt_id in completed_attempt_ids:
             for answer in self.answers.get(attempt_id, []):
@@ -760,7 +809,7 @@ class InMemoryFactStore:
             return rows
         # Backfill any v1 Daily history the first time v2 asks for a profile.
         has_history = any(
-            attempt.student_id == student_id and attempt.completed_at is not None
+            attempt.student_id == student_id and attempt.completed_at is not None and attempt.daily_mode == "Multiplication"
             for attempt in self.attempts.values()
         ) or any(
             row.student_id == student_id and row.activity_type == "focus" and not row.is_retry
@@ -1009,12 +1058,16 @@ class InMemoryFactStore:
         question_slot: int, question_type: str, prompt: str, standard_code: str,
         standard_description: str, student_answer: str, correct_answer: str, correct: bool,
     ) -> WarmupAnswerRecord:
+        date_key = _as_date_key(warmup_date)
+        if getattr(self, "_warmup_retention_date", None) != date_key:
+            self.clear_old_warmup_response_text(date_key)
+            self._warmup_retention_date = date_key
         key = (str(student_id), str(warmup_set_id), int(question_slot))
         existing = self.warmup_answers.get(key)
         if existing is not None:
             return existing
         record = WarmupAnswerRecord(
-            _uuid(), str(warmup_set_id), str(student_id), str(class_id), _as_date_key(warmup_date),
+            _uuid(), str(warmup_set_id), str(student_id), str(class_id), date_key,
             int(question_slot), str(question_type), str(prompt), str(standard_code), str(standard_description),
             str(student_answer), str(correct_answer), bool(correct), utc_now(),
         )
@@ -1032,6 +1085,16 @@ class InMemoryFactStore:
         if not include_test:
             rows = [row for row in rows if row.student_id not in test_ids]
         return sorted(rows, key=lambda row: (row.warmup_date, row.class_id, row.student_id, row.question_slot))
+
+    def clear_old_warmup_response_text(self, before_date: date | str) -> int:
+        """Clear prior-day raw student text while preserving correctness/standards evidence."""
+        before_key = _as_date_key(before_date)
+        count = 0
+        for key, row in list(self.warmup_answers.items()):
+            if str(row.warmup_date) < before_key and row.student_answer:
+                self.warmup_answers[key] = replace(row, student_answer="")
+                count += 1
+        return count
 
     # ----- AWTRIX classroom clock integration (reference backend) -----
     def get_awtrix_clock_config(self) -> dict:

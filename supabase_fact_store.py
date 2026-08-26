@@ -244,6 +244,9 @@ def _attempt(row: Mapping) -> AttemptRecord:
         correct_count=None if row.get("correct_count") is None else int(row["correct_count"]),
         timed_seconds=None if row.get("timed_seconds") is None else float(row["timed_seconds"]),
         learning_evidence_applied_at=_dt(row.get("learning_evidence_applied_at")),
+        daily_mode=str(row.get("daily_mode") or "Multiplication"),
+        custom_questions=tuple(dict(item) for item in (row.get("custom_questions") or [])),
+        custom_answers=tuple(int(value) for value in (row.get("custom_answers") or [])),
     )
 
 
@@ -394,7 +397,7 @@ class SupabaseFactStore:
 
     def health_check(self) -> bool:
         self.client.table("classes").select("class_id").limit(1).execute()
-        self.client.table("daily_attempts").select("attempt_id,learning_evidence_applied_at").limit(1).execute()
+        self.client.table("daily_attempts").select("attempt_id,learning_evidence_applied_at,daily_mode,custom_questions,custom_answers").limit(1).execute()
         self.client.table("daily_answers").select("answer_id,first_student_answer,first_correct").limit(1).execute()
         self.client.table("student_fact_mastery").select("student_id").limit(1).execute()
         self.client.table("daily_learning_progress").select("student_id").limit(1).execute()
@@ -713,15 +716,22 @@ class SupabaseFactStore:
         return record
 
     # ----- Attempts / answers -----
-    def get_or_create_attempt(self, student_id: str, challenge_id: str) -> AttemptRecord:
+    def get_or_create_attempt(
+        self, student_id: str, challenge_id: str, *, daily_mode: str = "Multiplication",
+        custom_questions: Sequence[Mapping] | None = None,
+    ) -> AttemptRecord:
         existing = self.get_attempt_for_student(student_id, challenge_id)
         if existing:
             return existing
+        mode = str(daily_mode or "Multiplication")
+        questions = [dict(item) for item in (custom_questions or ())]
+        if mode != "Multiplication" and len(questions) != 10:
+            raise ValueError("Alternate Daily 10 attempts require exactly 10 stored questions.")
+        payload = {"student_id": str(student_id), "challenge_id": str(challenge_id), "daily_mode": mode}
+        if mode != "Multiplication":
+            payload["custom_questions"] = questions
         try:
-            row = _first(_execute_returning(
-                self.client.table("daily_attempts")
-                .insert({"student_id": str(student_id), "challenge_id": str(challenge_id)})
-            ))
+            row = _first(_execute_returning(self.client.table("daily_attempts").insert(payload)))
         except Exception as exc:
             if _is_unique(exc):
                 existing = self.get_attempt_for_student(student_id, challenge_id)
@@ -916,6 +926,38 @@ class SupabaseFactStore:
         }).eq("attempt_id", str(attempt_id)).execute())
         return self.ensure_daily_learning_evidence(attempt_id)
 
+    def complete_custom_attempt(
+        self, attempt_id: str, answers: Sequence[int], timed_seconds: float, *,
+        completed_at: datetime | None = None,
+    ) -> AttemptRecord:
+        attempt = self.get_attempt(attempt_id)
+        if attempt.daily_mode == "Multiplication":
+            raise ValueError("Multiplication Daily attempts must use complete_full_attempt().")
+        if attempt.completed_at is not None:
+            return attempt
+        questions = list(attempt.custom_questions)
+        values = [int(value) for value in answers]
+        if len(questions) != 10 or len(values) != 10:
+            raise ValueError("An alternate Daily completion must contain exactly 10 questions and answers.")
+        seconds = float(timed_seconds)
+        if not 0.1 <= seconds <= 3600:
+            raise ValueError("Timed sprint duration is outside the allowed range.")
+        when = completed_at or utc_now()
+        started = when - timedelta(seconds=seconds)
+        correct_count = sum(
+            int(value) == int(question.get("correct_answer"))
+            for question, value in zip(questions, values)
+        )
+        _retry_transient(lambda: self.client.table("daily_attempts").update({
+            "timed_started_at": started.isoformat(),
+            "completed_at": when.isoformat(),
+            "correct_count": correct_count,
+            "timed_seconds": round(seconds, 3),
+            "custom_answers": values,
+            "learning_evidence_applied_at": when.isoformat(),
+        }).eq("attempt_id", str(attempt_id)).execute())
+        return self.get_attempt(attempt_id)
+
     def ensure_daily_learning_evidence(self, attempt_id: str) -> AttemptRecord:
         """Apply or repair Daily mastery/progress evidence exactly once in effect.
 
@@ -927,6 +969,11 @@ class SupabaseFactStore:
         attempt = self.get_attempt(attempt_id)
         if attempt.completed_at is None or attempt.learning_evidence_applied_at is not None:
             return attempt
+        if attempt.daily_mode != "Multiplication":
+            _retry_transient(lambda: self.client.table("daily_attempts").update({
+                "learning_evidence_applied_at": utc_now().isoformat(),
+            }).eq("attempt_id", str(attempt_id)).is_("learning_evidence_applied_at", "null").execute())
+            return self.get_attempt(attempt_id)
         saved = self.get_answers(attempt_id)
         if len(saved) != 10:
             raise FactStoreError("Daily evidence repair requires all 10 saved answers.")
@@ -956,8 +1003,9 @@ class SupabaseFactStore:
 
     def rebuild_mastery(self, student_id: str) -> list[MasterySnapshot]:
         attempt_rows = _rows(
-            self.client.table("daily_attempts").select("attempt_id,completed_at")
-            .eq("student_id", str(student_id)).not_.is_("completed_at", "null").range(0, 4999).execute()
+            self.client.table("daily_attempts").select("attempt_id,completed_at,daily_mode")
+            .eq("student_id", str(student_id)).eq("daily_mode", "Multiplication")
+            .not_.is_("completed_at", "null").range(0, 4999).execute()
         )
         attempt_ids = [str(row["attempt_id"]) for row in attempt_rows]
         daily_rows = []
@@ -1189,7 +1237,8 @@ class SupabaseFactStore:
         # no placement test and no invented evidence.
         prior_daily = _first(_retry_transient(lambda: (
             self.client.table("daily_attempts").select("attempt_id")
-            .eq("student_id", str(student_id)).not_.is_("completed_at", "null").limit(1).execute()
+            .eq("student_id", str(student_id)).eq("daily_mode", "Multiplication")
+            .not_.is_("completed_at", "null").limit(1).execute()
         )))
         prior_focus = _first(_retry_transient(lambda: (
             self.client.table("practice_answers").select("practice_answer_id")
@@ -1475,6 +1524,12 @@ class SupabaseFactStore:
         standard_description: str, student_answer: str, correct_answer: str, correct: bool,
     ) -> WarmupAnswerRecord:
         date_key = warmup_date.isoformat() if isinstance(warmup_date, date) else str(warmup_date)
+        if getattr(self, "_warmup_retention_date", None) != date_key:
+            try:
+                self.clear_old_warmup_response_text(date_key)
+                self._warmup_retention_date = date_key
+            except Exception as exc:
+                print(f"[TDFC data] warmup_response_retention_failed type={type(exc).__name__}")
         payload = {
             "warmup_set_id": str(warmup_set_id), "student_id": str(student_id),
             "class_id": str(class_id), "warmup_date": date_key, "question_slot": int(question_slot),
@@ -1527,6 +1582,16 @@ class SupabaseFactStore:
             .in_("student_id", student_ids).eq("is_test", True).range(0, 9999).execute()))
         test_ids = {str(row["student_id"]) for row in test_rows}
         return [row for row in records if row.student_id not in test_ids]
+
+    def clear_old_warmup_response_text(self, before_date: date | str) -> int:
+        """Clear prior-day raw student text while preserving correctness/standards evidence."""
+        before_key = before_date.isoformat() if isinstance(before_date, date) else str(before_date)
+        rows = _rows(_retry_transient(lambda: self.client.table("warmup_answers")
+            .select("warmup_answer_id").lt("warmup_date", before_key).neq("student_answer", "").range(0, 9999).execute()))
+        if rows:
+            _retry_transient(lambda: self.client.table("warmup_answers").update({"student_answer": ""})
+                .lt("warmup_date", before_key).neq("student_answer", "").execute())
+        return len(rows)
 
     # ----- AWTRIX classroom clock integration -----
     def get_awtrix_clock_config(self) -> dict | None:

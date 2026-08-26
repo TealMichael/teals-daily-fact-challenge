@@ -65,7 +65,7 @@ checks["Daily attempt creation works with 2.28.3-style builder"] = attempt.attem
 
 source = open("supabase_fact_store.py", encoding="utf-8").read()
 checks["compatibility helper documents pinned 2.28.3"] = "supabase-py 2.28.3 mutation builder" in source
-checks["Daily attempt mutation uses compatibility helper"] = 'row = _first(_execute_returning(\n                self.client.table("daily_attempts")' in source
+checks["Daily attempt mutation uses compatibility helper"] = '_execute_returning(self.client.table("daily_attempts").insert(payload))' in source
 
 failed = [name for name, ok in checks.items() if not ok]
 if failed:

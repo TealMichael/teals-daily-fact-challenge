@@ -1,5 +1,7 @@
 # Teal's Daily Fact Challenge
 
+> **v2.13.0 — Weekly Daily 10 + Igniter Update:** adds per-class/date Daily 10 modes (Multiplication default, Addition, Subtraction, Division, Integers, Mixed), Block 4 app support, and expanded Igniter answer/grading tools. Alternate Daily modes share the normal class Top 10 but write zero multiplication mastery evidence. The proven v2.12 Hotfix 3 multiplication components and AWTRIX script remain protected and unchanged. Run `RUN_THIS_ONCE_IN_SUPABASE_v2_13.sql` once **before** deploying the app files. No new Streamlit Secret or AWTRIX reinstall is required.
+
 > **v2.12.0 Hotfix 2:** restores the previously proven Teacher Today / projector API-resilience behavior after the AWTRIX branch merge. A transient Daily-status PostgREST failure no longer crashes Teacher Today or blocks independently loaded Igniter results. No AWTRIX, student-flow, scoring, mastery, or SQL changes.
 
 > **v2.12.0 Hotfix 1:** fixes the live AWTRIX Supabase `digest()` search path and preserves the Clock mapping save confirmation across Streamlit reruns. No clock script reinstall is required.

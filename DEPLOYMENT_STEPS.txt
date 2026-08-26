@@ -1,26 +1,54 @@
-TEAL'S DAILY FACT CHALLENGE v2.12.0 — HOTFIX 3 CLASSROOM SAFETY + TOP 10 CHIME
+TEAL'S DAILY FACT CHALLENGE v2.13.0 — WEEKLY DAILY 10 + IGNITER UPDATE
 
-BASE
-This combined patch is for the currently installed v2.12.0 Hotfix 1 AWTRIX Live Fix build.
-It includes the not-yet-installed Hotfix 2 Teacher Today API-resilience protection plus the Top 10 chime.
+SOURCE OF TRUTH
+This release is built from v2.12.0 Hotfix 3. Do not install it over a different experimental branch.
+
+IMPORTANT ORDER
+Run the v2.13 Supabase SQL FIRST. Then deploy the GitHub files.
+The SQL migration is backward-compatible with the currently installed v2.12.0 Hotfix 3 app, so there is no period where the old app should be broken after the SQL runs.
 
 STEP 1 — SUPABASE
-No new SQL for Hotfix 3.
-Keep the v2.12.0 and AWTRIX Hotfix 1 database changes already applied.
-Do NOT rerun older migrations for this patch.
+1. Open your existing Teal's Daily Fact Challenge Supabase project.
+2. Open SQL Editor.
+3. Open `RUN_THIS_ONCE_IN_SUPABASE_v2_13.sql` from this package.
+4. Paste the entire file into a new query and run it once.
+5. Confirm the query completes successfully before touching GitHub.
 
-STEP 2 — GITHUB / STREAMLIT
-Copy the contents of COPY_INTO_GITHUB_REPO (patch package) or UPLOAD_TO_GITHUB (full archive) into the repository, replacing existing files, then commit and push.
-Commit message:
-  v2.12.0 Hotfix 3 - restore Teacher Today resilience and add Top 10 chime
+The migration adds:
+- `daily_mode` to existing Daily attempts, defaulting old/current records to Multiplication.
+- `custom_questions` and `custom_answers` JSON fields for nonmultiplication Daily 10 attempts.
+- the expanded allowed Igniter question-type constraint.
 
-STEP 3 — AWTRIX CLOCK
-Update ONLY the Fact Top 10 script. Keep the Class Schedule script unchanged.
-1. Open the AWTRIX web UI.
-2. Open Scripts and select the installed Fact Top 10 script.
-3. Replace its source with AWTRIX_FactTop10.berry from this package (or import/copy it into the editor under the same app name).
-4. Save/install it. Keeping the same app preserves the script's stored configuration on the device.
-5. Confirm the global AWTRIX Sound setting is enabled.
-6. Use Teacher > Clock > Send Top 10 to Clock Now for a manual test.
+Do NOT rerun older migrations as part of this update.
 
-The sound is a single three-note RTTTL chime when the Top 10 notification first appears. It does not loop or play before each nickname.
+STEP 2 — GITHUB DESKTOP / REPOSITORY
+Use the PATCH ZIP for the normal update.
+
+1. Unzip `Teals_Daily_Fact_Challenge_v2_13_0_GITHUB_DESKTOP_PATCH.zip`.
+2. Open the folder `COPY_INTO_GITHUB_REPO` inside it.
+3. Copy everything INSIDE that folder into the root of your existing GitHub repository.
+4. Allow the files to replace/update the matching files already in the repository.
+5. Open GitHub Desktop and review the changed files.
+6. Commit with:
+   v2.13.0 - add flexible Daily 10 modes and expanded Igniter answers
+7. Push to GitHub.
+8. Let Streamlit redeploy normally.
+
+The FULL_CURRENT_APP ZIP is your complete v2.13 backup/reference package; it is not necessary to copy the entire archive for the normal GitHub Desktop update.
+
+STEP 3 — QUICK TEACHER CHECK AFTER DEPLOY
+1. Sign in as Teacher.
+2. Open Daily 10 Setup.
+3. Confirm all classes show Multiplication by default.
+4. Pick one future/today class and temporarily choose a nonmultiplication mode if you want a live check.
+5. Confirm the setting saves for only that class/date.
+6. Open Warm-Up/Igniter and confirm the planner defaults to today and the new answer types appear.
+
+STEP 4 — WHAT NOT TO CHANGE
+- Do not reinstall or edit the AWTRIX Fact Top 10 script for v2.13.0.
+- Do not change the separate classroom Class Schedule script.
+- Do not add/change Streamlit Secrets.
+- Do not change the multiplication Daily generator or challenge version.
+
+ROLLBACK
+If you need to roll the code back, redeploy the known-good v2.12.0 Hotfix 3 GitHub files. The added v2.13 database columns are backward-compatible and may remain in Supabase; you do not need to drop them to run Hotfix 3 again.

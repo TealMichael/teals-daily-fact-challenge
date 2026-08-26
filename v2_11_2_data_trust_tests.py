@@ -121,7 +121,7 @@ def run():
 
     # Production persistence contracts for first-answer evidence + repair marker.
     checks["health check verifies data-trust migration"] = all(token in SUPABASE for token in [
-        'select("attempt_id,learning_evidence_applied_at")',
+        'select("attempt_id,learning_evidence_applied_at',
         'select("answer_id,first_student_answer,first_correct")',
     ])
     checks["Supabase stores first-answer fields"] = all(token in SUPABASE for token in [

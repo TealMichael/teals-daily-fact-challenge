@@ -18,7 +18,7 @@ APP = APP_CORE + "\n" + WARMUP_UI
 
 def run():
     checks = 0
-    assert APP_VERSION == "2.12.0"; checks += 1
+    assert APP_VERSION == "2.13.0"; checks += 1
 
     # Official-grade picker coverage: content standards across Grades 4–7.
     counts = Counter(item.grade for item in STANDARDS)

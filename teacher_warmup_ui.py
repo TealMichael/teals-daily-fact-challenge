@@ -17,7 +17,7 @@ import streamlit as st
 from fact_engine import current_daily_date
 from fact_store import FactStoreError
 from supabase_fact_store import SupabaseFactStore
-from warmup import QUESTION_TYPES, prepare_question as prepare_warmup_question, question_for_slot
+from warmup import QUESTION_TYPES, display_student_response, prepare_question as prepare_warmup_question, question_for_slot
 from indiana_math_standards import (
     BY_CODE as INDIANA_STANDARD_BY_CODE,
     CUSTOM_CODE as CUSTOM_STANDARD_CODE,
@@ -90,20 +90,38 @@ def _warmup_form_question(existing: dict, slot: int, key_prefix: str, recent_cod
         index=list(QUESTION_TYPES).index(current_type) if current_type in QUESTION_TYPES else 0,
         key=f"{key_prefix}_type_{slot}",
     )
+    correct_label = "Correct answer — Part 1" if qtype == "Multi-Part — 2 answers" else "Correct answer"
     correct = st.text_input(
-        "Correct answer", value=str(existing.get("correct_answer") or ""),
+        correct_label, value=str(existing.get("correct_answer") or ""),
         key=f"{key_prefix}_correct_{slot}",
     )
-    options = st.text_area(
-        "Multiple-choice options — one per line (only used for Multiple choice)",
-        value="\n".join(str(value) for value in (existing.get("options") or [])),
-        key=f"{key_prefix}_options_{slot}", height=90,
-    )
+    correct_two = ""
+    if qtype == "Multi-Part — 2 answers":
+        correct_two = st.text_input(
+            "Correct answer — Part 2", value=str(existing.get("correct_answer_two") or ""),
+            key=f"{key_prefix}_correct_two_{slot}",
+        )
+    if qtype == "Expanded Form":
+        st.caption("Students must show the actual place-value sum. A numerically equal standard-form number will not count.")
+    options = ""
+    if qtype == "Multiple choice":
+        options = st.text_area(
+            "Multiple-choice options — one per line",
+            value="\n".join(str(value) for value in (existing.get("options") or [])),
+            key=f"{key_prefix}_options_{slot}", height=90,
+        )
     alternates = st.text_area(
         "Accepted alternate answers — optional, one per line",
         value="\n".join(str(value) for value in (existing.get("accepted_answers") or [])),
         key=f"{key_prefix}_alternates_{slot}", height=70,
     )
+    alternates_two = ""
+    if qtype == "Multi-Part — 2 answers":
+        alternates_two = st.text_area(
+            "Accepted Part 2 alternate answers — optional, one per line",
+            value="\n".join(str(value) for value in (existing.get("accepted_answers_two") or [])),
+            key=f"{key_prefix}_alternates_two_{slot}", height=70,
+        )
 
     recent_codes = [code for code in recent_codes if code in INDIANA_STANDARD_BY_CODE]
     standard_options = ordered_standard_codes(recent_codes) + [CUSTOM_STANDARD_CODE]
@@ -142,7 +160,9 @@ def _warmup_form_question(existing: dict, slot: int, key_prefix: str, recent_cod
 
     return {
         "prompt": prompt, "question_type": qtype, "correct_answer": correct,
+        "correct_answer_two": correct_two,
         "options": _lines(options), "accepted_answers": _lines(alternates),
+        "accepted_answers_two": _lines(alternates_two),
         "standard_code": standard, "standard_description": description,
     }
 
@@ -418,6 +438,14 @@ def render_teacher_warmup(store: SupabaseFactStore, *, refresh_control, finish_r
         st.caption("Two untimed curriculum questions before the Daily 10. Warm-Up accuracy is stored separately from multiplication mastery and Top 10.")
     with header_right:
         refresh_control(key="teacher_warmup_refresh")
+    today = current_daily_date()
+    retention_key = f"warmup_raw_response_retention::{today.isoformat()}"
+    if not st.session_state.get(retention_key):
+        try:
+            store.clear_old_warmup_response_text(today)
+            st.session_state[retention_key] = True
+        except Exception as exc:
+            print(f"[TDFC teacher] warmup_response_retention_failed type={type(exc).__name__}")
     classes = store.list_classes()
     if not classes:
         st.info("Create a class first.")
@@ -426,7 +454,7 @@ def render_teacher_warmup(store: SupabaseFactStore, *, refresh_control, finish_r
     selected_name = st.selectbox("Class", list(class_by_name), key="teacher_warmup_class")
     selected = class_by_name[selected_name]
 
-    default_date = _next_school_day(current_daily_date())
+    default_date = current_daily_date()
     target_date = st.date_input("Warm-Up date", value=default_date, key="teacher_warmup_date")
     st.caption("Testing tonight? Choose **today** here, save the Warm-Up, then open 🧪 Test Student for this class.")
 
@@ -485,6 +513,19 @@ def render_teacher_warmup(store: SupabaseFactStore, *, refresh_control, finish_r
     if existing:
         st.markdown("#### Class results")
         result_students, result_rows, _ = _warmup_class_snapshot(store, selected, target_date, existing)
+        if target_date == current_daily_date():
+            with st.expander("📝 Today's Student Answers", expanded=False):
+                st.caption("Teacher only. Raw response text is kept for today; older response text is cleared while correctness and standards evidence remain.")
+                name_by_id = {str(student.student_id): str(student.nickname) for student in result_students}
+                by_student = {}
+                for row in result_rows:
+                    entry = by_student.setdefault(str(row.student_id), {"Nickname": name_by_id.get(str(row.student_id), "Student"), "Q1": "—", "Q2": "—"})
+                    entry[f"Q{int(row.question_slot)}"] = display_student_response(row.student_answer, row.question_type)
+                if by_student:
+                    frame = pd.DataFrame(sorted(by_student.values(), key=lambda item: item["Nickname"].casefold()))
+                    st.dataframe(frame, hide_index=True, use_container_width=True)
+                else:
+                    st.caption("No student answers yet today.")
         # A Warm-Up refresh is only marked complete after the current set and
         # its latest real-student answers have both been read successfully.
         finish_refresh()
@@ -501,7 +542,7 @@ def render_teacher_warmup(store: SupabaseFactStore, *, refresh_control, finish_r
                     st.dataframe(pd.DataFrame([
                         {
                             "Question": "Spiral Review" if row.question_slot == 1 else "Yesterday Check",
-                            "Answer": row.student_answer,
+                            "Answer": display_student_response(row.student_answer, row.question_type),
                             "Correct": "Yes" if row.correct else "No",
                         } for row in test_rows
                     ]), hide_index=True, use_container_width=True)

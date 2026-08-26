@@ -13,7 +13,7 @@ import re
 import streamlit as st
 
 from supabase_fact_store import SupabaseFactStore
-from warmup import answer_matches as warmup_answer_matches, question_for_slot
+from warmup import (correct_answer_for_storage, display_student_response, grade_question, pack_multi_part_response, question_for_slot)
 
 def render_quick_warmup(store: SupabaseFactStore, day: date) -> bool:
     """Render the optional two-question curriculum Warm-Up.
@@ -92,21 +92,29 @@ def render_quick_warmup(store: SupabaseFactStore, day: date) -> bool:
     )
 
     form_key = f"warmup_answer_{warmup.warmup_set_id}_{student_id}_{slot}"
+    qtype = str(question.get("question_type") or "Short answer")
+    response_two = ""
     with st.form(form_key, clear_on_submit=False):
-        if question.get("question_type") == "Multiple choice":
+        if qtype == "Multiple choice":
             options = [str(value) for value in (question.get("options") or [])]
             response = st.radio("Choose your answer", options, key=f"warmup_choice_{warmup.warmup_set_id}_{slot}") if options else ""
+        elif qtype == "Multi-Part — 2 answers":
+            response = st.text_input("Part 1", key=f"warmup_text_{warmup.warmup_set_id}_{slot}_1", placeholder="First answer")
+            response_two = st.text_input("Part 2", key=f"warmup_text_{warmup.warmup_set_id}_{slot}_2", placeholder="Second answer")
         else:
-            response = st.text_input("Your answer", key=f"warmup_text_{warmup.warmup_set_id}_{slot}", placeholder="Type your answer")
+            placeholder = "Type the expanded form" if qtype == "Expanded Form" else "Type your answer"
+            response = st.text_input("Your answer", key=f"warmup_text_{warmup.warmup_set_id}_{slot}", placeholder=placeholder)
         submitted = st.form_submit_button("Check answer →", type="primary", use_container_width=True)
 
     if submitted:
         response = str(response or "").strip()
-        if not response:
-            st.warning("Enter an answer first.")
+        response_two = str(response_two or "").strip()
+        if not response or (qtype == "Multi-Part — 2 answers" and not response_two):
+            st.warning("Enter both answers first." if qtype == "Multi-Part — 2 answers" else "Enter an answer first.")
             return False
-        correct_answer = str(question.get("correct_answer") or "")
-        correct = warmup_answer_matches(response, correct_answer, question.get("accepted_answers") or ())
+        correct = grade_question(question, response, response_two)
+        stored_response = pack_multi_part_response(response, response_two) if qtype == "Multi-Part — 2 answers" else response
+        correct_answer = correct_answer_for_storage(question)
         try:
             store.record_warmup_answer(
                 warmup_set_id=warmup.warmup_set_id,
@@ -114,11 +122,11 @@ def render_quick_warmup(store: SupabaseFactStore, day: date) -> bool:
                 class_id=class_id,
                 warmup_date=day,
                 question_slot=slot,
-                question_type=str(question.get("question_type") or "Short answer"),
+                question_type=qtype,
                 prompt=str(question.get("prompt") or ""),
                 standard_code=str(question.get("standard_code") or ""),
                 standard_description=str(question.get("standard_description") or ""),
-                student_answer=response,
+                student_answer=stored_response,
                 correct_answer=correct_answer,
                 correct=correct,
             )
@@ -130,7 +138,7 @@ def render_quick_warmup(store: SupabaseFactStore, day: date) -> bool:
         st.session_state.warmup_feedback = {
             "warmup_set_id": warmup.warmup_set_id,
             "correct": bool(correct),
-            "correct_answer": correct_answer,
+            "correct_answer": display_student_response(correct_answer, qtype),
         }
         if slot == 2:
             st.session_state.warmup_just_completed = warmup.warmup_set_id

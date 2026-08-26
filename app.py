@@ -38,6 +38,9 @@ from supabase_fact_store import SupabaseFactStore
 from persistent_login import REMEMBER_DAYS, issue_student_token, peek_student_id, verify_student_token
 from ui_helpers import format_seconds, strategy_tip
 from student_igniter_ui import render_quick_warmup
+from daily_modes import configured_daily_mode, questions_for_mode
+from student_alt_daily_ui import render_alternate_daily
+from teacher_daily_setup_ui import render_teacher_daily_setup
 from teacher_learning_ui import render_teacher_mastery_focus, _override_label, _override_value
 from teacher_warmup_ui import render_teacher_warmup as _render_teacher_warmup_module
 from teacher_warmup_ui import _render_warmup_groups_and_email
@@ -55,15 +58,12 @@ from weekly_mystery import (
     week_start_for,
 )
 
-
 st.set_page_config(
     page_title="Teal's Daily Fact Challenge",
     page_icon="✖️",
     layout="centered",
     initial_sidebar_state="collapsed",
 )
-
-
 
 DAILY_SPRINT_COMPONENT = components.declare_component(
     "tdfc_daily_sprint",
@@ -122,7 +122,6 @@ def render_number_pad(*, key: str) -> tuple[int, float] | None:
     st.session_state[processed_key] = nonce
     return value, latency
 
-
 def render_guided_practice(*, key: str, mode: str, session_key: str, items: list[dict], step_label: str, done_title: str) -> list[dict] | None:
     """Run a whole Fix/Focus mini-session in the browser and return one evidence batch.
 
@@ -173,7 +172,6 @@ def render_guided_practice(*, key: str, mode: str, session_key: str, items: list
             "is_retry": bool(raw.get("is_retry")),
         })
     return cleaned
-
 
 # ---------------------------------------------------------------------------
 # Styling
@@ -374,7 +372,6 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-
 # ---------------------------------------------------------------------------
 # Store / session helpers
 # ---------------------------------------------------------------------------
@@ -384,7 +381,6 @@ def database_configured() -> bool:
     except Exception:
         return False
 
-
 @st.cache_resource(show_spinner=False)
 def load_store(app_version: str) -> SupabaseFactStore:
     # Include the app version in the cache key. Streamlit Cloud can preserve a
@@ -393,7 +389,6 @@ def load_store(app_version: str) -> SupabaseFactStore:
     # That became visible in v2.10 when the new Warm-Up methods were added.
     _ = app_version
     return SupabaseFactStore.from_secrets(st.secrets)
-
 
 def get_store() -> SupabaseFactStore | None:
     if not database_configured():
@@ -411,7 +406,6 @@ def get_store() -> SupabaseFactStore | None:
     except Exception:
         return None
 
-
 def _timed_app_call(label: str, operation, *, log_after_seconds: float = 1.0):
     """Run one app operation and emit a privacy-safe timing line only when it is slow.
 
@@ -427,13 +421,11 @@ def _timed_app_call(label: str, operation, *, log_after_seconds: float = 1.0):
         if elapsed >= float(log_after_seconds):
             print(f"[TDFC timing] {label}: {elapsed:.2f}s", flush=True)
 
-
 def teacher_password_configured() -> bool:
     try:
         return bool(str(st.secrets.get("TEACHER_PASSWORD") or "").strip())
     except Exception:
         return False
-
 
 def init_state() -> None:
     defaults = {
@@ -471,9 +463,7 @@ def init_state() -> None:
         if key not in st.session_state:
             st.session_state[key] = value
 
-
 init_state()
-
 
 def switch_mode(mode: str) -> None:
     st.session_state.app_mode = mode
@@ -482,11 +472,9 @@ def switch_mode(mode: str) -> None:
     elif mode == "Practice":
         st.session_state.student_nav = "Practice"
 
-
 def switch_student_nav() -> None:
     """Keep the fifth-grade navigation simple while preserving the internal mode names."""
     st.session_state.app_mode = "Daily Challenge" if st.session_state.student_nav == "Today" else "Practice"
-
 
 def sign_out() -> None:
     st.session_state.persistent_login_pending_action = {"action": "clear"}
@@ -495,13 +483,11 @@ def sign_out() -> None:
         st.session_state[key] = None
     st.session_state.practice_result = None
 
-
 def _persistent_login_secret() -> str:
     try:
         return str(st.secrets.get("SUPABASE_SECRET_KEY") or "")
     except Exception:
         return ""
-
 
 def _set_student_session(student, class_record) -> None:
     st.session_state.student_id = student.student_id
@@ -509,7 +495,6 @@ def _set_student_session(student, class_record) -> None:
     st.session_state.student_class_id = student.class_id
     st.session_state.student_class_name = class_record.class_name
     st.session_state.student_is_test = bool(getattr(student, "is_test", False))
-
 
 def handle_persistent_student_login(store: SupabaseFactStore | None) -> None:
     """Read/write the optional 30-day browser login token.
@@ -589,10 +574,8 @@ def handle_persistent_student_login(store: SupabaseFactStore | None) -> None:
         st.session_state.persistent_login_check_complete = False
         st.rerun()
 
-
 def student_signed_in() -> bool:
     return bool(st.session_state.student_id and st.session_state.student_class_id)
-
 
 def parse_answer(value: str) -> int:
     text = str(value or "").strip()
@@ -603,9 +586,6 @@ def parse_answer(value: str) -> int:
         raise ValueError("Enter a reasonable whole-number answer.")
     return number
 
-
-
-
 def progress_bar(completed: int, total: int = 10, current: int | None = None) -> None:
     cells = []
     for index in range(1, total + 1):
@@ -614,7 +594,6 @@ def progress_bar(completed: int, total: int = 10, current: int | None = None) ->
             cls = "progress-seg current"
         cells.append(f'<div class="{cls}"></div>')
     st.markdown('<div class="progress-row">' + "".join(cells) + "</div>", unsafe_allow_html=True)
-
 
 def render_routine_strip(stage: str) -> None:
     """Make the four-part student path obvious without turning Mystery into required work."""
@@ -641,7 +620,6 @@ def render_routine_strip(stage: str) -> None:
         cells.append(f'<div class="{cls}">{prefix}{labels[key]}</div>')
     st.markdown('<div class="routine-strip">' + "".join(cells) + "</div>", unsafe_allow_html=True)
 
-
 def render_array(fact: Fact) -> None:
     columns = fact.b
     cells = "".join('<div class="array-dot"></div>' for _ in range(fact.a * fact.b))
@@ -657,9 +635,6 @@ def render_array(fact: Fact) -> None:
         """,
         unsafe_allow_html=True,
     )
-
-
-
 
 def render_header() -> str:
     st.markdown("<h1 class='top-title'>Teal's Daily Fact Challenge</h1>", unsafe_allow_html=True)
@@ -701,13 +676,11 @@ def render_header() -> str:
 
     return st.session_state.app_mode
 
-
 def render_db_setup_message() -> None:
     st.info(
         "Daily Challenge accounts are not connected yet. Practice still works. "
         "For the full app, finish the Supabase + Streamlit Secrets steps in DEPLOYMENT_STEPS.txt."
     )
-
 
 def render_student_sign_in(store: SupabaseFactStore | None) -> bool:
     if student_signed_in():
@@ -787,7 +760,6 @@ def render_student_sign_in(store: SupabaseFactStore | None) -> bool:
     st.markdown(f"<div class='private-note'>Nicknames are public inside the class leaderboard. PINs stay private and are never shown to classmates. Remembered sign-ins expire after {REMEMBER_DAYS} days or when you sign out.</div>", unsafe_allow_html=True)
     return False
 
-
 # ---------------------------------------------------------------------------
 # Weekly Mystery reward
 # ---------------------------------------------------------------------------
@@ -800,7 +772,6 @@ def resolve_weekly_mystery(store: SupabaseFactStore, week_start, record=None):
     key = record.mystery_key if record is not None else default_mystery_key_for_week(week_start)
     return mystery_for_key(key)
 
-
 def ensure_weekly_mystery(store: SupabaseFactStore, day):
     week_start = week_start_for(day)
     plan = store.get_mystery_plan(week_start)
@@ -809,7 +780,6 @@ def ensure_weekly_mystery(store: SupabaseFactStore, day):
         week_start, planned_key or default_mystery_key_for_week(week_start)
     )
     return week_start, record, resolve_weekly_mystery(store, week_start, record)
-
 
 def _mystery_solve_title(clue_count: int) -> str:
     clue_count = int(clue_count)
@@ -821,7 +791,6 @@ def _mystery_solve_title(clue_count: int) -> str:
         return "🔍 Mystery Solver"
     return "🎯 Friday Solver"
 
-
 def _render_mystery_clues(mystery, clue_count: int) -> None:
     if clue_count <= 0:
         st.caption("No clues unlocked yet this week.")
@@ -832,7 +801,6 @@ def _render_mystery_clues(mystery, clue_count: int) -> None:
             unsafe_allow_html=True,
         )
 
-
 def _render_mystery_stats(store: SupabaseFactStore) -> None:
     stats = store.mystery_student_stats(st.session_state.student_id)
     solved = int(stats.get("solved") or 0)
@@ -841,12 +809,10 @@ def _render_mystery_stats(store: SupabaseFactStore) -> None:
         earliest_text = "Friday" if int(earliest or 5) >= 5 else f"{int(earliest)} clue{'s' if int(earliest) != 1 else ''}"
         st.caption(f"Mysteries solved: {solved} · Earliest solve: {earliest_text}")
 
-
 def _render_mystery_learning(mystery) -> None:
     st.markdown(f"### 📚 Meet {mystery.answer}")
     st.markdown(learning_paragraph_for(mystery))
     st.info(f"🤯 **Fun fact:** {mystery.reveal_note}")
-
 
 def _render_mystery_win(mystery, solved_guess, week_start) -> None:
     clue_count = max(1, int(solved_guess.clue_count or 1))
@@ -869,7 +835,6 @@ def _render_mystery_win(mystery, solved_guess, week_start) -> None:
     else:
         st.success("🎟️ **You're in your class's Friday prize raffle!** Every correct solver gets one equal entry.")
     _render_mystery_learning(mystery)
-
 
 def render_weekly_mystery_reward(store: SupabaseFactStore, day, challenge, *, show_heading: bool = True) -> None:
     """Earn one clue Monday-Friday; guessing exists only Thursday and Friday."""
@@ -998,7 +963,6 @@ def render_weekly_mystery_reward(store: SupabaseFactStore, day, challenge, *, sh
             st.caption(f"Your Friday guess was: {friday_guess.guess_text}")
     _render_mystery_stats(store)
 
-
 # ---------------------------------------------------------------------------
 # Daily Challenge
 # ---------------------------------------------------------------------------
@@ -1008,7 +972,6 @@ def ensure_today(store: SupabaseFactStore):
     validate_daily_facts(facts)
     challenge = store.get_or_create_challenge(day, CHALLENGE_VERSION, facts)
     return day, list(challenge.facts), challenge
-
 
 def load_leaderboard_context(store: SupabaseFactStore, challenge) -> dict:
     """Load a privacy-sanitized student leaderboard snapshot.
@@ -1030,10 +993,8 @@ def load_leaderboard_context(store: SupabaseFactStore, challenge) -> dict:
     ]
     return {"rows": rows, "finished": len(completed), "roster_count": len(roster)}
 
-
 def _leaderboard_cache_key(challenge) -> str:
     return f"leaderboard_context_{st.session_state.student_id}_{challenge.challenge_id}"
-
 
 def get_cached_leaderboard_context(store: SupabaseFactStore, challenge, *, refresh: bool = False) -> dict:
     """Reuse one leaderboard snapshot during Fix/Focus reruns.
@@ -1048,10 +1009,8 @@ def get_cached_leaderboard_context(store: SupabaseFactStore, challenge, *, refre
         st.session_state[key] = load_leaderboard_context(store, challenge)
     return st.session_state[key]
 
-
 def _focus_rows_cache_key(challenge) -> str:
     return f"focus_rows_{st.session_state.student_id}_{challenge.challenge_id}"
-
 
 def get_cached_focus_rows(store: SupabaseFactStore, challenge) -> list:
     key = _focus_rows_cache_key(challenge)
@@ -1061,20 +1020,17 @@ def get_cached_focus_rows(store: SupabaseFactStore, challenge) -> list:
         )
     return list(st.session_state[key])
 
-
 def append_cached_focus_row(challenge, row) -> None:
     key = _focus_rows_cache_key(challenge)
     rows = list(st.session_state.get(key, []))
     rows.append(row)
     st.session_state[key] = rows
 
-
 def get_cached_focus_override(store: SupabaseFactStore, challenge) -> int | None:
     key = f"focus_override_{st.session_state.student_id}_{challenge.challenge_id}"
     if key not in st.session_state:
         st.session_state[key] = store.get_effective_focus_override(st.session_state.student_id)
     return st.session_state[key]
-
 
 def render_leaderboard(
     store: SupabaseFactStore, challenge, *, highlight_student_id: str | None = None, context: dict | None = None
@@ -1105,7 +1061,6 @@ def render_leaderboard(
     if highlight_student_id and not any(row["student_id"] == highlight_student_id for row in rows):
         st.caption("Only the Top 10 is shown. Your exact class rank stays private.")
 
-
 def render_daily_review(facts: list[Fact], answers) -> None:
     with st.expander("Review your Daily 10", expanded=False):
         for fact, answer in zip(facts, answers):
@@ -1119,7 +1074,6 @@ def render_daily_review(facts: list[Fact], answers) -> None:
             )
         if all(answer.correct for answer in answers):
             st.success("Perfect accuracy — all 10 Daily facts were correct.")
-
 
 def render_learning_path(progress, missed_count: int) -> None:
     if progress.completed_at is not None or progress.focus_completed_at is not None:
@@ -1138,7 +1092,6 @@ def render_learning_path(progress, missed_count: int) -> None:
         st.caption("Next: finish 8 Focus Facts. Then your learning work is DONE and your Mystery reward unlocks.")
     else:
         st.caption("Learning work complete ✓ · your Weekly Mystery is the reward, not another assignment.")
-
 
 def render_daily_result_summary(store: SupabaseFactStore, day, challenge, attempt, *, leaderboard_context: dict | None = None) -> None:
     leaderboard = list((leaderboard_context or load_leaderboard_context(store, challenge))["rows"])
@@ -1163,14 +1116,12 @@ def render_daily_result_summary(store: SupabaseFactStore, day, challenge, attemp
     else:
         st.caption("The class Top 10 will keep filling in as classmates finish.")
 
-
 def _missed_daily_items(facts: list[Fact], answers) -> list[tuple[int, Fact, object]]:
     result = []
     for fact, answer in zip(facts, answers):
         if not answer.correct:
             result.append((int(answer.question_number), fact, answer))
     return result
-
 
 def _guided_item(fact: Fact, *, activity_index: int, start_state: str, original_answer: int | None = None, first_already_recorded: bool = False) -> dict:
     normalized_state = "coach" if start_state == "teach" else start_state
@@ -1184,7 +1135,6 @@ def _guided_item(fact: Fact, *, activity_index: int, start_state: str, original_
         "original_answer": original_answer,
         "first_already_recorded": bool(first_already_recorded),
     }
-
 
 def render_fix_misses(store: SupabaseFactStore, challenge, facts: list[Fact], answers) -> bool:
     missed = _missed_daily_items(facts, answers)
@@ -1243,7 +1193,6 @@ def render_fix_misses(store: SupabaseFactStore, challenge, facts: list[Fact], an
     st.rerun()
     return False
 
-
 def _focus_index_state(rows, index: int) -> tuple[object | None, bool]:
     at_index = [row for row in rows if row.activity_index == index]
     first = next((row for row in at_index if not row.is_retry), None)
@@ -1253,7 +1202,6 @@ def _focus_index_state(rows, index: int) -> tuple[object | None, bool]:
         return first, True
     corrected = any(row.is_retry and row.correct for row in at_index)
     return first, corrected
-
 
 def ensure_focus_plan(store: SupabaseFactStore, day, challenge, answers, progress=None):
     progress = progress or store.get_learning_progress(st.session_state.student_id, challenge.challenge_id)
@@ -1270,7 +1218,6 @@ def ensure_focus_plan(store: SupabaseFactStore, day, challenge, answers, progres
         recent_daily_misses=misses,
     )
     return store.set_focus_plan(st.session_state.student_id, challenge.challenge_id, plan)
-
 
 def render_focus_practice(store: SupabaseFactStore, day, challenge, answers, progress=None) -> bool:
     progress = ensure_focus_plan(store, day, challenge, answers, progress=progress)
@@ -1370,7 +1317,6 @@ def render_focus_practice(store: SupabaseFactStore, day, challenge, answers, pro
     st.rerun()
     return False
 
-
 def render_mastery_card(store: SupabaseFactStore) -> None:
     """Render the student's private mastery summary from saved Daily/Focus evidence."""
     summary = store.mastery_summary(st.session_state.student_id)
@@ -1381,7 +1327,6 @@ def render_mastery_card(store: SupabaseFactStore) -> None:
     c2.metric("🟡 Building", summary.get(STATUS_BUILDING, 0))
     c3.metric("🔴 Focus", summary.get(STATUS_FOCUS, 0))
     c4.metric("⚪ Learning", summary.get(STATUS_UNKNOWN, 0))
-
 
 def render_final_top10_status(challenge, leaderboard_context: dict | None) -> None:
     """Show the student's status plus the full rank-and-nickname Top 10 at finish.
@@ -1428,7 +1373,6 @@ def render_final_top10_status(challenge, leaderboard_context: dict | None) -> No
         )
     st.markdown('<div class="soft-card">' + "".join(html_rows) + "</div>", unsafe_allow_html=True)
 
-
 def render_day_complete(
     store: SupabaseFactStore, day, facts: list[Fact], challenge, attempt, answers,
     *, leaderboard_context: dict | None = None,
@@ -1470,7 +1414,6 @@ def render_day_complete(
     if st.button("Extra Practice (optional)", use_container_width=True, type="secondary", on_click=switch_mode, args=("Practice",)):
         pass
 
-
 def _is_transient_classroom_error(exc: Exception) -> bool:
     """Only classify real short-lived HTTP transport failures as classroom congestion."""
     transient_types = (
@@ -1488,7 +1431,6 @@ def _is_transient_classroom_error(exc: Exception) -> bool:
         "readerror", "connection reset", "server disconnected",
         "remoteprotocolerror", "read timeout", "connect timeout", "pool timeout",
     ))
-
 
 def _connection_failure_kind(exc: Exception) -> str:
     if isinstance(exc, (httpx.ReadTimeout, httpx.ConnectTimeout, httpx.PoolTimeout)):
@@ -1512,12 +1454,10 @@ def _connection_failure_kind(exc: Exception) -> str:
         return "transient_transport"
     return "unexpected"
 
-
 def _log_private_connection_failure(label: str, exc: Exception) -> None:
     """Log only a coarse failure class + exception type; never student data."""
     kind = _connection_failure_kind(exc)
     print(f"[TDFC connection] {label}: {kind} ({type(exc).__name__})", flush=True)
-
 
 def render_classroom_connection_retry(exc: Exception, *, key: str = "classroom_retry") -> None:
     _log_private_connection_failure("completed_daily", exc)
@@ -1532,7 +1472,6 @@ def render_classroom_connection_retry(exc: Exception, *, key: str = "classroom_r
     if str(st.query_params.get("dbcheck", "0")) == "1":
         st.exception(exc)
 
-
 def render_daily_load_retry(exc: Exception) -> None:
     """Recover from a temporary Daily-load failure without losing student state."""
     _log_private_connection_failure("daily_load", exc)
@@ -1542,7 +1481,6 @@ def render_daily_load_retry(exc: Exception) -> None:
         st.rerun()
     if str(st.query_params.get("dbcheck", "0")) == "1":
         st.exception(exc)
-
 
 def render_completed_daily(store: SupabaseFactStore, day, facts: list[Fact], challenge, attempt) -> None:
     try:
@@ -1604,11 +1542,6 @@ def render_completed_daily(store: SupabaseFactStore, day, facts: list[Fact], cha
         render_classroom_connection_retry(exc, key="retry_learning_step")
         return
 
-
-
-
-
-
 def render_daily(store: SupabaseFactStore | None) -> None:
     if not render_student_sign_in(store):
         return
@@ -1618,69 +1551,92 @@ def render_daily(store: SupabaseFactStore | None) -> None:
     if not render_quick_warmup(store, day):
         return
 
-    st.markdown("## Daily 10")
-    st.caption("10 facts. Do your best. You’ll see your results after all 10.")
-
     try:
         day, facts, challenge = ensure_today(store)
-        attempt = store.get_or_create_attempt(st.session_state.student_id, challenge.challenge_id)
+        configured_mode = configured_daily_mode(store, st.session_state.student_class_id, day)
+        custom_questions = questions_for_mode(day, configured_mode) if configured_mode != "Multiplication" else None
+        attempt = store.get_or_create_attempt(
+            st.session_state.student_id, challenge.challenge_id,
+            daily_mode=configured_mode, custom_questions=custom_questions,
+        )
     except Exception as exc:
         render_daily_load_retry(exc)
         return
 
+    # Once a student starts, the attempt itself is the source of truth even if
+    # the teacher later changes that class/date setup.
+    daily_mode = str(getattr(attempt, "daily_mode", None) or "Multiplication")
+
+    st.markdown("## Daily 10")
+    if daily_mode == "Multiplication":
+        st.caption("10 facts. Do your best. You’ll see your results after all 10.")
+    else:
+        st.caption(f"{daily_mode} · 10 questions. Accuracy comes first; time only breaks ties.")
+
     if attempt.completed_at is not None:
-        render_completed_daily(store, day, facts, challenge, attempt)
+        if daily_mode == "Multiplication":
+            render_completed_daily(store, day, facts, challenge, attempt)
+        else:
+            render_alternate_daily(
+                store, day, challenge, attempt, render_mystery_reward=render_weekly_mystery_reward
+            )
         return
 
     st.markdown(f"### {day.strftime('%A, %B %d').replace(' 0', ' ')}")
-    render_routine_strip("daily")
-    st.caption("Finish the three learning steps to earn today's Mystery reward.")
-    st.markdown(
-        "<div class='private-note'><strong>Fact 1 is untimed.</strong> After you submit it, the hidden timer starts. Accuracy comes first.</div>",
-        unsafe_allow_html=True,
-    )
+    if daily_mode == "Multiplication":
+        render_routine_strip("daily")
+        st.caption("Finish the three learning steps to earn today's Mystery reward.")
+        st.markdown(
+            "<div class='private-note'><strong>Fact 1 is untimed.</strong> After you submit it, the hidden timer starts. Accuracy comes first.</div>",
+            unsafe_allow_html=True,
+        )
 
-    component_result = DAILY_SPRINT_COMPONENT(
-        facts=[{"a": fact.a, "b": fact.b} for fact in facts],
-        attempt_key=f"{st.session_state.student_id}:{challenge.challenge_id}:{attempt.attempt_id}",
-        challenge_version=CHALLENGE_VERSION,
-        default=None,
-        key=f"daily_sprint_{attempt.attempt_id}",
-    )
+        # Protected v2.12 multiplication browser sprint. Its component file and
+        # TDFC-DAILY-v1 challenge generator are intentionally unchanged.
+        component_result = DAILY_SPRINT_COMPONENT(
+            facts=[{"a": fact.a, "b": fact.b} for fact in facts],
+            attempt_key=f"{st.session_state.student_id}:{challenge.challenge_id}:{attempt.attempt_id}",
+            challenge_version=CHALLENGE_VERSION,
+            default=None,
+            key=f"daily_sprint_{attempt.attempt_id}",
+        )
 
-    if isinstance(component_result, dict) and component_result.get("status") == "complete":
-        try:
-            raw_answers = component_result.get("answers")
-            raw_first_answers = component_result.get("first_answers")
-            raw_response_seconds = component_result.get("response_seconds")
-            timed_seconds = float(component_result.get("timed_seconds"))
-            if not isinstance(raw_answers, list) or len(raw_answers) != 10:
-                raise ValueError("Daily component returned an incomplete answer set.")
-            values = [int(value) for value in raw_answers]
-            if not isinstance(raw_first_answers, list) or len(raw_first_answers) != 10:
-                raw_first_answers = raw_answers
-            first_values = [int(value) for value in raw_first_answers]
-            if not isinstance(raw_response_seconds, list) or len(raw_response_seconds) != 10:
-                raw_response_seconds = [None] * 10
-            response_seconds = [None if value is None else float(value) for value in raw_response_seconds]
-            if any(value < 0 or value > 200 for value in values):
-                raise ValueError("Daily component returned an invalid answer.")
-            store.complete_full_attempt(
-                attempt.attempt_id,
-                list(zip(facts, values)),
-                timed_seconds,
-                response_seconds=response_seconds,
-                first_answers=list(zip(facts, first_values)),
-                completed_at=utc_now(),
-            )
-            st.rerun()
-        except Exception as exc:
-            st.error("Your finished Daily could not be saved. Leave this page open and try once more; your completed answers are still held in this browser.")
-            if str(st.query_params.get("dbcheck", "0")) == "1":
-                st.exception(exc)
+        if isinstance(component_result, dict) and component_result.get("status") == "complete":
+            try:
+                raw_answers = component_result.get("answers")
+                raw_first_answers = component_result.get("first_answers")
+                raw_response_seconds = component_result.get("response_seconds")
+                timed_seconds = float(component_result.get("timed_seconds"))
+                if not isinstance(raw_answers, list) or len(raw_answers) != 10:
+                    raise ValueError("Daily component returned an incomplete answer set.")
+                values = [int(value) for value in raw_answers]
+                if not isinstance(raw_first_answers, list) or len(raw_first_answers) != 10:
+                    raw_first_answers = raw_answers
+                first_values = [int(value) for value in raw_first_answers]
+                if not isinstance(raw_response_seconds, list) or len(raw_response_seconds) != 10:
+                    raw_response_seconds = [None] * 10
+                response_seconds = [None if value is None else float(value) for value in raw_response_seconds]
+                if any(value < 0 or value > 200 for value in values):
+                    raise ValueError("Daily component returned an invalid answer.")
+                store.complete_full_attempt(
+                    attempt.attempt_id,
+                    list(zip(facts, values)),
+                    timed_seconds,
+                    response_seconds=response_seconds,
+                    first_answers=list(zip(facts, first_values)),
+                    completed_at=utc_now(),
+                )
+                st.rerun()
+            except Exception as exc:
+                st.error("Your finished Daily could not be saved. Leave this page open and try once more; your completed answers are still held in this browser.")
+                if str(st.query_params.get("dbcheck", "0")) == "1":
+                    st.exception(exc)
+    else:
+        render_alternate_daily(
+            store, day, challenge, attempt, render_mystery_reward=render_weekly_mystery_reward
+        )
 
     st.caption("Your work stays with you on this device. If something goes wrong, show your teacher.")
-
 
 # ---------------------------------------------------------------------------
 # Practice
@@ -1695,7 +1651,6 @@ def reset_practice_question(*, clear_focus_queue: bool = False) -> None:
     if clear_focus_queue:
         st.session_state.practice_focus_queue = []
 
-
 def next_practice_question() -> None:
     st.session_state.practice_fact = None
     st.session_state.practice_result = None
@@ -1703,7 +1658,6 @@ def next_practice_question() -> None:
     st.session_state.practice_retry_count = 0
     st.session_state.practice_question_serial = int(st.session_state.get("practice_question_serial", 0)) + 1
     st.session_state.practice_started_at = None
-
 
 def render_practice(store: SupabaseFactStore | None) -> None:
     st.markdown("## Practice")
@@ -1803,7 +1757,6 @@ def render_practice(store: SupabaseFactStore | None) -> None:
         pass
     st.caption("Change the menu above anytime to focus on a different fact family.")
 
-
 # ---------------------------------------------------------------------------
 # Teacher dashboard
 # ---------------------------------------------------------------------------
@@ -1827,16 +1780,13 @@ def teacher_login() -> bool:
             st.error("That teacher password did not match.")
     return False
 
-
 def _leaderboard_final_key(day, class_id: str) -> str:
     return f"teacher_leaderboard_final::{day.isoformat()}::{class_id}"
-
 
 def _leaderboard_is_final(store: SupabaseFactStore, day, class_id: str, *, completed: int, total: int) -> bool:
     if total > 0 and completed >= total:
         return True
     return bool(store.get_app_setting(_leaderboard_final_key(day, class_id), False))
-
 
 def _leaderboard_from_status(status: list[dict], *, limit: int = 10) -> list[dict]:
     """Derive standings from the already-loaded teacher status snapshot."""
@@ -1848,10 +1798,8 @@ def _leaderboard_from_status(status: list[dict], *, limit: int = 10) -> list[dic
     ))
     return [dict(row, rank=index) for index, row in enumerate(completed[:limit], start=1)]
 
-
 def _set_teacher_refresh_stamp() -> None:
     st.session_state["teacher_last_refresh_at"] = datetime.now().strftime("%I:%M:%S %p").lstrip("0")
-
 
 def _request_teacher_refresh() -> None:
     """Force the next teacher render to use a brand-new Supabase client.
@@ -1865,13 +1813,11 @@ def _request_teacher_refresh() -> None:
     load_store.clear()
     st.session_state["teacher_refresh_pending"] = True
 
-
 def _finish_teacher_refresh() -> None:
     """Mark a requested refresh complete only after fresh reads succeeded."""
     if st.session_state.pop("teacher_refresh_pending", False):
         _set_teacher_refresh_stamp()
         st.toast("✅ Teacher data refreshed from Supabase")
-
 
 def _teacher_refresh_control(*, key: str) -> None:
     st.button(
@@ -1886,7 +1832,6 @@ def _teacher_refresh_control(*, key: str) -> None:
         st.caption("Refreshing latest Supabase data…")
     elif stamp:
         st.caption(f"✅ Data updated {stamp}")
-
 
 def render_teacher_projector(store: SupabaseFactStore) -> None:
     class_id = st.session_state.get("teacher_projector_class_id")
@@ -2152,26 +2097,6 @@ def render_teacher_today(store: SupabaseFactStore) -> None:
         )
         for index, fact in enumerate(facts, start=1):
             st.write(f"{index}. **{fact.label} = {fact.product}** · {fact.tier}")
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 def render_teacher_classes(store: SupabaseFactStore) -> None:
     st.markdown("### 👥 Classes & Rosters")
@@ -2550,7 +2475,6 @@ def render_teacher_student_tools(store: SupabaseFactStore) -> None:
 def _mystery_raffle_setting_key(week_start, class_id: str) -> str:
     return f"weekly_mystery_raffle::{week_start.isoformat()}::{class_id}"
 
-
 def _render_teacher_mystery_raffle(store: SupabaseFactStore, week_start, *, day) -> None:
     st.markdown("#### 🎟️ Friday Prize Raffles")
     st.caption("Each class gets its own winner. Every real student who solves the Mystery correctly gets one equal entry in their class raffle.")
@@ -2638,7 +2562,6 @@ def _render_teacher_mystery_raffle(store: SupabaseFactStore, week_start, *, day)
 def _mystery_bank_label(mystery) -> str:
     return f"{mystery.category} · {mystery.answer}"
 
-
 def _render_teacher_mystery_preview(mystery, *, label: str) -> None:
     st.markdown(
         f"<div class='hero-card'><div class='section-label'>{html.escape(label)} · {html.escape(mystery.category)}</div>"
@@ -2652,7 +2575,6 @@ def _render_teacher_mystery_preview(mystery, *, label: str) -> None:
     with st.expander("📚 Student learning reveal", expanded=False):
         st.write(learning_paragraph_for(mystery))
         st.info(f"🤯 **Fun fact:** {mystery.reveal_note}")
-
 
 def render_teacher_weekly_mystery(store: SupabaseFactStore) -> None:
     st.markdown("### 🕵️ Weekly Mystery")
@@ -2779,10 +2701,8 @@ def render_teacher_weekly_mystery(store: SupabaseFactStore) -> None:
         st.caption("Places · animals · foods · sports · science/nature · history/people · music/entertainment · games/toys/objects")
         st.write("The bank is stored inside the app, so clue delivery never depends on a live internet search.")
 
-
 def _test_student_backup_keys() -> tuple[str, ...]:
     return ("student_id", "student_nickname", "student_class_id", "student_class_name", "student_is_test")
-
 
 def _enter_teacher_test_student(store: SupabaseFactStore, class_record, *, reset: bool = False) -> None:
     if "teacher_test_student_backup" not in st.session_state:
@@ -2795,7 +2715,6 @@ def _enter_teacher_test_student(store: SupabaseFactStore, class_record, *, reset
     st.session_state["teacher_test_student_class_id"] = class_record.class_id
     st.rerun()
 
-
 def _exit_teacher_test_student() -> None:
     backup = st.session_state.pop("teacher_test_student_backup", {}) or {}
     for key in _test_student_backup_keys():
@@ -2804,45 +2723,6 @@ def _exit_teacher_test_student() -> None:
     st.session_state.pop("teacher_test_student_class_id", None)
     st.rerun()
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 def render_teacher_warmup(store: SupabaseFactStore) -> None:
     """Render Teacher → Warm-Up using the shared teacher refresh contract."""
     return _render_teacher_warmup_module(
@@ -2850,7 +2730,6 @@ def render_teacher_warmup(store: SupabaseFactStore) -> None:
         refresh_control=_teacher_refresh_control,
         finish_refresh=_finish_teacher_refresh,
     )
-
 
 def render_teacher_test_student_launcher(store: SupabaseFactStore) -> None:
     st.markdown("### 🧪 Test Student Sandbox")
@@ -2876,7 +2755,6 @@ def render_teacher_test_student_launcher(store: SupabaseFactStore) -> None:
             _enter_teacher_test_student(store, selected, reset=True)
     st.caption("Reset & start fresh wipes only the hidden sandbox account and immediately recreates it. Real student data is untouched.")
 
-
 def render_teacher_test_student_mode(store: SupabaseFactStore) -> None:
     class_id = st.session_state.get("teacher_test_student_class_id")
     classes = store.list_classes()
@@ -2900,7 +2778,6 @@ def render_teacher_test_student_mode(store: SupabaseFactStore) -> None:
             st.rerun()
     st.warning("🧪 **TEST STUDENT SANDBOX** · This is the real student workflow, but this account is excluded from real classroom results and raffle entries.")
     render_daily(store)
-
 
 def render_teacher(store: SupabaseFactStore | None) -> None:
     if store is None:
@@ -2930,7 +2807,7 @@ def render_teacher(store: SupabaseFactStore | None) -> None:
 
     st.caption("Start with Today. Only the section you open loads, which keeps the dashboard faster.")
     teacher_sections = [
-        "📊 Today", "🧠 Warm-Up", "👥 Classes & Rosters", "📈 Learning Data",
+        "📊 Today", "🎯 Daily 10 Setup", "🧠 Warm-Up", "👥 Classes & Rosters", "📈 Learning Data",
         "🕵️ Weekly Mystery", "🛠️ Student Support", "🖥️ Clock", "🧪 Test Student",
     ]
     section = st.radio(
@@ -2938,6 +2815,8 @@ def render_teacher(store: SupabaseFactStore | None) -> None:
     )
     if section == "📊 Today":
         render_teacher_today(store)
+    elif section == "🎯 Daily 10 Setup":
+        render_teacher_daily_setup(store)
     elif section == "🧠 Warm-Up":
         render_teacher_warmup(store)
     elif section == "👥 Classes & Rosters":
@@ -2956,7 +2835,6 @@ def render_teacher(store: SupabaseFactStore | None) -> None:
     st.markdown("---")
     st.caption(f"Teal's Daily Fact Challenge · v{APP_VERSION} · Teacher-only data is never shown on student leaderboards.")
 
-
 # ---------------------------------------------------------------------------
 # Hidden diagnostic
 # ---------------------------------------------------------------------------
@@ -2974,7 +2852,6 @@ def maybe_render_db_diagnostic(store: SupabaseFactStore | None) -> None:
                 st.info("SUPABASE_URL included /rest/v1 and was automatically normalized for the Python client.")
         except Exception as exc:
             st.exception(exc)
-
 
 # Render the visible shell before any database-dependent startup work.  If
 # Streamlit or Supabase is slow, students should see the Fact Challenge title
