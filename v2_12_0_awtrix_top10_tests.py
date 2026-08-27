@@ -14,7 +14,7 @@ GUARD = (ROOT / "release_guard.py").read_text(encoding="utf-8")
 def run():
     checks = {}
 
-    checks["release version"] = APP_VERSION == "2.13.0"
+    checks["release version"] = APP_VERSION == "2.13.1"
     checks["teacher clock section"] = '"🖥️ Clock"' in APP and "render_teacher_clock(store)" in APP
     checks["manual Today button"] = '📟 Send Top 10 to Clock Now' in APP
     checks["manual queue is class-mapped"] = "queue_clock_top10_for_class(store, selected.class_id)" in APP

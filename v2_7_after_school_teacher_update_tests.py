@@ -13,7 +13,7 @@ ALL_UI = APP + "\n" + LEARNING
 
 def run():
     checks = {}
-    checks["version 2.7.0"] = APP_VERSION == "2.13.0"
+    checks["version 2.7.0"] = APP_VERSION == "2.13.1"
 
     # Friday is a real fifth clue, with no skipped-day backfill.
     checks["all bank mysteries resolve to five clues"] = all(len(mystery_for_key(item.key).clues) == 5 for item in MYSTERIES)

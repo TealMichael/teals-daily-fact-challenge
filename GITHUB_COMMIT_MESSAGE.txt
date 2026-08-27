@@ -1,1 +1,1 @@
-v2.13.0 - add flexible Daily 10 modes and expanded Igniter answers
+v2.13.1 - allow delayed Mystery raffles and clean teacher navigation

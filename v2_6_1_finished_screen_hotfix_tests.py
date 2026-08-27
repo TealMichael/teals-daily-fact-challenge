@@ -5,7 +5,7 @@ APP = (ROOT / "app.py").read_text(encoding="utf-8")
 ENGINE = (ROOT / "fact_engine.py").read_text(encoding="utf-8")
 
 checks = {
-    "version bumped": 'APP_VERSION = "2.13.0"' in ENGINE,
+    "version bumped": 'APP_VERSION = "2.13.1"' in ENGINE,
     "growth renderer restored": "def render_mastery_card" in APP,
     "growth uses mastery summary": "store.mastery_summary(st.session_state.student_id)" in APP,
     "growth remains optional": 'st.toggle("🌱 See My Growth"' in APP and 'if show_growth:' in APP,

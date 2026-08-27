@@ -11,8 +11,9 @@ from fact_engine import current_daily_date
 from supabase_fact_store import SupabaseFactStore
 
 
-def render_teacher_daily_setup(store: SupabaseFactStore) -> None:
-    st.markdown("### 🎯 Daily 10 Setup")
+def render_teacher_daily_setup(store: SupabaseFactStore, *, show_heading: bool = True) -> None:
+    if show_heading:
+        st.markdown("### 🎯 Daily 10 Setup")
     st.caption(
         "Choose a Daily 10 for each class and date. Multiplication is the default, so doing nothing keeps the proven existing Daily exactly as-is."
     )

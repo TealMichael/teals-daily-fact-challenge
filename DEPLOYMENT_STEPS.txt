@@ -1,54 +1,54 @@
-TEAL'S DAILY FACT CHALLENGE v2.13.0 — WEEKLY DAILY 10 + IGNITER UPDATE
+TEAL'S DAILY FACT CHALLENGE v2.13.1 — DELAYED RAFFLE + TEACHER DASHBOARD CLEANUP
 
 SOURCE OF TRUTH
-This release is built from v2.12.0 Hotfix 3. Do not install it over a different experimental branch.
+This patch is built directly on the installed v2.13.0 Weekly Daily 10 + Igniter release.
+Do not roll back v2.13.0 first.
 
-IMPORTANT ORDER
-Run the v2.13 Supabase SQL FIRST. Then deploy the GitHub files.
-The SQL migration is backward-compatible with the currently installed v2.12.0 Hotfix 3 app, so there is no period where the old app should be broken after the SQL runs.
+NO SUPABASE STEP FOR v2.13.1
+- Do NOT run a new SQL migration. There is no v2.13.1 SQL file.
+- Do NOT rerun RUN_THIS_ONCE_IN_SUPABASE_v2_13.sql if you already installed v2.13.0 successfully.
+- No new Streamlit Secret is required.
+- No AWTRIX script reinstall is required.
 
-STEP 1 — SUPABASE
-1. Open your existing Teal's Daily Fact Challenge Supabase project.
-2. Open SQL Editor.
-3. Open `RUN_THIS_ONCE_IN_SUPABASE_v2_13.sql` from this package.
-4. Paste the entire file into a new query and run it once.
-5. Confirm the query completes successfully before touching GitHub.
+STEP 1 — GITHUB DESKTOP / REPOSITORY
+Use the v2.13.1 PATCH ZIP for the normal update.
 
-The migration adds:
-- `daily_mode` to existing Daily attempts, defaulting old/current records to Multiplication.
-- `custom_questions` and `custom_answers` JSON fields for nonmultiplication Daily 10 attempts.
-- the expanded allowed Igniter question-type constraint.
-
-Do NOT rerun older migrations as part of this update.
-
-STEP 2 — GITHUB DESKTOP / REPOSITORY
-Use the PATCH ZIP for the normal update.
-
-1. Unzip `Teals_Daily_Fact_Challenge_v2_13_0_GITHUB_DESKTOP_PATCH.zip`.
+1. Unzip `Teals_Daily_Fact_Challenge_v2_13_1_GITHUB_DESKTOP_PATCH.zip`.
 2. Open the folder `COPY_INTO_GITHUB_REPO` inside it.
 3. Copy everything INSIDE that folder into the root of your existing GitHub repository.
-4. Allow the files to replace/update the matching files already in the repository.
-5. Open GitHub Desktop and review the changed files.
+4. Allow the files to replace/update matching files.
+5. Open GitHub Desktop and review the changes.
 6. Commit with:
-   v2.13.0 - add flexible Daily 10 modes and expanded Igniter answers
+   v2.13.1 - allow delayed Mystery raffles and clean teacher navigation
 7. Push to GitHub.
 8. Let Streamlit redeploy normally.
 
-The FULL_CURRENT_APP ZIP is your complete v2.13 backup/reference package; it is not necessary to copy the entire archive for the normal GitHub Desktop update.
+The FULL_CURRENT_APP ZIP is the complete v2.13.1 backup/reference package. You do not need to replace your whole repository with it for the normal update.
 
-STEP 3 — QUICK TEACHER CHECK AFTER DEPLOY
+STEP 2 — QUICK TEACHER CHECK AFTER DEPLOY
 1. Sign in as Teacher.
-2. Open Daily 10 Setup.
-3. Confirm all classes show Multiplication by default.
-4. Pick one future/today class and temporarily choose a nonmultiplication mode if you want a live check.
-5. Confirm the setting saves for only that class/date.
-6. Open Warm-Up/Igniter and confirm the planner defaults to today and the new answer types appear.
+2. Confirm the dashboard starts with Today, then Warm-Up, and Daily 10 Setup is no longer a top-level option.
+3. Open Classes & Rosters and confirm the small class-tools selector offers Rosters and Daily 10 Setup.
+4. Open Daily 10 Setup there and confirm your existing class/date settings still load normally.
+5. Open Weekly Mystery.
+6. If last week has eligible students and an undrawn raffle, confirm `Last Week's Prize Raffles` appears and the Draw Winner button is enabled even on Monday or later.
+7. Confirm the current week's Mystery remains visible and separate.
 
-STEP 4 — WHAT NOT TO CHANGE
-- Do not reinstall or edit the AWTRIX Fact Top 10 script for v2.13.0.
-- Do not change the separate classroom Class Schedule script.
-- Do not add/change Streamlit Secrets.
-- Do not change the multiplication Daily generator or challenge version.
+WHAT CHANGED
+- Late raffle drawing: a raffle opens on that raffle week's Friday and remains drawable later.
+- Prior-week recovery: the teacher sees Last Week's Prize Raffles only when an eligible class still needs a valid saved winner.
+- Dashboard priority: Today and Warm-Up come first.
+- Daily 10 Setup moved under Classes & Rosters as an occasional class tool.
+- Log out is less visually dominant in the dashboard header.
+
+WHAT DID NOT CHANGE
+- Multiplication Daily generator and TDFC-DAILY-v1 challenge version.
+- Daily 10 scoring, alternate modes, Top 10, mastery isolation, or Fact Fluency behavior.
+- Warm-Up/Igniter grading or storage.
+- Student login/PIN/persistent-login behavior.
+- Weekly Mystery student clues/guesses or raffle eligibility rules.
+- AWTRIX scripts or Block 1–3 clock mapping.
+- Supabase schema.
 
 ROLLBACK
-If you need to roll the code back, redeploy the known-good v2.12.0 Hotfix 3 GitHub files. The added v2.13 database columns are backward-compatible and may remain in Supabase; you do not need to drop them to run Hotfix 3 again.
+If needed, redeploy your known-good v2.13.0 GitHub files. v2.13.1 makes no database changes, so rollback requires no SQL work.

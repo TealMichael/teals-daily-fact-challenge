@@ -1,5 +1,7 @@
 # Teal's Daily Fact Challenge
 
+> **v2.13.1 — Delayed Raffle + Teacher Dashboard Cleanup:** lets the teacher finish an undrawn prior-week Weekly Mystery raffle on Monday or later, without changing the new week's Mystery. The Teacher Dashboard now prioritizes Today and Warm-Up, removes Daily 10 Setup from the top-level navigation, and tucks the exact same setup tool inside Classes & Rosters. No database migration, Streamlit Secret, AWTRIX reinstall, Daily 10 logic, mastery logic, Igniter behavior, or student workflow changes are required.
+
 > **v2.13.0 — Weekly Daily 10 + Igniter Update:** adds per-class/date Daily 10 modes (Multiplication default, Addition, Subtraction, Division, Integers, Mixed), Block 4 app support, and expanded Igniter answer/grading tools. Alternate Daily modes share the normal class Top 10 but write zero multiplication mastery evidence. The proven v2.12 Hotfix 3 multiplication components and AWTRIX script remain protected and unchanged. Run `RUN_THIS_ONCE_IN_SUPABASE_v2_13.sql` once **before** deploying the app files. No new Streamlit Secret or AWTRIX reinstall is required.
 
 > **v2.12.0 Hotfix 2:** restores the previously proven Teacher Today / projector API-resilience behavior after the AWTRIX branch merge. A transient Daily-status PostgREST failure no longer crashes Teacher Today or blocks independently loaded Igniter results. No AWTRIX, student-flow, scoring, mastery, or SQL changes.
