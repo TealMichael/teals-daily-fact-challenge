@@ -219,12 +219,12 @@ def recommended_teaching_move(priority: Mapping | None, *, class_size: int) -> s
     fact = str(priority.get("fact") or "this fact")
     concern = max(help_count, repeated)
     if class_size and concern >= max(5, int(class_size * 0.20)):
-        return f"Give the whole class a 3-minute strategy/retrieval reminder on {fact}, then let adaptive practice do the rest."
+        return f"Give the whole class a 3-minute strategy refresher on {fact}, then let Focus Practice reinforce it."
     if concern >= 2:
         return f"Pull a short accuracy group for {fact}; this does not need a whole-class lesson yet."
     if slow >= 3:
-        return f"Accuracy on {fact} looks fairly stable; use a brief retrieval/speed routine rather than reteaching the concept."
-    return f"Keep {fact} in adaptive practice and watch for one more independent miss before intervening."
+        return f"Accuracy on {fact} looks fairly stable; use a brief fluency routine rather than reteaching the concept."
+    return f"Keep {fact} in Focus Practice and watch for another miss before pulling a group."
 
 
 def suggested_small_groups(signals: Sequence[StudentSignal], full_by_student: Mapping[str, Mapping[tuple[int, int], MasterySnapshot]], *, limit: int = 5) -> list[dict]:
@@ -271,7 +271,7 @@ def suggested_small_groups(signals: Sequence[StudentSignal], full_by_student: Ma
     speed_ready.sort(key=lambda s: (-s.summary.slow, s.nickname.casefold()))
     if speed_ready:
         groups.append({
-            "name": "Speed Ready", "reason": "Accurate retrieval is established; fluency is the next step",
+            "name": "Speed Ready", "reason": "Accurate answers are consistent; fluency is the next step",
             "names": [s.nickname for s in speed_ready[:8]],
         })
 
@@ -282,7 +282,7 @@ def suggested_small_groups(signals: Sequence[StudentSignal], full_by_student: Ma
     nearly.sort(key=lambda s: (-s.summary.known, s.summary.slow, s.nickname.casefold()))
     if nearly:
         groups.append({
-            "name": "Nearly Fluent", "reason": "Strong overall map with a small number of facts still developing",
+            "name": "Nearly Fluent", "reason": "Strong overall results with a small number of facts still developing",
             "names": [s.nickname for s in nearly[:8]],
         })
 
@@ -384,9 +384,9 @@ def student_recommendation(signal: StudentSignal) -> str:
         start = ", ".join(signal.summary.start_facts[:3]) or "the repeated misses"
         return f"Accuracy first: start with {start}. Keep the teaching brief, then let Focus Practice reinforce it."
     if signal.fragile_facts:
-        return f"Recheck {', '.join(signal.fragile_facts[:3])}. These facts have strong older evidence but a recently broken correct streak."
+        return f"Recheck {', '.join(signal.fragile_facts[:3])}. These facts were previously strong, but a recent miss makes them worth checking again."
     if signal.summary.slow >= 2:
-        return "Accuracy looks stable. Use short retrieval practice rather than reteaching the multiplication strategy."
+        return "Accuracy looks stable. Use short fluency practice rather than reteaching the multiplication strategy."
     if signal.summary.known >= 30:
         return "This student is close to broad fluency. Keep the normal Daily + Focus routine and target only the remaining developing facts."
-    return "Keep gathering independent retrieval evidence; there is not enough stable data to justify an extra intervention yet."
+    return "Keep the normal routine going; there is not enough consistent work yet to justify extra intervention."

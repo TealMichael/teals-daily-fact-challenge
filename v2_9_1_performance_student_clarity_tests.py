@@ -17,7 +17,7 @@ def section(name: str, next_name: str | None = None, source: str = APP) -> str:
 
 def run():
     checks = {}
-    checks["version 2.9.3"] = APP_VERSION == "2.16.0"
+    checks["version 2.9.3"] = APP_VERSION == "2.16.1"
 
     teacher = section("render_teacher", "maybe_render_db_diagnostic")
     checks["teacher dashboard is lazy"] = "st.tabs(" not in teacher and 'primary = st.radio(' in teacher
@@ -42,7 +42,7 @@ def run():
     fluency = section("_render_teacher_fact_fluency", "_render_teacher_standards_tracker", LEARNING_UI)
     checks["learning views are lazy"] = "_render_teacher_fact_fluency(store, selected, students)" in mastery and "_render_teacher_standards_tracker(store, selected, students)" in mastery
     checks["fact fluency uses one detail dataset"] = "class_mastery_summary" not in fluency and fluency.count("class_mastery_detail(selected.class_id, students=students)") == 1
-    checks["advanced controls visually collapsed"] = 'with st.expander("⚙️ Advanced fact map & class-wide Focus controls", expanded=False):' in fluency
+    checks["advanced controls visually collapsed"] = 'with st.expander("⚙️ Detailed Fact Map & Focus Settings", expanded=False):' in fluency
 
     practice = section("render_practice", "teacher_login")
     checks["practice lifetime summary query removed"] = "practice_summary(" not in practice

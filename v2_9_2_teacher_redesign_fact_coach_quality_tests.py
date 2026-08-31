@@ -17,15 +17,15 @@ def section(name: str, next_name: str | None = None, source: str = APP) -> str:
 
 def run():
     checks = {}
-    checks["version 2.9.3"] = APP_VERSION == "2.16.0"
+    checks["version 2.9.3"] = APP_VERSION == "2.16.1"
 
     mastery = section("render_teacher_mastery_focus", source=LEARNING_UI)
     fluency = section("_render_teacher_fact_fluency", "_render_teacher_standards_tracker", LEARNING_UI)
     checks["learning data has two clear views"] = all(label in mastery for label in ["⚡ Fact Fluency", "📚 Standards Tracker"])
     checks["old four-view wall removed"] = "What Should I Teach?" not in mastery and "Who Needs Help?" not in mastery
     checks["fact fluency leads with pull group"] = "#### 🎯 Students to Pull" in fluency and "Why pull" in fluency
-    checks["building-only students are not described as intervention"] = "This is not automatically an intervention flag" in fluency
-    checks["full fact map is advanced only"] = "Advanced fact map & class-wide Focus controls" in fluency and "expanded=False" in fluency
+    checks["building-only students are not described as intervention"] = "One isolated miss does not create a red flag" in fluency
+    checks["full fact map is advanced only"] = "Detailed Fact Map & Focus Settings" in fluency and "expanded=False" in fluency
     checks["fact fluency still uses one class detail read"] = fluency.count("store.class_mastery_detail(selected.class_id, students=students)") == 1
 
     support = section("render_teacher_student_tools", "_mystery_raffle_setting_key")

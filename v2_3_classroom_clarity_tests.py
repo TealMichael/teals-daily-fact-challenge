@@ -18,7 +18,7 @@ leader_context = function_body("load_leaderboard_context", "_leaderboard_cache_k
 leader_render = function_body("render_leaderboard", "render_daily_review")
 
 a = {
-    "version 2.6": 'APP_VERSION = "2.16.0"' in ENGINE,
+    "version 2.6": 'APP_VERSION = "2.16.1"' in ENGINE,
     "four-step routine strip": 'def render_routine_strip(stage: str)' in APP and '1 · Daily 10' in APP and '4 · Mystery' in APP,
     "daily shows routine strip": 'render_routine_strip("daily")' in APP,
     "done screen is unmistakable": "YOU'RE DONE FOR TODAY!" in APP,
@@ -35,8 +35,8 @@ a = {
     "teacher today defines Done": "Done means Daily 10 + Fix Your Misses + Focus Practice are complete" in TODAY,
     "teacher today says mystery optional": "The Mystery guess is optional" in TODAY,
     "teacher today has done working not-started": 'c1.metric("🟢 Done"' in TODAY and 'c2.metric("🟡 Working"' in TODAY and 'c3.metric("⚪ Not started"' in TODAY,
-    "teacher performance details are teacher-only": "Teacher-only accuracy & timing" in TODAY,
-    "teacher Top 10 preview states exact privacy": "rank + nickname only" in APP,
+    "teacher performance details are teacher-only": "Accuracy & timing" in TODAY,
+    "teacher Top 10 preview states exact privacy": "The classroom display shows rank and nickname only." in APP,
     "teacher tabs reorganized": all(x in APP for x in ["📊 Today", "👥 Classes & Rosters", "📈 Learning Data", "🕵️ Weekly Mystery", "🛠️ Student Support"]),
     "classes keeps class creation": "Create a class" in APP and "Create students + PINs" in APP,
     "classes keeps bulk move": "Move selected student(s)" in APP,

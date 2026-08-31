@@ -19,7 +19,7 @@ APP = APP_CORE + "\n" + WARMUP_UI + "\n" + TODAY_UI
 
 def run():
     checks = 0
-    assert APP_VERSION == "2.16.0"; checks += 1
+    assert APP_VERSION == "2.16.1"; checks += 1
 
     # Official-grade picker coverage: content standards across Grades 4–7.
     counts = Counter(item.grade for item in STANDARDS)
@@ -90,9 +90,9 @@ def run():
 
     # Weekly CSV stays real-student only and gains grade context.
     assert "include_test=False" in APP; checks += 1
-    assert "Prepare sandbox Outlook email" in APP; checks += 1
-    assert "push-in teacher is never CC'd on a Test Student preview" in APP; checks += 1
-    assert "[SANDBOX TEST — Test Student only]" in APP; checks += 1
+    assert "Prepare Test Student Outlook email" in APP; checks += 1
+    assert "Test Student drafts go only to you; the push-in teacher is not included." in APP; checks += 1
+    assert "[TEST STUDENT — preview only]" in APP; checks += 1
     assert '"Grade": grade_from_standard_code(row.standard_code)' in APP; checks += 1
     assert '"Date", "Class", "Nickname", "Question", "Question Type", "Grade", "Indiana Standard"' in APP; checks += 1
 

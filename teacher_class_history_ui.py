@@ -20,7 +20,7 @@ from teacher_history import common_multiplication_misses, daily_rows_for_date, r
 
 def render_teacher_class_history(store: SupabaseFactStore) -> None:
     st.markdown("### 🗓️ Class History")
-    st.caption("Pick a class and date to reconstruct the teacher view without changing any student data.")
+    st.caption("Look back at a class on any date.")
 
     classes = store.list_classes(include_inactive=True)
     if not classes:
@@ -47,7 +47,7 @@ def render_teacher_class_history(store: SupabaseFactStore) -> None:
     daily_rows = daily_rows_for_date(history, target_date)
     configured_mode = configured_daily_mode(store, selected.class_id, target_date)
     if not daily_rows:
-        st.caption(f"Configured mode: **{configured_mode}** · No completed Daily 10 attempts are stored for this class/date.")
+        st.caption(f"Daily 10 mode: **{configured_mode}** · No completed Daily 10s were found for this class/date.")
     else:
         modes = Counter(str(row.get("daily_mode") or "Multiplication") for row in daily_rows)
         average = sum(int(row.get("correct_count") or 0) for row in daily_rows) / len(daily_rows)
@@ -78,7 +78,7 @@ def render_teacher_class_history(store: SupabaseFactStore) -> None:
         elif any(str(row.get("daily_mode") or "Multiplication") == "Multiplication" for row in daily_rows):
             st.success("No multiplication misses were recorded in the completed attempts for this date.")
         else:
-            st.caption("This date used an alternate Daily 10 mode, so it does not create multiplication fact evidence.")
+            st.caption("This date used a different Daily 10 mode, so multiplication fact details are not shown.")
 
     st.markdown("#### Warm-Up")
     try:
@@ -122,7 +122,7 @@ def render_teacher_class_history(store: SupabaseFactStore) -> None:
                     for row in warmup_rows
                 ]), hide_index=True, use_container_width=True)
         elif target_date < current_daily_date():
-            st.caption("Historical raw response text is intentionally cleared after the day; correctness and standards evidence remain available here.")
+            st.caption("For past dates, typed student answers are no longer kept; accuracy and standards remain available.")
 
     st.markdown("#### Weekly Mystery")
     week_start = week_start_for(target_date)
@@ -136,7 +136,7 @@ def render_teacher_class_history(store: SupabaseFactStore) -> None:
         if str(st.query_params.get("dbcheck", "0")) == "1":
             st.exception(exc)
     if mystery_record is None:
-        st.caption(f"No Weekly Mystery record is stored for the week of {week_start.strftime('%B %d, %Y').replace(' 0', ' ')}.")
+        st.caption(f"No Weekly Mystery was found for the week of {week_start.strftime('%B %d, %Y').replace(' 0', ' ')}.")
     else:
         mystery = mystery_for_key(mystery_record.mystery_key)
         day_number = school_day_number(target_date)
@@ -145,11 +145,11 @@ def render_teacher_class_history(store: SupabaseFactStore) -> None:
         m2.metric("All-class clues", int((mystery_stats or {}).get("clues_unlocked", 0)))
         m3.metric("All-class solved", int((mystery_stats or {}).get("correct", 0)))
         if day_number:
-            st.caption(f"Selected date was school day {day_number} of the Mystery week. Activity totals above reflect the stored week history now, not a frozen as-of snapshot.")
+            st.caption(f"You selected school day {day_number} of the Mystery week. The totals above show the full week's activity.")
         raffle = store.get_app_setting(f"weekly_mystery_raffle::{week_start.isoformat()}::{selected.class_id}")
         if isinstance(raffle, dict) and raffle.get("nickname"):
-            st.caption(f"Saved {selected.class_name} raffle winner: **{raffle['nickname']}**")
-        with st.expander("🔒 Teacher Mystery details · contains the answer and clues", expanded=False):
+            st.caption(f"{selected.class_name} raffle winner: **{raffle['nickname']}**")
+        with st.expander("🔒 Mystery answer & clues", expanded=False):
             st.markdown(f"**{mystery.category}: {mystery.answer}**")
             for index, clue in enumerate(mystery.clues[:5], start=1):
                 st.write(f"**Clue {index}:** {clue}")

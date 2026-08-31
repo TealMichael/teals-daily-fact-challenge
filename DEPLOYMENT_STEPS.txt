@@ -1,25 +1,25 @@
-TEAL'S DAILY FACT CHALLENGE v2.16.0 — DEPLOYMENT
+TEAL'S DAILY FACT CHALLENGE v2.16.1 — DEPLOYMENT
 =================================================
 
 NORMAL UPGRADE PATH
 -------------------
-Upgrade from installed v2.15.0 using the v2.16.0 GitHub Desktop patch.
+Upgrade from installed v2.16.0 using the v2.16.1 GitHub Desktop patch.
 
-1. Unzip Teals_Daily_Fact_Challenge_v2_16_0_GITHUB_DESKTOP_PATCH.zip.
+1. Unzip Teals_Daily_Fact_Challenge_v2_16_1_GITHUB_DESKTOP_PATCH.zip.
 2. Open COPY_INTO_GITHUB_REPO.
 3. Copy everything inside that folder into the root of the existing GitHub repository.
 4. Allow file replacements.
 5. In GitHub Desktop, review the changes, commit, and push.
 6. Let Streamlit Cloud redeploy.
-7. Verify Teacher → Warm-Up planning shortcuts, Manage → Classes & Rosters → Daily 10 Setup, and Learning → Class History.
+7. Open Teacher → Today, Warm-Up, Learning, Weekly Mystery, and Manage to spot-check the cleaner wording.
 
-NO DATABASE STEP
-----------------
-- Do NOT run a v2.16 SQL migration; there is none.
-- Do NOT rerun the v2.13 SQL just for this release.
+NO DATABASE OR CLOCK STEP
+-------------------------
+- There is no v2.16.1 SQL migration.
+- Do not rerun an older migration for this release.
 - No new Streamlit Secret is required.
 - No AWTRIX script reinstall or clock change is required.
 
 ROLLBACK
 --------
-The separate v2.16.0 FULL_CURRENT_APP ZIP is a complete backup. If rollback is ever necessary, restore the previous known-good v2.15.0 repository files. v2.16.0 introduces no schema change, so rollback does not require database cleanup.
+The separate v2.16.1 FULL_CURRENT_APP ZIP is a complete backup. If rollback is ever necessary, restore the previous known-good v2.16.0 repository files. v2.16.1 introduces no schema change, so rollback does not require database cleanup.

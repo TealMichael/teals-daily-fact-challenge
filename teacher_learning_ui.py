@@ -60,14 +60,14 @@ def _family_need_text(rows) -> str:
 
 def _teaching_recommendation(*, students: int, observed: int, focus: int, building: int) -> str:
     if observed < max(4, int(students * 0.25)):
-        return "Keep gathering evidence before making a class-wide decision."
+        return "Keep collecting student work before making a class-wide decision."
     focus_ratio = focus / observed if observed else 0
     developing_ratio = (focus + building) / observed if observed else 0
     if focus_ratio >= 0.35 or developing_ratio >= 0.70:
         return "Good candidate for a quick whole-class strategy reminder."
     if focus >= 2 or developing_ratio >= 0.35:
-        return "Good small-group target while adaptive practice continues."
-    return "Keep this in adaptive practice; whole-class instruction is probably not needed right now."
+        return "Good small-group target while the normal Daily + Focus routine continues."
+    return "Keep this in the normal Daily + Focus routine; whole-class instruction is probably not needed right now."
 
 
 def _teacher_band_icon(band: str) -> str:
@@ -113,7 +113,7 @@ def _render_teacher_fact_fluency(store: SupabaseFactStore, selected, students) -
     c1.metric("Students to pull", len(pull_students))
     c2.metric("Avg facts known", f"{average_known:.0f}/45")
     c3.metric("Typical correct recall", "—" if class_typical_time is None else format_seconds(class_typical_time))
-    c4.metric("Avg facts with evidence", f"{average_evidence:.0f}/45")
+    c4.metric("Avg facts practiced", f"{average_evidence:.0f}/45")
 
     st.markdown("#### 🎯 Students to Pull")
     if not pull_students:
@@ -160,18 +160,18 @@ def _render_teacher_fact_fluency(store: SupabaseFactStore, selected, students) -
             "🟢 Knows": summary.known,
             "🟡 Slow": summary.slow,
             "🔴 Needs help": summary.needs_help,
-            "Evidence": f"{summary.evidence_facts}/45",
+            "Facts practiced": f"{summary.evidence_facts}/45",
             "Typical correct recall": "—" if summary.typical_correct_seconds is None else format_seconds(summary.typical_correct_seconds),
         }
         for summary in ordered_summaries
     ]), hide_index=True, use_container_width=True)
 
-    with st.expander("How is Fact Fluency being read?", expanded=False):
-        st.markdown("**🟢 Knows It** — repeated accurate retrieval with a stable correct streak and roughly 5 seconds or less on correct responses.")
-        st.markdown("**🟡 Accurate, Still Slow** — several accurate retrievals show the fact is known, but recall is consistently taking noticeably longer (about 7+ seconds).")
-        st.markdown("**🔴 Needs Help** — at least two independent misses show a real accuracy pattern. One isolated miss never creates a red flag.")
-        st.markdown("**⚪ Still Learning** — the app does not have enough stable evidence yet, or the fact is still developing. This is not automatically an intervention flag.")
-        st.caption("Fact Coach corrections do not erase the original miss and do not count as independent fluency evidence.")
+    with st.expander("How Fact Fluency works", expanded=False):
+        st.markdown("**🟢 Knows It** — usually answers the fact correctly and quickly.")
+        st.markdown("**🟡 Accurate, Still Slow** — usually answers correctly but still needs more time.")
+        st.markdown("**🔴 Needs Help** — has missed the fact more than once. One isolated miss does not create a red flag.")
+        st.markdown("**⚪ Still Learning** — there is not enough consistent work yet to place the fact in another group.")
+        st.caption("Fact Coach helps students correct mistakes, but the original first try still stays part of the fluency picture.")
 
     with st.expander("🔎 Fact & student detail", expanded=False):
         detail_view = st.radio(
@@ -198,7 +198,7 @@ def _render_teacher_fact_fluency(store: SupabaseFactStore, selected, students) -
             accuracy = (100 * total_correct / total_evidence) if total_evidence else None
             st.markdown(f"**Teaching move for {fa} × {fb}:** {strategy_tip(Fact(a=fa, b=fb, tier='core'))}")
             if accuracy is not None:
-                st.caption(f"Independent accuracy across recorded attempts: {accuracy:.0f}%")
+                st.caption(f"Accuracy on first tries: {accuracy:.0f}%")
             help_names = [student.nickname for student, _ in bands[BAND_HELP]]
             slow_names = [student.nickname for student, _ in bands[BAND_SLOW]]
             if help_names:
@@ -209,7 +209,7 @@ def _render_teacher_fact_fluency(store: SupabaseFactStore, selected, students) -
                 st.success("No current accuracy or speed concern for this fact.")
 
             with st.expander("Optional: assign a Focus fact family", expanded=False):
-                st.caption("This is a teacher override. Automatic personalization returns when the override is set back to Automatic.")
+                st.caption("Your choice stays in place until you switch back to Automatic.")
                 family_choice = st.selectbox(
                     "Fact family", [f"{value}s" for value in range(2, 11)], index=fa - 2, key="fact_quick_family"
                 )
@@ -234,7 +234,7 @@ def _render_teacher_fact_fluency(store: SupabaseFactStore, selected, students) -
             s1.metric("🟢 Knows", summary.known)
             s2.metric("🟡 Slow", summary.slow)
             s3.metric("🔴 Needs help", summary.needs_help)
-            s4.metric("Evidence", f"{summary.evidence_facts}/45")
+            s4.metric("Facts practiced", f"{summary.evidence_facts}/45")
 
             help_rows = [row for row in individual_map.values() if teacher_fact_band(row) == BAND_HELP]
             slow_rows = [row for row in individual_map.values() if teacher_fact_band(row) == BAND_SLOW]
@@ -253,13 +253,13 @@ def _render_teacher_fact_fluency(store: SupabaseFactStore, selected, students) -
             band = teacher_fact_band(snap)
             st.markdown(f"**{student_fact_label} — {_teacher_band_icon(band)} {band.replace('_', ' ').title()}**")
             if snap.evidence_count == 0:
-                st.caption("No independent evidence yet.")
+                st.caption("Not enough work on this fact yet.")
             else:
-                st.write(f"Independent attempts: **{snap.evidence_count}** · correct: **{snap.correct_count}** · current correct streak: **{snap.correct_streak}**")
+                st.write(f"Attempts: **{snap.evidence_count}** · correct: **{snap.correct_count}** · current correct streak: **{snap.correct_streak}**")
                 if snap.ema_accuracy is not None:
-                    st.write(f"Recent weighted accuracy: **{snap.ema_accuracy * 100:.0f}%**")
+                    st.write(f"Recent accuracy: **{snap.ema_accuracy * 100:.0f}%**")
                 if snap.ema_seconds is not None:
-                    st.write(f"Recent weighted correct-retrieval time: **{format_seconds(snap.ema_seconds)}**")
+                    st.write(f"Recent correct-answer time: **{format_seconds(snap.ema_seconds)}**")
 
             with st.expander("View all 45 facts", expanded=False):
                 individual_table = []
@@ -269,15 +269,15 @@ def _render_teacher_fact_fluency(store: SupabaseFactStore, selected, students) -
                     individual_table.append({
                         "Fact": f"{row.a} × {row.b}",
                         "Teacher read": f"{_teacher_band_icon(band)} {band.replace('_', ' ').title()}",
-                        "Evidence": row.evidence_count,
+                        "Attempts": row.evidence_count,
                         "Correct": "—" if not row.evidence_count else f"{row.correct_count}/{row.evidence_count}",
                         "Recent correct time": "—" if row.ema_seconds is None else format_seconds(row.ema_seconds),
                     })
                 st.dataframe(pd.DataFrame(individual_table), hide_index=True, use_container_width=True)
             st.caption("Account fixes, PINs, Daily resets, and personal Focus overrides live in Student Support.")
 
-    with st.expander("⚙️ Advanced fact map & class-wide Focus controls", expanded=False):
-        st.caption("The full engine view is still available when you need it, but it stays out of the normal teaching dashboard.")
+    with st.expander("⚙️ Detailed Fact Map & Focus Settings", expanded=False):
+        st.caption("The detailed fact map is available here when you need a closer look.")
         filter_options = ["All facts", "Needs-help facts only"] + [f"{value}s" for value in range(2, 11)]
         heat_filter = st.selectbox("Fact map filter", filter_options, key="teacher_heatmap_filter")
         help_keys = [key for key in fact_keys if any(teacher_fact_band(full_by_student[s.student_id][key]) == BAND_HELP for s in students)]
@@ -316,17 +316,17 @@ def _render_teacher_fact_fluency(store: SupabaseFactStore, selected, students) -
                 st.success("Class Focus setting saved.")
                 st.rerun()
 
-        with st.expander("How the app teaches & uses data", expanded=False):
-            st.markdown("**Daily 10:** independent first-try retrieval evidence.")
-            st.markdown("**Fix Your Misses:** corrective teaching; the coached retry does not erase the original miss.")
-            st.markdown("**Focus Practice:** eight personalized retrievals using weak/developing facts, some unknowns, spacing, and maintenance facts.")
-            st.markdown("**No placement test:** every fact begins without enough evidence and grows only through normal independent retrieval.")
-            st.markdown("**Accuracy before speed:** response time matters only after accurate retrieval is established.")
+        with st.expander("How each activity counts", expanded=False):
+            st.markdown("**Daily 10:** first-try fact results.")
+            st.markdown("**Fix Your Misses:** helps students correct mistakes; the first try still remains part of their record.")
+            st.markdown("**Focus Practice:** eight personalized facts chosen from current needs and developing skills.")
+            st.markdown("**No placement test:** the app learns what each student needs through normal Daily and Practice work.")
+            st.markdown("**Accuracy before speed:** response time matters only after answers are consistently correct.")
 
 
 def _render_teacher_standards_tracker(store: SupabaseFactStore, selected, students) -> None:
-    st.markdown("#### 📚 Igniter Standards Tracker")
-    st.caption("Choose a standard to see the evidence your Igniter questions have collected over time. This is evidence history, not an automatic mastery claim.")
+    st.markdown("#### 📚 Warm-Up Standards Tracker")
+    st.caption("Choose a standard to see how students have performed on your Warm-Up questions over time. This is a history view, not an automatic score.")
 
     today = current_daily_date()
     start_date = _school_year_start(today)
@@ -341,7 +341,7 @@ def _render_teacher_standards_tracker(store: SupabaseFactStore, selected, studen
     student_ids = {student.student_id for student in students}
     rows = [row for row in rows if row.student_id in student_ids and str(row.standard_code or "").strip()]
     if not rows:
-        st.info("No standards-tagged Igniter responses have been recorded for this class yet.")
+        st.info("No Warm-Up results with standards have been recorded for this class yet.")
         return
 
     latest_by_code = {}
@@ -362,7 +362,7 @@ def _render_teacher_standards_tracker(store: SupabaseFactStore, selected, studen
         codes,
         format_func=standard_label,
         key=f"teacher_standard_tracker_{selected.class_id}",
-        help="Type a standard code or skill word to search the standards you have actually checked with an Igniter.",
+        help="Type a standard code or skill word to search standards used in your Warm-Ups.",
     )
     matching = [row for row in rows if str(row.standard_code or "").strip() == selected_code]
     latest = latest_by_code[selected_code]
@@ -378,12 +378,12 @@ def _render_teacher_standards_tracker(store: SupabaseFactStore, selected, studen
 
     t1, t2, t3, t4 = st.columns(4)
     t1.metric("Students checked", f"{len(checked)}/{len(students)}")
-    t2.metric("Igniter checks", total_checks)
+    t2.metric("Warm-Up checks", total_checks)
     t3.metric("Correct", "—" if accuracy is None else f"{accuracy:.0f}%")
     t4.metric("Last checked", "—" if not last_date else date.fromisoformat(last_date).strftime("%b %d"))
 
     st.markdown("#### Student History")
-    st.caption("History is shown oldest → newest. Students with the lowest current evidence appear first; students with no evidence are listed last.")
+    st.caption("History is shown oldest → newest. Students with the least information appear first; students with no results are listed last.")
     history_frame = pd.DataFrame([
         {
             "Student": item["nickname"],
@@ -395,17 +395,17 @@ def _render_teacher_standards_tracker(store: SupabaseFactStore, selected, studen
     ])
     st.dataframe(history_frame, hide_index=True, use_container_width=True)
 
-    st.markdown("#### One Student's Evidence")
+    st.markdown("#### One Student's History")
     student_options = [item["nickname"] for item in history]
     detail_name = st.selectbox("Student", student_options, key=f"teacher_standard_student_{selected.class_id}_{selected_code}")
     detail = next(item for item in history if item["nickname"] == detail_name)
     if not detail["rows"]:
-        st.info(f"No Igniter evidence for {selected_code} has been recorded for this student yet.")
+        st.info(f"No Warm-Up results for {selected_code} have been recorded for this student yet.")
     else:
         detail_frame = pd.DataFrame([
             {
                 "Date": date.fromisoformat(str(row.warmup_date)).strftime("%b %d, %Y"),
-                "Igniter": f"Question {int(row.question_slot)}",
+                "Warm-Up": f"Question {int(row.question_slot)}",
                 "Question": re.sub(r"\s+", " ", str(row.prompt or "")).strip(),
                 "Result": "✅ Correct" if row.correct else "❌ Needs review",
             }
@@ -417,7 +417,7 @@ def _render_teacher_standards_tracker(store: SupabaseFactStore, selected, studen
 
 def render_teacher_mastery_focus(store: SupabaseFactStore) -> None:
     st.markdown("### 📈 Learning Data")
-    st.caption("A simple view of multiplication fact fluency plus the standards evidence collected by your Igniters.")
+    st.caption("A simple view of multiplication fact fluency plus Warm-Up results by standard.")
     classes = store.list_classes()
     if not classes:
         st.info("Create a class first.")

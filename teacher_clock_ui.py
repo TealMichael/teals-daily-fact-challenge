@@ -44,26 +44,27 @@ def _class_index(options: list[str], class_by_name: dict, class_id: str | None, 
 
 def render_teacher_clock(store: SupabaseFactStore) -> None:
     st.markdown("### 🖥️ Classroom Clock")
-    st.caption(
-        "Map your three classes to Block 1/2/3 and give the AWTRIX clock a separate revocable token. "
-        "The physical display receives rank + nickname only — never scores, times, PINs, or real names."
-    )
+    st.caption("Choose which classes belong to Blocks 1–3 and send the Top 10 to your classroom clock.")
 
     try:
         config = store.get_awtrix_clock_config()
     except Exception as exc:
-        st.warning("Clock integration is not installed in Supabase yet. Run RUN_THIS_ONCE_IN_SUPABASE_v2_12.sql, then Refresh data.")
+        st.warning("Clock setup is not complete yet. Open One-time clock setup below for the setup steps.")
+        with st.expander("⚙️ One-time clock setup", expanded=False):
+            st.caption("Run `RUN_THIS_ONCE_IN_SUPABASE_v2_12.sql` once, then return here and tap Refresh data.")
         if str(st.query_params.get("dbcheck", "0")) == "1":
             st.exception(exc)
         return
 
     if config is None:
-        st.warning("Clock integration is not initialized yet. Run RUN_THIS_ONCE_IN_SUPABASE_v2_12.sql once in Supabase.")
+        st.warning("Clock setup is not complete yet. Open One-time clock setup below for the setup steps.")
+        with st.expander("⚙️ One-time clock setup", expanded=False):
+            st.caption("Run `RUN_THIS_ONCE_IN_SUPABASE_v2_12.sql` once, then return here and tap Refresh data.")
         return
 
     classes = store.list_classes()
     if len(classes) < 3:
-        st.info("You need three active classes before Block 1, Block 2, and Block 3 can all be mapped.")
+        st.info("You need three classes before Blocks 1, 2, and 3 can all be mapped.")
         return
 
     class_by_name = {item.class_name: item for item in classes}
@@ -97,60 +98,52 @@ def render_teacher_clock(store: SupabaseFactStore) -> None:
             st.session_state["awtrix_mapping_saved"] = True
             st.rerun()
 
-    st.markdown("#### Clock access token")
+    st.markdown("#### Clock connection")
     if config.get("has_token"):
-        hint = str(config.get("token_hint") or "")
-        st.success(f"Clock token is active{(' · ending in ' + hint) if hint else ''}.")
-        st.caption("The full token is intentionally not stored. Rotate it if you need a new copy for the clock.")
+        st.success("Clock connection is ready.")
+        st.caption("Use the button below only if you need a new connection code for the clock.")
     else:
-        st.info("Generate a clock token before the AWTRIX script can read the Top 10 feed.")
+        st.info("Create a connection code before the clock can receive the Top 10.")
 
-    token_button_label = "Rotate clock token" if config.get("has_token") else "Generate clock token"
+    token_button_label = "Create new connection code" if config.get("has_token") else "Create connection code"
     if st.button(token_button_label, use_container_width=True, key="awtrix_rotate_token"):
         st.session_state["awtrix_new_token"] = store.rotate_awtrix_clock_token()
         st.rerun()
 
     new_token = st.session_state.get("awtrix_new_token")
     if new_token:
-        st.warning("Copy this token now. For safety, only its hash is stored in Supabase, so this exact value cannot be shown again.")
+        st.warning("Copy this connection code now. It will not be shown again.")
         st.code(str(new_token), language=None)
-        if st.button("I've copied the clock token", key="awtrix_token_copied"):
+        if st.button("I've copied the connection code", key="awtrix_token_copied"):
             st.session_state.pop("awtrix_new_token", None)
             st.rerun()
 
-    st.markdown("#### AWTRIX script setup values")
-    try:
-        supabase_url = normalize_supabase_url(str(st.secrets.get("SUPABASE_URL") or ""))
-    except Exception:
-        supabase_url = ""
-    rest_url = f"{supabase_url}/rest/v1" if supabase_url else ""
-    public_key = _public_supabase_key()
+    with st.expander("⚙️ One-time clock setup", expanded=False):
+        st.caption("You only need these details when installing or replacing the AWTRIX Top 10 script.")
+        try:
+            supabase_url = normalize_supabase_url(str(st.secrets.get("SUPABASE_URL") or ""))
+        except Exception:
+            supabase_url = ""
+        rest_url = f"{supabase_url}/rest/v1" if supabase_url else ""
+        public_key = _public_supabase_key()
 
-    if rest_url:
-        st.caption("Supabase REST URL")
-        st.code(rest_url, language=None)
-    if public_key:
-        st.caption("Supabase publishable/anon key")
-        st.code(public_key, language=None)
-    else:
-        st.info(
-            "For the clock script, copy your project's Publishable key (or legacy anon key) from Supabase API Settings. "
-            "Optionally add it to Streamlit Secrets as SUPABASE_PUBLISHABLE_KEY so it appears here next time."
-        )
+        if rest_url:
+            st.caption("Service URL")
+            st.code(rest_url, language=None)
+        if public_key:
+            st.caption("Public key")
+            st.code(public_key, language=None)
+        else:
+            st.info("The public key is not saved here yet. Copy the Publishable key from your Supabase API settings when you set up the clock script.")
 
-    st.caption(
-        "Install AWTRIX_FactTop10.berry as a second headless script on the clock. Keep your existing Class Schedule script unchanged. "
-        "The Top 10 script uses ordinary outbound HTTPS, so it works over school Wi-Fi or your phone hotspot."
-    )
-    st.caption(
-        "Recommended: enable AWTRIX web authentication in System before storing the clock token on the device, especially on a shared network."
-    )
+        st.caption("Install `AWTRIX_FactTop10.berry` as the separate Top 10 script. Keep the existing Class Schedule script unchanged.")
+        st.caption("For extra protection on a shared network, turn on AWTRIX web authentication in System settings.")
 
-    st.markdown("#### Manual test")
+    st.markdown("#### Test the clock")
     test_name = st.selectbox("Class to send", class_names, key="awtrix_test_class")
     if st.button("📟 Send Top 10 to Clock Now", use_container_width=True, type="primary", key="awtrix_test_send"):
         try:
             block = queue_clock_top10_for_class(store, class_by_name[test_name].class_id)
-            st.success(f"Block {block} Top 10 queued. An online clock should pick it up within about 15 seconds.")
+            st.success(f"Block {block} Top 10 sent. The clock should show it within about 15 seconds.")
         except FactStoreError as exc:
             st.warning(str(exc))

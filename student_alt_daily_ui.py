@@ -79,13 +79,13 @@ def _render_review(attempt) -> None:
 def render_alternate_daily(store: SupabaseFactStore, day, challenge, attempt, *, render_mystery_reward) -> None:
     questions = list(attempt.custom_questions or ())
     if len(questions) != 10:
-        st.error("Today's alternate Daily 10 was not stored correctly. Show your teacher this screen.")
+        st.error("Today's Daily 10 did not load correctly. Show your teacher this screen.")
         return
 
     if attempt.completed_at is not None:
         answers = list(attempt.custom_answers or ())
         if len(answers) != 10:
-            st.error("This alternate Daily result is incomplete. Show your teacher this screen.")
+            st.error("Today's results did not finish loading. Show your teacher this screen.")
             return
         try:
             context = _student_top10(store, challenge)
@@ -95,7 +95,7 @@ def render_alternate_daily(store: SupabaseFactStore, day, challenge, attempt, *,
                 "<div style='margin-top:.45rem'>This class is using a Daily-10-only mode today.</div></div>",
                 unsafe_allow_html=True,
             )
-            st.caption("Today's result counts in your class Top 10 but does not change your Multiplication Fact Fluency profile.")
+            st.caption("Today's score counts toward your class Top 10.")
             st.markdown("## 🕵️ Today's Mystery Reward")
             render_mystery_reward(store, day, challenge, show_heading=False)
             _render_top10(context)
@@ -109,7 +109,7 @@ def render_alternate_daily(store: SupabaseFactStore, day, challenge, attempt, *,
                 st.exception(exc)
         return
 
-    st.caption("This mode ends after the Daily 10 today. It does not enter Fix Misses, Focus Practice, or the multiplication Fact Coach.")
+    st.caption("That's all for today — this mode does not include Fix Your Misses or Focus Practice.")
     st.markdown(
         "<div class='private-note'><strong>Question 1 is untimed.</strong> After you submit it, the hidden timer starts. Accuracy comes first.</div>",
         unsafe_allow_html=True,
@@ -131,6 +131,6 @@ def render_alternate_daily(store: SupabaseFactStore, day, challenge, attempt, *,
             store.complete_custom_attempt(attempt.attempt_id, values, timed_seconds, completed_at=utc_now())
             st.rerun()
         except Exception as exc:
-            st.error("Your finished Daily could not be saved. Leave this page open and try once more; your completed answers are still held in this browser.")
+            st.error("Your finished Daily could not be saved. Leave this page open and try once more; your answers are still here.")
             if str(st.query_params.get("dbcheck", "0")) == "1":
                 st.exception(exc)

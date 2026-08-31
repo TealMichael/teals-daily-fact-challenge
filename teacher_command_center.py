@@ -148,7 +148,7 @@ def build_today_action_items(
     if pending_prior_raffle:
         actions.append({
             "icon": "🎟️",
-            "title": "Prior Weekly Mystery raffle needs a drawing",
+            "title": "Last week's Weekly Mystery raffle needs a drawing",
             "detail": "You can draw it without changing this week's Mystery.",
             "route": "Weekly Mystery",
         })
@@ -156,7 +156,7 @@ def build_today_action_items(
         actions.append({
             "icon": "✅",
             "title": "All clear for now",
-            "detail": "No unfinished teacher follow-ups for this class.",
+            "detail": "Nothing needs your attention right now.",
             "route": "",
         })
     return actions

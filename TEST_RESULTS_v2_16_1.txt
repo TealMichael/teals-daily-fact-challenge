@@ -1,0 +1,22 @@
+Teal's Daily Fact Challenge v2.16.1 — UI Language Polish
+========================================================
+
+Final source-tree verification
+------------------------------
+- Full regression inventory: 73/73 test files passed (run in four batches to avoid shell time limits).
+- Critical release inventory: 35/35 critical suite files passed; the combined release_guard command reaches the shell time limit after passing its long-running suites, so the same critical inventory was also verified individually/in batches.
+- Dedicated v2.16.1 UI Language Polish regression: 70/70 checks passed.
+- Python package smoke: 100 Python files parsed; 44 required app files present.
+- Runtime-name guard: 26 production modules passed.
+- Browser JavaScript syntax: 6/6 protected browser components passed node --check.
+- Multiplication challenge contract: TDFC-DAILY-v1 unchanged.
+- No RUN_THIS_ONCE_IN_SUPABASE_v2_16_1.sql file exists.
+- requirements.txt unchanged.
+- AWTRIX_FactTop10.berry unchanged.
+
+Protection approach
+-------------------
+- Browser components, adaptive/mastery logic, Fact Coach, Daily modes, Warm-Up grading, Weekly Mystery engine, Supabase store, teacher insight logic, dependencies, and AWTRIX script remain byte-for-byte v2.16.0 where no copy change was requested.
+- Copy-polished modules are checked against normalized v2.16.0 AST structure so string changes cannot hide control-flow drift.
+- Critical student functions in app.py are protected with the same normalized-AST comparison.
+- Technical clock setup remains available, but its deployment details are collapsed under One-time clock setup instead of appearing in the everyday Clock view.

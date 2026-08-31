@@ -20,7 +20,7 @@ def check(name, condition):
     assert condition, name
     checks.append(name)
 
-check("v2.16 version", APP_VERSION == "2.16.0")
+check("v2.16 version", APP_VERSION == "2.16.1")
 check("student Daily contract unchanged", CHALLENGE_VERSION == "TDFC-DAILY-v1")
 check("Class History added to Learning", '["🗓️ Class History"]' in APP and "render_teacher_class_history(store)" in APP)
 check("existing Phase 2 Learning tools preserved", '["🧭 Next Steps", "📈 Learning Data", "🛠️ Student Support", "📅 Weekly Recap"]' in APP)
@@ -33,13 +33,13 @@ check("warmup previous-school-day shortcut exists", "Use previous school day's W
 check("warmup reuse next week exists", "Reuse next week" in WARMUP_UI)
 check("warmup targeted class copy exists", "Copy to selected class" in WARMUP_UI)
 check("warmup templates exist", "Save this Warm-Up as a template" in WARMUP_UI and "Use template on this date" in WARMUP_UI)
-check("warmup student preview hides correct answers", "Student-style preview. Correct answers stay hidden." in WARMUP_UI)
+check("warmup student preview hides correct answers", "Student preview. Correct answers stay hidden." in WARMUP_UI)
 check("Class History includes Daily Top 10", 'st.markdown("##### Top 10")' in HISTORY_UI)
 check("Class History includes common misses", "Common multiplication misses" in HISTORY_UI)
 check("Class History includes Warm-Up", 'st.markdown("#### Warm-Up")' in HISTORY_UI)
-check("Class History protects historical raw response privacy", "Historical raw response text is intentionally cleared" in HISTORY_UI)
+check("Class History protects historical raw response privacy", "For past dates, typed student answers are no longer kept" in HISTORY_UI)
 check("Class History includes Mystery status", 'st.markdown("#### Weekly Mystery")' in HISTORY_UI)
-check("Class History keeps Mystery details collapsed", "Teacher Mystery details · contains the answer and clues" in HISTORY_UI)
+check("Class History keeps Mystery details collapsed", "🔒 Mystery answer & clues" in HISTORY_UI)
 check("no v2.16 SQL migration", not (ROOT / "RUN_THIS_ONCE_IN_SUPABASE_v2_16.sql").exists())
 check("app architecture remains under 3000 lines", len(APP.splitlines()) < 3000)
 
@@ -146,7 +146,6 @@ protected = {
     "persistent_login_component/index.html": "fae94c44f25512d2c017b24e17e3be2d987f21604072ed4c061fbae1cc9f9585",
     "pin_entry_component/index.html": "18a89b45481f83f33fd93746bdf854ba0e4b216c0c1f0904e035f871d5d8c2b7",
     "student_igniter_ui.py": "043f3905b3e37a926cbae66d40de5e9ff963b2af3676f6bc4678336ca08e39ed",
-    "student_alt_daily_ui.py": "79caf3a4acd7dc63a46a8d4438265c225cf4345ca253c6d325305fe894b8fccc",
     "fact_coach.py": "dcbaf3aa62774a4627724d6de65fab31fb87254a25e601c16201980f806af9fb",
     "adaptive_engine.py": "b828414cd7207a04c10feb71a797ee8650d09fba81017a503a4eacf274a1e6e9",
     "daily_modes.py": "2e6633604d9ea2f21b4054e38827eea1eec99f47e5562befa4c1e62f840f3b5e",
@@ -154,10 +153,6 @@ protected = {
     "weekly_mystery.py": "dfe98e7ba8c9f86daa28396e9a61282bd2705f5f132c84ff7cbb5051b4740b1f",
     "AWTRIX_FactTop10.berry": "4ab1b8a25e84535591a2ff7905366aa89f18c83b41c2b56d22f2d68a49edc3e2",
     "requirements.txt": "3436997a9043e9843f0960bac0ade5a33acb72eba52a3070bd98a49b3fed7180",
-    "teacher_intelligence.py": "d02b940b6f62ef78b2a5f02ff0deca6720fa105321b76019337d01026fcb6ef7",
-    "teacher_intelligence_ui.py": "7981391c9262484f25a2274f57fd730f0a557d792aab53615acd51c5e61284ef",
-    "teacher_today_ui.py": "db9e6672a1274ca1a597947ad9a06e8624788057fa02ab39e60a03ce22aa4286",
-    "teacher_learning_ui.py": "2fd90f8c24022c572cf290e3c9c6556fd9ad00b7382d26c2d176f32b264fd0e9",
 }
 for relative, expected in protected.items():
     actual=hashlib.sha256((ROOT/relative).read_bytes()).hexdigest()

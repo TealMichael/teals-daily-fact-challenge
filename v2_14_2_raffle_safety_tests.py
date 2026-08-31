@@ -15,7 +15,7 @@ def check(name, condition):
     assert condition, name
     checks.append(name)
 
-check("v2.16.0 version", APP_VERSION == "2.16.0")
+check("v2.16.0 version", APP_VERSION == "2.16.1")
 check("Daily challenge contract unchanged", CHALLENGE_VERSION == "TDFC-DAILY-v1")
 
 # Execute real pure raffle-state helpers from app.py without importing Streamlit.
@@ -75,9 +75,9 @@ check("saved winner nickname is preserved", any(r.get("nickname") == "Winner3" f
 # not only while an undrawn class exists.
 check("prior raffle stays visible after final draw", "if previous_pending or previous_saved:" in APP)
 check("previous saved raffle state is checked", "previous_saved = _mystery_raffle_has_saved_winner(store, previous_week)" in APP)
-check("final draw no longer immediately reruns away", "Winner saved. This result will remain available in Last Week's Prize Raffles" in APP)
+check("final draw no longer immediately reruns away", "st.caption(\"Winner saved.\")" in APP)
 check("final draw celebrates winner", "st.balloons()" in APP)
-check("historical saved winner displays even if current eligibility changes", "This is the saved historical raffle result" in APP)
+check("historical saved winner displays even if current eligibility changes", "The student is no longer on the current eligible list." in APP)
 
 # Projector safety: no answer/clue preview is rendered by default.
 check("projector safety no longer needs a dashboard banner", "Projector-safe by default" not in APP)

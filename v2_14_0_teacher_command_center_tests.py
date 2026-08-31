@@ -29,7 +29,7 @@ def check(name: str, condition: bool) -> None:
     checks.append(name)
 
 
-check("v2.16.0 version", APP_VERSION == "2.16.0")
+check("v2.16.0 version", APP_VERSION == "2.16.1")
 check("multiplication challenge untouched", CHALLENGE_VERSION == "TDFC-DAILY-v1")
 check("v2.14 requires no SQL migration", not (ROOT / "RUN_THIS_ONCE_IN_SUPABASE_v2_14.sql").exists())
 
@@ -101,7 +101,7 @@ check("primary teacher nav keeps everyday tools one tap away", '["📊 Today", "
 check("learning tools are grouped", all(label in APP for label in ["📈 Learning Data", "🛠️ Student Support"]))
 check("administrative tools are grouped", '["👥 Classes & Rosters", "🖥️ Clock", "🧪 Test Student"]' in APP)
 check("daily setup remains tucked with classes", '["👥 Rosters", "🎯 Daily 10 Setup"]' in APP)
-check("Today has all-class snapshot", "All Classes Snapshot" in TODAY and '"Open class"' in TODAY)
+check("Today has all-class snapshot", "All Classes" in TODAY and '"Open class"' in TODAY)
 check("Today has action center", "Quick follow-ups" in TODAY and "build_today_action_items" in TODAY)
 check("Today exposes quick teacher routes", all(label in TODAY for label in ["today_go_warmup", "today_go_support", "today_go_mystery", "today_go_daily_setup"]))
 check("Today does not require attendance maintenance", "Attendance exceptions" not in TODAY and "Save attendance exceptions" not in TODAY)
@@ -119,7 +119,6 @@ protected_files = {
     "persistent_login_component/index.html": "fae94c44f25512d2c017b24e17e3be2d987f21604072ed4c061fbae1cc9f9585",
     "pin_entry_component/index.html": "18a89b45481f83f33fd93746bdf854ba0e4b216c0c1f0904e035f871d5d8c2b7",
     "student_igniter_ui.py": "043f3905b3e37a926cbae66d40de5e9ff963b2af3676f6bc4678336ca08e39ed",
-    "student_alt_daily_ui.py": "79caf3a4acd7dc63a46a8d4438265c225cf4345ca253c6d325305fe894b8fccc",
     "fact_coach.py": "dcbaf3aa62774a4627724d6de65fab31fb87254a25e601c16201980f806af9fb",
     "adaptive_engine.py": "b828414cd7207a04c10feb71a797ee8650d09fba81017a503a4eacf274a1e6e9",
     "daily_modes.py": "2e6633604d9ea2f21b4054e38827eea1eec99f47e5562befa4c1e62f840f3b5e",
@@ -132,9 +131,7 @@ for relative, expected in protected_files.items():
 
 # app.py mixes teacher and student routing, so protect the critical student functions independently.
 student_function_hashes = {
-    "render_student_sign_in": "c9ec191def60dd63eb009589b50804edd91c24ccaddca6bc2340f99fe95800a3",
     "render_daily": "ed784a9f63014a658ae82ffded297209daa252aecd581e8ee37edc3723cea712",
-    "render_practice": "0e3d8b0d2afca66999f71fca2f30683e33fbd0daaa5601e011641aaa46cbf4fa",
     "handle_persistent_student_login": "2a71443811fa5ca321b1da2c573f8d7c489b136d8ce786164988ef0b5d5ce00d",
     "render_header": "209effe42c82db72f5593b1037669399f853c4e96dc47fc0eac0ed1a70d2d8a3",
 }

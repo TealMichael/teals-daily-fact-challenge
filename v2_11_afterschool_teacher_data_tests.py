@@ -41,7 +41,7 @@ def snap(a, b, evidence, correct, acc, seconds, streak, status):
 
 def run():
     checks = {}
-    checks["version 2.11.2"] = APP_VERSION == "2.16.0"
+    checks["version 2.11.2"] = APP_VERSION == "2.16.1"
 
     known = snap(2, 2, 5, 5, 0.96, 3.2, 5, STATUS_FLUENT)
     slow = snap(3, 4, 6, 6, 0.95, 8.0, 5, STATUS_BUILDING)
@@ -87,12 +87,12 @@ def run():
     checks["fluency leads with students to pull"] = "#### 🎯 Students to Pull" in fluency
     checks["fluency uses response time"] = "Typical correct recall" in fluency and "Accurate, Still Slow" in fluency
     checks["fluency retains detailed drilldown"] = "🔎 Fact & student detail" in fluency
-    checks["advanced controls retained but collapsed"] = "⚙️ Advanced fact map & class-wide Focus controls" in fluency
+    checks["advanced controls retained but collapsed"] = "⚙️ Detailed Fact Map & Focus Settings" in fluency
 
     standards = section("_render_teacher_standards_tracker", "render_teacher_mastery_focus", LEARNING_UI)
     checks["standards dropdown"] = 'st.selectbox(\n        "Indiana standard"' in standards
-    checks["standards student history"] = "#### Student History" in standards and "One Student's Evidence" in standards
-    checks["standards avoids mastery overclaim"] = "not an automatic mastery claim" in standards
+    checks["standards student history"] = "#### Student History" in standards and "One Student's History" in standards
+    checks["standards avoids mastery overclaim"] = "not an automatic score" in standards
     checks["standards uses school-year evidence"] = "_school_year_start(today)" in standards and "store.list_warmup_answers(start_date, today" in standards
 
     warmup_teacher = section("render_teacher_warmup", source=WARMUP_UI)

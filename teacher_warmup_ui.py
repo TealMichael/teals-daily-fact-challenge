@@ -39,7 +39,7 @@ def _next_school_day(value: date) -> date:
 
 
 def _render_warmup_student_preview(warmup) -> None:
-    st.caption("Student-style preview. Correct answers stay hidden.")
+    st.caption("Student preview. Correct answers stay hidden.")
     for slot, question in ((1, warmup.question_one), (2, warmup.question_two)):
         label = "Spiral Review" if slot == 1 else "Yesterday Check"
         st.markdown(f"**{slot}. {label}**")
@@ -406,7 +406,7 @@ def _render_warmup_groups_and_email(
         if not primary:
             st.warning("Save your school email above before preparing the Outlook draft.")
         elif not any(int(row.question_slot) in (1, 2) for row in rows):
-            st.info("No real-student Warm-Up responses are available yet.")
+            st.info("No student Warm-Up responses are available yet.")
         else:
             report = _warmup_report_text(class_record, target_date, warmup, grouping)
             subject = f"Warm-Up Results — {class_record.class_name} — {target_date.strftime('%b %d')}"
@@ -457,8 +457,8 @@ def _warmup_export_frame(store: SupabaseFactStore, start_date: date, end_date: d
 def render_teacher_warmup(store: SupabaseFactStore, *, refresh_control, finish_refresh) -> None:
     header_left, header_right = st.columns([4.2, 1.4])
     with header_left:
-        st.markdown("### 🧠 Quick Warm-Up — Trial")
-        st.caption("Two untimed curriculum questions before the Daily 10. Warm-Up accuracy is stored separately from multiplication mastery and Top 10.")
+        st.markdown("### 🧠 Warm-Up")
+        st.caption("Two untimed curriculum questions before the Daily 10.")
     with header_right:
         refresh_control(key="teacher_warmup_refresh")
     today = current_daily_date()
@@ -479,12 +479,12 @@ def render_teacher_warmup(store: SupabaseFactStore, *, refresh_control, finish_r
 
     default_date = current_daily_date()
     target_date = st.date_input("Warm-Up date", value=default_date, key="teacher_warmup_date")
-    st.caption("Testing tonight? Choose **today** here, save the Warm-Up, then open 🧪 Test Student for this class.")
+    st.caption("To preview a Warm-Up, choose today's date, save it, then open 🧪 Test Student.")
 
     existing = store.get_warmup_set(selected.class_id, target_date)
     locked = bool(existing and store.warmup_set_locked(existing.warmup_set_id))
     if locked:
-        st.info("🔒 This Warm-Up is locked because a real student has already answered it. Historical data stays attached to the exact questions they saw.")
+        st.info("🔒 This Warm-Up is locked because a student has already answered it, so everyone sees the same questions.")
 
     with st.expander("⚡ Planning shortcuts", expanded=False):
         previous_date = _previous_school_day(target_date)
@@ -565,7 +565,7 @@ def render_teacher_warmup(store: SupabaseFactStore, *, refresh_control, finish_r
     with st.form(f"{key_prefix}_form"):
         q1_values = _warmup_form_question(q1_existing, 1, key_prefix, recent_standards)
         q2_values = _warmup_form_question(q2_existing, 2, key_prefix, recent_standards)
-        copy_all = st.checkbox("Also copy this Warm-Up to every active class", value=False, key=f"{key_prefix}_copy")
+        copy_all = st.checkbox("Also copy this Warm-Up to every class", value=False, key=f"{key_prefix}_copy")
         save = st.form_submit_button("Save Warm-Up", type="primary", use_container_width=True, disabled=locked)
     if save:
         try:
@@ -586,7 +586,7 @@ def render_teacher_warmup(store: SupabaseFactStore, *, refresh_control, finish_r
             # here must never make a successfully saved Igniter look like it failed.
             _remember_warmup_standards_safely(store, [q1.get("standard_code"), q2.get("standard_code")])
 
-            st.success("Warm-Up saved" + (" for all active classes." if copy_all else f" for {selected.class_name}."))
+            st.success("Warm-Up saved" + (" for all classes." if copy_all else f" for {selected.class_name}."))
             st.rerun()
         except (ValueError, FactStoreError) as exc:
             st.error(str(exc))
@@ -609,7 +609,7 @@ def render_teacher_warmup(store: SupabaseFactStore, *, refresh_control, finish_r
         result_students, result_rows, _ = _warmup_class_snapshot(store, selected, target_date, existing)
         if target_date == current_daily_date():
             with st.expander("📝 Today's Student Answers", expanded=False):
-                st.caption("Teacher only. Raw response text is kept for today; older response text is cleared while correctness and standards evidence remain.")
+                st.caption("Today's typed answers are available here. On past dates, accuracy and standards are kept, but typed responses are not.")
                 name_by_id = {str(student.student_id): str(student.nickname) for student in result_students}
                 by_student = {}
                 for row in result_rows:
@@ -631,8 +631,8 @@ def render_teacher_warmup(store: SupabaseFactStore, *, refresh_control, finish_r
         if test_student is not None:
             test_rows = store.get_warmup_answers(test_student.student_id, existing.warmup_set_id)
             if test_rows:
-                with st.expander("🧪 Test Student answers — sandbox only", expanded=False):
-                    st.caption("These responses let you verify the flow, but they never enter class accuracy, real small groups, email results, or the weekly CSV.")
+                with st.expander("🧪 Test Student Answers", expanded=False):
+                    st.caption("These responses are for checking the student view and stay out of class results, groups, email, and downloads.")
                     st.dataframe(pd.DataFrame([
                         {
                             "Question": "Spiral Review" if row.question_slot == 1 else "Yesterday Check",
@@ -642,30 +642,30 @@ def render_teacher_warmup(store: SupabaseFactStore, *, refresh_control, finish_r
                     ]), hide_index=True, use_container_width=True)
                     primary_email, _ = _warmup_email_recipients(store, selected.class_id)
                     sandbox_ready_key = f"sandbox_warmup_email_{selected.class_id}_{target_date.isoformat()}"
-                    if st.button("🧪 Prepare sandbox Outlook email", key=f"{sandbox_ready_key}_button", use_container_width=True):
+                    if st.button("🧪 Prepare Test Student Outlook email", key=f"{sandbox_ready_key}_button", use_container_width=True):
                         st.session_state[sandbox_ready_key] = True
                     if st.session_state.get(sandbox_ready_key):
                         if not primary_email:
                             st.warning("Save your school email in the Warm-Up email recipients section first.")
                         else:
                             sandbox_grouping = _warmup_grouping([test_student], test_rows)
-                            sandbox_report = "[SANDBOX TEST — Test Student only]\n\n" + _warmup_report_text(
+                            sandbox_report = "[TEST STUDENT — preview only]\n\n" + _warmup_report_text(
                                 selected, target_date, existing, sandbox_grouping
                             )
-                            sandbox_subject = f"[SANDBOX TEST] Warm-Up Results — {selected.class_name} — {target_date.strftime('%b %d')}"
+                            sandbox_subject = f"[TEST STUDENT] Warm-Up Results — {selected.class_name} — {target_date.strftime('%b %d')}"
                             st.code(sandbox_report, language=None)
                             st.link_button(
-                                "📨 Open sandbox draft in Outlook",
+                                "📨 Open Test Student draft in Outlook",
                                 _warmup_outlook_url(primary_email, "", sandbox_subject, sandbox_report),
                                 use_container_width=True,
                             )
-                            st.caption("Sandbox drafts are addressed only to you. The push-in teacher is never CC'd on a Test Student preview.")
+                            st.caption("Test Student drafts go only to you; the push-in teacher is not included.")
     else:
         finish_refresh()
         st.info("No Warm-Up is assigned for this class/date. Students will go straight to the Daily 10.")
 
     st.markdown("#### 📥 Weekly Warm-Up Data")
-    st.caption("Download standards-tagged student responses whenever you want. Test Student is excluded automatically.")
+    st.caption("Download weekly Warm-Up results by student and standard. Test Student is not included.")
     if st.toggle("Prepare weekly CSV", key="teacher_warmup_export_ready"):
         today = current_daily_date()
         monday = today - timedelta(days=today.weekday())

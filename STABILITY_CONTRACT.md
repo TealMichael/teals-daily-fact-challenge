@@ -18,7 +18,7 @@ This contract was rebased in v2.11.2 on the proven v2.11.0.3 classroom build to 
 
 1. Teacher sections render one active section at a time.
 2. Refresh Data must clear the cached Supabase store before fresh reads.
-3. Learning Data owns Fact Fluency + Igniter Standards Tracker only.
+3. Learning Data owns Fact Fluency + Warm-Up Standards Tracker only.
 4. Warm-Up planning/results is isolated from Student Daily and Learning Data code.
 5. Unfinished Igniter work is never counted as incorrect or placed into reteach groups.
 6. Outlook reports are prepared for teacher review; the app does not auto-send email.
@@ -133,3 +133,11 @@ Future releases should run `python release_guard.py` plus the full `*_tests.py` 
 - Alternate Daily 10 modes remain separate from multiplication fluency evidence in Class History and Phase 2 intelligence.
 - Class History is read-only: viewing a past date must not reopen attempts, change mastery, edit Warm-Ups, or alter Mystery records.
 - Current/next Mystery answers remain protected behind collapsed teacher-only details where they could be visible on a projector.
+
+
+## v2.16.1 UI language polish protections
+
+- Normal classroom screens should use teacher/student language rather than implementation language. Supabase, schema/migration, sandbox, engine, and diagnostic terminology should not appear in everyday workflows.
+- Technical clock-install details remain available only inside the collapsed **One-time clock setup** area because they are needed for recovery/reinstallation.
+- Copy edits must not change Daily generation/scoring, mastery, Warm-Up grading, Mystery rules, login/PIN behavior, Top 10 privacy, persistence, or AWTRIX behavior.
+- Copy-polished student functions are protected structurally in `v2_16_1_ui_language_polish_tests.py`; changing visible strings must not silently change their control flow.

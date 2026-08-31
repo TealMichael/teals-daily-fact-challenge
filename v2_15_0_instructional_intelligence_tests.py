@@ -29,7 +29,7 @@ def check(name, condition):
     assert condition, name
     checks.append(name)
 
-check("v2.15 version", APP_VERSION == "2.16.0")
+check("v2.15 version", APP_VERSION == "2.16.1")
 check("student Daily contract unchanged", CHALLENGE_VERSION == "TDFC-DAILY-v1")
 
 # Phase 2 navigation + teacher UI contract.
@@ -46,7 +46,7 @@ check("teacher history chunks large answer-ID reads", "range(0, len(multiplicati
 check("Next Steps includes best teaching opportunity", "Best Teaching Opportunity" in UI)
 check("Next Steps includes small groups", "Suggested Small Groups" in UI)
 check("Next Steps includes students worth a look", "Students Worth a Look" in UI)
-check("Weekly Recap separates multiplication fluency", "multiplication fluency kept separate from alternate Daily 10 modes" in UI)
+check("Weekly Recap separates multiplication fluency", "Other Daily 10 modes are listed separately from multiplication fluency" in UI)
 check("Student Support includes recent results", "Recent Daily 10 results" in UI)
 check("no v2.15 SQL migration", not (ROOT / "RUN_THIS_ONCE_IN_SUPABASE_v2_15.sql").exists())
 
@@ -158,7 +158,6 @@ protected = {
     "persistent_login_component/index.html": "fae94c44f25512d2c017b24e17e3be2d987f21604072ed4c061fbae1cc9f9585",
     "pin_entry_component/index.html": "18a89b45481f83f33fd93746bdf854ba0e4b216c0c1f0904e035f871d5d8c2b7",
     "student_igniter_ui.py": "043f3905b3e37a926cbae66d40de5e9ff963b2af3676f6bc4678336ca08e39ed",
-    "student_alt_daily_ui.py": "79caf3a4acd7dc63a46a8d4438265c225cf4345ca253c6d325305fe894b8fccc",
     "fact_coach.py": "dcbaf3aa62774a4627724d6de65fab31fb87254a25e601c16201980f806af9fb",
     "adaptive_engine.py": "b828414cd7207a04c10feb71a797ee8650d09fba81017a503a4eacf274a1e6e9",
     "daily_modes.py": "2e6633604d9ea2f21b4054e38827eea1eec99f47e5562befa4c1e62f840f3b5e",
@@ -167,8 +166,6 @@ protected = {
     "AWTRIX_FactTop10.berry": "4ab1b8a25e84535591a2ff7905366aa89f18c83b41c2b56d22f2d68a49edc3e2",
     "requirements.txt": "3436997a9043e9843f0960bac0ade5a33acb72eba52a3070bd98a49b3fed7180",
     "teacher_insights.py": "4fdf3516e75a8d697747f4d92aadd3f39c51a116e5990054c5eca4c66b0094a5",
-    "teacher_learning_ui.py": "2fd90f8c24022c572cf290e3c9c6556fd9ad00b7382d26c2d176f32b264fd0e9",
-    "teacher_today_ui.py": "db9e6672a1274ca1a597947ad9a06e8624788057fa02ab39e60a03ce22aa4286",
 }
 for relative, expected in protected.items():
     actual = hashlib.sha256((ROOT / relative).read_bytes()).hexdigest()

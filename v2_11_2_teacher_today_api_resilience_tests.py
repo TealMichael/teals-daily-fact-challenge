@@ -36,7 +36,7 @@ assert try_wraps_daily_status(projector), "Projector daily_status must be except
 
 assert 'daily_status_error = selected_snapshot.get("error")' in TODAY_UI
 assert 'Daily 10 status could not load just now.' in TODAY_UI
-assert 'Warm-Up results above are unaffected' in TODAY_UI
+assert 'Warm-Up results are still available' in TODAY_UI
 assert 'if str(st.query_params.get("dbcheck", "0")) == "1":' in TODAY_UI
 
 # A Daily-status outage must not prevent the independent Igniter reads.

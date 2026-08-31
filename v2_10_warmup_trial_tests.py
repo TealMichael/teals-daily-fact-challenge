@@ -18,7 +18,7 @@ SUPABASE = (ROOT / "supabase_fact_store.py").read_text()
 
 def run():
     checks = 0
-    assert APP_VERSION == "2.16.0"; checks += 1
+    assert APP_VERSION == "2.16.1"; checks += 1
 
     # Matching is useful for decimals/fractions without fuzzy grading.
     assert answer_matches("14.40", "14.4"); checks += 1
@@ -84,8 +84,8 @@ def run():
     assert APP.index("if not render_quick_warmup(store, day):") < APP.index("day, facts, challenge = ensure_today(store)"); checks += 1
     assert '"🧠 Warm-Up"' in APP and "def render_teacher_warmup" in APP; checks += 1
     assert "Download weekly Warm-Up CSV" in APP and "Indiana Standard" in APP; checks += 1
-    assert "Testing tonight?" in APP and "🧪 Test Student" in APP; checks += 1
-    assert "Warm-Up accuracy is stored separately from multiplication mastery and Top 10" in APP; checks += 1
+    assert "### 🧪 Test Student" in APP; checks += 1
+    assert "store.record_warmup_answer(" in APP and "warmup_answers" in SUPABASE; checks += 1
 
     # Schema/security contract.
     for text in (SCHEMA, MIGRATION):

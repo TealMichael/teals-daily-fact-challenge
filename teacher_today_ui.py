@@ -30,14 +30,14 @@ def render_teacher_today_command_center(
     header_left, header_right = st.columns([4.2, 1.4])
     with header_left:
         st.markdown("### 📊 Today Command Center")
-        st.caption("See the school day at a glance, then open the class that needs you. Student screens are unchanged.")
+        st.caption("See the school day at a glance, then open a class for details.")
     with header_right:
         refresh_control(key="teacher_today_refresh")
 
     try:
         classes = store.list_classes()
     except Exception as exc:
-        st.error("Classes could not load just now. Tap Refresh data to retry with a fresh Supabase connection.")
+        st.error("Classes could not load just now. Tap Refresh data and try again.")
         st.session_state.pop("teacher_refresh_pending", False)
         if str(st.query_params.get("dbcheck", "0")) == "1":
             st.exception(exc)
@@ -86,10 +86,10 @@ def render_teacher_today_command_center(
                 "Finished": "—", "In progress": "—", "Not started": "—",
             })
 
-    st.markdown("#### All Classes Snapshot")
+    st.markdown("#### All Classes")
     st.dataframe(pd.DataFrame(overview_rows), hide_index=True, use_container_width=True)
     if overview_errors:
-        st.caption("⚠️ One or more class snapshots could not refresh. The class detail below will stay available where data loaded successfully.")
+        st.caption("⚠️ Some class totals could not refresh. Available class details are still shown below.")
 
     class_by_name = {item.class_name: item for item in classes}
     selected_name = st.selectbox("Open class", list(class_by_name), key="teacher_today_class")
@@ -138,7 +138,7 @@ def render_teacher_today_command_center(
 
     stamp = st.session_state.get("teacher_last_refresh_at")
     if stamp:
-        st.caption(f"🟢 Teacher data checked {stamp} · Refresh data forces a new Supabase connection.")
+        st.caption(f"🟢 Updated {stamp}")
 
     # v2.14.1 intentionally keeps Today roster-based. Teachers do not need to
     # maintain a separate attendance list just to understand the class snapshot.
@@ -256,19 +256,19 @@ def render_teacher_today_command_center(
         c2.metric("🟡 Working", "—")
         c3.metric("⚪ Not started", "—")
         c4.metric("Daily 10 finished", "—")
-        st.warning("Daily 10 status could not load just now. Warm-Up and other teacher tools remain available; tap Refresh data to retry the class snapshot.")
+        st.warning("Daily 10 status could not load just now. Warm-Up and other teacher tools are still available; tap Refresh data and try again.")
         if str(st.query_params.get("dbcheck", "0")) == "1":
             st.exception(daily_status_error)
 
     if progress_error is not None:
-        st.warning("Full-routine progress could not load just now. Daily 10 completion is still accurate; Done/Working will return after Refresh data.")
+        st.warning("Daily progress could not load just now. Daily 10 completion is still available; Done/Working will return after Refresh data.")
         if str(st.query_params.get("dbcheck", "0")) == "1":
             st.exception(progress_error)
     if learning_stats_error is not None:
-        st.caption("⚠️ Streak/Days Completed details could not refresh; the rest of Today is still available.")
+        st.caption("⚠️ Streak and Days Completed could not refresh; the rest of Today is still available.")
 
     if warmup_error is not None:
-        st.warning("Warm-Up data could not load just now. The rest of Today is still available; try Refresh data once.")
+        st.warning("Warm-Up results could not load just now. The rest of Today is still available; tap Refresh data and try again.")
         if str(st.query_params.get("dbcheck", "0")) == "1":
             st.exception(warmup_error)
 
@@ -278,7 +278,7 @@ def render_teacher_today_command_center(
         w1.metric("Finished", f"{len(warmup_done)}/{total}")
         w2.metric("Spiral accuracy", "—" if q1_accuracy is None else f"{q1_accuracy:.0f}%")
         w3.metric("Yesterday accuracy", "—" if q2_accuracy is None else f"{q2_accuracy:.0f}%")
-        st.caption("Unfinished present students are not counted as incorrect. Open the groups below whenever you are ready to act on the current data.")
+        st.caption("Students who have not finished are kept separate from incorrect answers. Open the groups when you are ready to plan next steps.")
         if st.toggle("🎯 Show Warm-Up groups & email", key=f"teacher_today_warmup_groups_{selected.class_id}"):
             _render_warmup_groups_and_email(
                 store, selected, day, warmup_today, warmup_rows, students,
@@ -287,7 +287,7 @@ def render_teacher_today_command_center(
 
     st.markdown("#### 🏆 Class Top 10")
     if daily_status_error is not None:
-        st.caption("Daily standings are temporarily unavailable. Warm-Up results above are unaffected; tap Refresh data to retry.")
+        st.caption("Daily standings are temporarily unavailable. Warm-Up results are still available; tap Refresh data and try again.")
     else:
         board = leaderboard_from_status(present_status, limit=10)
         final = leaderboard_is_final(store, day, selected.class_id, completed=daily_complete, total=total)
@@ -357,25 +357,25 @@ def render_teacher_today_command_center(
             "Nickname": row["nickname"],
             "PIN": pin,
             "Daily accuracy": "" if row["correct_count"] is None else f"{int(row['correct_count'])}/10",
-            "Timed sprint": "" if row["timed_seconds"] is None else format_seconds(float(row["timed_seconds"])),
+            "Time": "" if row["timed_seconds"] is None else format_seconds(float(row["timed_seconds"])),
         })
     if summary_rows:
         st.markdown("#### Where everyone is")
         st.dataframe(pd.DataFrame(summary_rows), hide_index=True, use_container_width=True)
 
-    with st.expander("Teacher-only accuracy & timing", expanded=False):
-        st.caption("Students never see these scores or times. Accuracy ranks first; time only breaks ties.")
+    with st.expander("Accuracy & timing", expanded=False):
+        st.caption("Accuracy determines rank; time only breaks ties.")
         if completed_rows:
-            st.caption(f"Class average: {average_accuracy:.1f}/10 · median timed sprint: {format_seconds(median_time)}")
+            st.caption(f"Class average: {average_accuracy:.1f}/10 · median time: {format_seconds(median_time)}")
         st.dataframe(pd.DataFrame(performance_rows), hide_index=True, use_container_width=True)
 
-    with st.expander("Preview today's balanced 10", expanded=False):
+    with st.expander("Preview today's 10", expanded=False):
         if daily_mode != "Multiplication":
-            st.caption(f"{daily_mode} is assigned to this class today. The multiplication preview below remains the protected default generator and is not the alternate-mode question list.")
+            st.caption(f"{daily_mode} is assigned today. This preview shows the standard Multiplication Daily 10, not today's alternate questions.")
         mix = daily_mix_summary(facts)
         st.caption(
-            f"Core mix: {mix['easy']} easier retrieval · {mix['medium']} medium · {mix['hard']} harder"
-            + (f" · {mix['extension']} 11/12 extension" if mix["extension"] else " · no 11/12 fact today")
+            f"Mix: {mix['easy']} easier · {mix['medium']} medium · {mix['hard']} harder"
+            + (f" · includes {mix['extension']} 11/12 fact{'s' if mix['extension'] != 1 else ''}" if mix["extension"] else " · no 11/12 fact today")
         )
         for index, fact in enumerate(facts, start=1):
-            st.write(f"{index}. **{fact.label} = {fact.product}** · {fact.tier}")
+            st.write(f"{index}. **{fact.label} = {fact.product}**")

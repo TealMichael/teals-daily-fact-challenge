@@ -17,11 +17,11 @@ def run():
         "No placement test",
         "🎯 My Focus Facts",
         "Learning Data",
-        "Advanced fact map & class-wide Focus controls",
+        "Detailed Fact Map & Focus Settings",
         "Adjust Focus Practice",
         "hidden timer starts",
         "free_practice",
-        "Fact Coach correction is teaching practice, not instant mastery",
+        "Fact Coach helps students correct mistakes",
         "record_mastery_evidence_batch",
     ]
     for phrase in required_app:

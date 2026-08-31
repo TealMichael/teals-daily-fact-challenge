@@ -16,7 +16,7 @@ from supabase_fact_store import SupabaseFactStore
 def render_teacher_daily_setup(store: SupabaseFactStore, *, show_heading: bool = True) -> None:
     if show_heading:
         st.markdown("### 🎯 Daily 10 Setup")
-    st.caption("Plan a full school week at once. Multiplication is still the default, so blank/default planning never changes the proven Daily 10.")
+    st.caption("Plan the week by class. Multiplication is the default unless you choose another mode.")
 
     classes = store.list_classes()
     if not classes:
@@ -60,7 +60,7 @@ def render_teacher_daily_setup(store: SupabaseFactStore, *, show_heading: bool =
                 st.exception(exc)
 
     with st.expander("⚡ Week tools", expanded=False):
-        st.caption("These tools change teacher setup only; they never edit completed student attempts.")
+        st.caption("Use these shortcuts to fill the week faster. Completed Dailies are never changed.")
         a, b = st.columns(2)
         with a:
             if st.button("Copy previous week", use_container_width=True, key=f"copy_previous_daily10_{week_start}"):
@@ -90,7 +90,7 @@ def render_teacher_daily_setup(store: SupabaseFactStore, *, show_heading: bool =
                 for class_record in classes:
                     for day, mode in zip(days, source_modes):
                         set_daily_mode(store, class_record.class_id, day, mode)
-                st.success(f"{source.class_name}'s week was copied to all active classes.")
+                st.success(f"{source.class_name}'s week was copied to all classes.")
                 st.rerun()
             except Exception as exc:
                 st.error(str(exc))
@@ -107,6 +107,6 @@ def render_teacher_daily_setup(store: SupabaseFactStore, *, show_heading: bool =
             for index, item in enumerate(questions_for_mode(preview_day, preview_mode), start=1):
                 st.write(f"**{index}.** {item['prompt']}")
         except Exception as exc:
-            st.warning("Tomorrow's preview could not be generated.")
+            st.warning("Tomorrow's questions could not load.")
             if str(st.query_params.get("dbcheck", "0")) == "1":
                 st.exception(exc)

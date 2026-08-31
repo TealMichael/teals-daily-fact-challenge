@@ -14,7 +14,7 @@ ALL_UI = APP + "\n" + LEARNING + "\n" + TODAY
 
 def run():
     checks = {}
-    checks["version 2.7.0"] = APP_VERSION == "2.16.0"
+    checks["version 2.7.0"] = APP_VERSION == "2.16.1"
 
     # Friday is a real fifth clue, with no skipped-day backfill.
     checks["all bank mysteries resolve to five clues"] = all(len(mystery_for_key(item.key).clues) == 5 for item in MYSTERIES)
@@ -57,15 +57,15 @@ def run():
     # Learning Data is decision-oriented and transparent about evidence.
     checks["fact fluency summary"] = "⚡ Fact Fluency" in ALL_UI and "Students to Pull" in ALL_UI
     checks["accuracy and time are separated"] = "Accuracy comes first" in ALL_UI and "Accurate, Still Slow" in ALL_UI
-    checks["building alone is not intervention"] = "This is not automatically an intervention flag" in ALL_UI
-    checks["true class map"] = "Advanced fact map & class-wide Focus controls" in ALL_UI and "Fact map filter" in ALL_UI
-    checks["fact detail"] = "Look Up a Fact" in ALL_UI and "Independent accuracy across recorded attempts" in ALL_UI
+    checks["building alone is not intervention"] = "One isolated miss does not create a red flag" in ALL_UI
+    checks["true class map"] = "Detailed Fact Map & Focus Settings" in ALL_UI and "Fact map filter" in ALL_UI
+    checks["fact detail"] = "Look Up a Fact" in ALL_UI and "Accuracy on first tries" in ALL_UI
     checks["strategy connection"] = "Teaching move for" in ALL_UI
     checks["quick focus action"] = "Optional: assign a Focus fact family" in ALL_UI
     checks["student detail"] = "Look Up a Student" in ALL_UI and "Inspect one fact" in ALL_UI
-    checks["standards tracker"] = "Igniter Standards Tracker" in ALL_UI and "Student History" in ALL_UI
-    checks["manual controls secondary"] = "Advanced fact map & class-wide Focus controls" in ALL_UI and "Class-wide Focus overrides" in ALL_UI
-    checks["teaching/data explanation"] = "How the app teaches & uses data" in ALL_UI
+    checks["standards tracker"] = "Warm-Up Standards Tracker" in ALL_UI and "Student History" in ALL_UI
+    checks["manual controls secondary"] = "Detailed Fact Map & Focus Settings" in ALL_UI and "Class-wide Focus overrides" in ALL_UI
+    checks["teaching/data explanation"] = "How each activity counts" in ALL_UI
     checks["no placement test claim"] = "No placement test" in ALL_UI
 
     # Clear teacher wording.

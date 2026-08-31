@@ -1,1 +1,1 @@
-v2.16.0 - add teacher planning tools and class history
+v2.16.1 - remove developer language and polish app copy

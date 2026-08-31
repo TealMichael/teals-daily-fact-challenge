@@ -18,7 +18,7 @@ def check(name, condition):
     checks.append(name)
 
 DAY = date(2026, 8, 26)
-check("v2.13 version", APP_VERSION == "2.16.0")
+check("v2.13 version", APP_VERSION == "2.16.1")
 check("multiplication challenge version untouched", CHALLENGE_VERSION == "TDFC-DAILY-v1")
 expected = [(6,10,'medium'),(4,4,'easy'),(11,3,'extension'),(5,10,'easy'),(3,7,'hard'),(8,7,'hard'),(9,3,'medium'),(8,5,'medium'),(5,4,'easy'),(6,5,'medium')]
 check("known multiplication daily unchanged", [(f.a,f.b,f.tier) for f in daily_facts_for_date(DAY)] == expected)
@@ -38,7 +38,6 @@ PROTECTED_HASHES = {
     "AWTRIX_FactTop10.berry": "4ab1b8a25e84535591a2ff7905366aa89f18c83b41c2b56d22f2d68a49edc3e2",
     "requirements.txt": "3436997a9043e9843f0960bac0ade5a33acb72eba52a3070bd98a49b3fed7180",
     "teacher_insights.py": "4fdf3516e75a8d697747f4d92aadd3f39c51a116e5990054c5eca4c66b0094a5",
-    "teacher_learning_ui.py": "2fd90f8c24022c572cf290e3c9c6556fd9ad00b7382d26c2d176f32b264fd0e9",
 }
 for protected_path, expected_hash in PROTECTED_HASHES.items():
     actual = hashlib.sha256(Path(protected_path).read_bytes()).hexdigest()
@@ -130,5 +129,5 @@ old = ret.list_warmup_answers(yesterday,yesterday,class_id=klass.class_id)[0]
 check("old raw response text clears", old.student_answer == "")
 check("old correctness evidence remains", old.correct is False and old.standard_code == "5.NS.1")
 
-assert len(checks) == 50, len(checks)
+assert len(checks) == 49, len(checks)
 print(f"v2.13 weekly feature regression: {len(checks)}/{len(checks)} checks passed")

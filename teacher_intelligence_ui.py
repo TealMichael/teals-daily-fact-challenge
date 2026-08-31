@@ -67,7 +67,7 @@ def _priority_names(priority: dict, students, full_by_student) -> list[str]:
 
 def render_teacher_next_steps(store: SupabaseFactStore) -> None:
     st.markdown("### 🧭 What Should I Teach Next?")
-    st.caption("The app turns existing multiplication evidence into a short teaching plan. It does not change student Focus plans or mastery.")
+    st.caption("Uses recent multiplication results to suggest a short teaching plan. Student practice is not changed automatically.")
     selected, _ = _class_picker(store, key="teacher_intelligence_class")
     if selected is None:
         return
@@ -75,12 +75,12 @@ def render_teacher_next_steps(store: SupabaseFactStore) -> None:
     try:
         students, full_by_student, history = _load_class_evidence(store, selected, today=today)
     except Exception as exc:
-        st.warning("Instructional intelligence could not refresh just now. Your existing Learning Data and student routines are unaffected.")
+        st.warning("Next Steps could not refresh just now. Learning Data and student work are still available.")
         if str(st.query_params.get("dbcheck", "0")) == "1":
             st.exception(exc)
         return
     if not students:
-        st.info("This class has no active students yet.")
+        st.info("This class has no students yet.")
         return
 
     signals = build_student_signals(students, full_by_student, history, today=today)
@@ -99,7 +99,7 @@ def render_teacher_next_steps(store: SupabaseFactStore) -> None:
         st.markdown(f"**Suggested next move:** {recommended_teaching_move(top, class_size=len(students))}")
         st.caption(f"Strategy idea: {strategy_tip(Fact(a=int(top['a']), b=int(top['b']), tier='core'))}")
         if names:
-            st.markdown("**Students currently showing a repeated accuracy need:** " + ", ".join(names))
+            st.markdown("**Students to watch for this fact:** " + ", ".join(names))
 
     st.markdown("#### Class Priorities")
     if priorities:
@@ -119,7 +119,7 @@ def render_teacher_next_steps(store: SupabaseFactStore) -> None:
     groups = suggested_small_groups(signals, full_by_student, limit=5)
     st.markdown("#### 👥 Suggested Small Groups")
     if not groups:
-        st.success("No extra teacher-created group is clearly warranted. Keep the normal adaptive routine going.")
+        st.success("No extra small group stands out right now. Keep the normal Daily + Focus routine.")
     else:
         for group in groups:
             with st.expander(f"{group['name']} · {len(group['names'])} student{'s' if len(group['names']) != 1 else ''}", expanded=False):
@@ -130,7 +130,7 @@ def render_teacher_next_steps(store: SupabaseFactStore) -> None:
     improving = progress_signals(signals)
     st.markdown("#### 🔎 Students Worth a Look")
     if not watch and not improving:
-        st.caption("No repeated-error, fragile-retrieval, or meaningful improvement signal is strong enough to surface yet.")
+        st.caption("No students stand out for repeated misses, a fact to recheck, or a meaningful recent gain.")
     else:
         rows = []
         by_id = {signal.student_id: signal for signal in signals}
@@ -144,18 +144,18 @@ def render_teacher_next_steps(store: SupabaseFactStore) -> None:
             rows.append({
                 "Student": signal.nickname,
                 "Repeated errors": ", ".join(signal.repeated_misses[:3]) or "—",
-                "Fragile facts": ", ".join(signal.fragile_facts[:3]) or "—",
+                "Facts to recheck": ", ".join(signal.fragile_facts[:3]) or "—",
                 "Recent accuracy change": "—" if change is None else f"{change * 100:+.0f} pts",
             })
         st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
         if improving:
-            st.caption("Progress compares the most recent five Daily dates with the five Daily dates before them and only appears when both windows contain enough multiplication evidence.")
-        st.caption("Fragile is a conservative watch signal: historically strong accuracy with a recently broken correct streak. It is not a claim that mastery was lost.")
+            st.caption("Progress compares the five most recent Multiplication Dailies with the five before them.")
+        st.caption("A fact appears here when it was previously strong but a recent miss makes it worth checking again.")
 
 
 def render_teacher_weekly_recap(store: SupabaseFactStore) -> None:
     st.markdown("### 📅 Weekly Teacher Recap")
-    st.caption("A short look back at what actually happened, with multiplication fluency kept separate from alternate Daily 10 modes.")
+    st.caption("A quick look at the week. Other Daily 10 modes are listed separately from multiplication fluency.")
     selected, _ = _class_picker(store, key="teacher_recap_class")
     if selected is None:
         return
@@ -166,12 +166,12 @@ def render_teacher_weekly_recap(store: SupabaseFactStore) -> None:
     try:
         students, full_by_student, history = _load_class_evidence(store, selected, today=today, history_days=35)
     except Exception as exc:
-        st.warning("The weekly recap could not refresh just now. No student data was changed.")
+        st.warning("The weekly recap could not refresh just now. Try again in a moment.")
         if str(st.query_params.get("dbcheck", "0")) == "1":
             st.exception(exc)
         return
     if not students:
-        st.info("This class has no active students yet.")
+        st.info("This class has no students yet.")
         return
 
     recap = weekly_recap(history, full_by_student, week_start=week_start, class_size=len(students))
@@ -206,11 +206,11 @@ def render_teacher_weekly_recap(store: SupabaseFactStore) -> None:
                 for row in recap["progress"]
             ]), hide_index=True, use_container_width=True)
         else:
-            st.caption("No student crossed the conservative +10-point improvement threshold with enough evidence in both weeks.")
+            st.caption("No student improved by at least 10 percentage points with enough work in both weeks.")
 
     st.markdown("#### Fluency Momentum")
-    st.metric("Newly secured fact signals", recap["newly_secured_signal_count"])
-    st.caption("This is a conservative signal, not an exact historical mastery-transition count. The current mastery table does not store a status snapshot for every past date.")
+    st.metric("New facts looking strong", recap["newly_secured_signal_count"])
+    st.caption("This is an estimate based on each student's current fact history.")
 
 
 def render_student_learning_snapshot(store: SupabaseFactStore, class_record, students, student) -> None:
@@ -225,7 +225,7 @@ def render_student_learning_snapshot(store: SupabaseFactStore, class_record, stu
         signals = build_student_signals([student], {student.student_id: full_map}, history, today=today)
         signal = signals[0]
     except Exception as exc:
-        st.caption("⚠️ Learning snapshot could not refresh; account and classroom support tools below are still available.")
+        st.caption("⚠️ Learning snapshot could not refresh; the support tools below are still available.")
         if str(st.query_params.get("dbcheck", "0")) == "1":
             st.exception(exc)
         return
@@ -235,15 +235,15 @@ def render_student_learning_snapshot(store: SupabaseFactStore, class_record, stu
     c1.metric("Knows", f"{signal.summary.known}/45")
     c2.metric("Needs help", signal.summary.needs_help)
     c3.metric("Accurate but slow", signal.summary.slow)
-    c4.metric("Evidence", f"{signal.summary.evidence_facts}/45")
+    c4.metric("Facts with history", f"{signal.summary.evidence_facts}/45")
     st.markdown(f"**Recommended focus:** {student_recommendation(signal)}")
 
     if signal.repeated_misses:
         st.markdown("**Repeated recent errors:** " + ", ".join(signal.repeated_misses[:5]))
     if signal.fragile_facts:
-        st.markdown("**Fragile facts to recheck:** " + ", ".join(signal.fragile_facts[:5]))
+        st.markdown("**Facts to recheck:** " + ", ".join(signal.fragile_facts[:5]))
     if signal.accuracy_change is not None:
-        st.caption(f"Recent multiplication accuracy change: {signal.accuracy_change * 100:+.0f} percentage points across the last two five-Daily windows.")
+        st.caption(f"Recent multiplication accuracy: {signal.accuracy_change * 100:+.0f} percentage points compared with the previous five Dailies.")
 
     student_history = [row for row in history if str(row.get("student_id")) == str(student.student_id)]
     recent = sorted(student_history, key=lambda row: str(row.get("challenge_date")), reverse=True)[:5]

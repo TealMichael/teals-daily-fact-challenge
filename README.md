@@ -1,12 +1,14 @@
-# Teal's Daily Fact Challenge v2.16.0 — Phase 3: Planning & History
+# Teal's Daily Fact Challenge v2.16.1 — UI Language Polish
 
-**Teacher planning/history only:** Warm-Up gains planning shortcuts, reusable templates, targeted copying, reuse-next-week, and a student-style preview. Daily 10 Setup becomes a Mon–Fri weekly planner with copy/reset/apply-to-all tools and tomorrow preview. Learning gains a read-only Class History view for Daily 10 results/Top 10/common misses, Warm-Up evidence, and Weekly Mystery history by class/date.
+**Plain classroom language throughout the normal app:** this release removes build/developer wording from teacher screens, setup messages, Test Student tools, Warm-Up, Learning, Today, Class History, and the classroom Clock page. Necessary clock-install details are still available inside a collapsed **One-time clock setup** area instead of filling the everyday teacher view.
 
-The student-facing Daily, alternate Daily, Practice, Fix/Focus, Fact Coach, mastery engine, Igniter student flow, Mystery student flow, login/PIN, `TDFC-DAILY-v1`, and AWTRIX remain protected. **No Supabase SQL, new Streamlit Secret, or AWTRIX reinstall is required.**
+This is a wording/presentation polish release. Daily 10 generation/scoring, mastery, Warm-Up grading, Mystery rules, Top 10, login/PIN behavior, Supabase persistence, `TDFC-DAILY-v1`, and AWTRIX behavior are unchanged. **No SQL migration, new secret, or clock reinstall is required.**
 
 ---
 
 # Teal's Daily Fact Challenge
+
+> **v2.16.1 — UI Language Polish:** removes developer/build jargon from normal teacher and student-visible copy while preserving the underlying workflows. Everyday screens no longer talk about Supabase, migrations, sandboxes, engine views, protected generators, evidence plumbing, or implementation details. Necessary technical clock-install information is tucked into a collapsed One-time clock setup panel. No SQL, scoring, mastery, Daily-generation, Mystery-rule, or AWTRIX behavior changes.
 
 > **v2.16.0 — Phase 3: Planning & History:** adds Warm-Up planning shortcuts/templates, a weekly Daily 10 planner, and teacher-only Class History. Historical raw Warm-Up response text remains intentionally cleared after the day; correctness and standards evidence remain visible. No SQL, student-flow, scoring, mastery, or AWTRIX changes.
 
