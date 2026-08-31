@@ -16,7 +16,7 @@ def check(name, condition):
     assert condition, name
     checks.append(name)
 
-check("v2.14.2 version", APP_VERSION == "2.14.2")
+check("v2.14.3 version", APP_VERSION == "2.14.3")
 check("multiplication challenge version untouched", CHALLENGE_VERSION == "TDFC-DAILY-v1")
 
 # Execute the real pure raffle-state helpers from app.py without importing the Streamlit app shell.
@@ -51,9 +51,9 @@ check("stale saved winner remains pending", has_pending(store, last_week))
 check("raffle unlock uses its own Friday date", "raffle_open = day >= (week_start + timedelta(days=4))" in APP)
 check("previous week checked for undrawn raffle", "previous_week = week_start - timedelta(days=7)" in APP and "_mystery_raffle_has_pending_draw(store, previous_week)" in APP)
 check("late raffle has explicit teacher heading", "Last Week's Prize Raffles" in APP)
-check("late raffle says current mystery is unaffected", "do not affect the new week's Mystery" in APP)
+check("late raffle stays tied to previous week", "store, previous_week, day=day" in APP)
 
-primary_nav = '["📊 Today", "🧠 Warm-Up", "📈 Learning", "⚙️ Manage"]'
+primary_nav = '["📊 Today", "🧠 Warm-Up", "📈 Learning", "🕵️ Weekly Mystery", "⚙️ Manage"]'
 check("v2.13.1 Today and Warm-Up remain first-class destinations", primary_nav in APP)
 check("daily setup remains outside primary navigation", "🎯 Daily 10 Setup" not in primary_nav)
 check("all v2.13.1 teacher tools remain reachable after grouping", all(item in APP for item in [

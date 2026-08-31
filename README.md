@@ -1,12 +1,14 @@
-# Teal's Daily Fact Challenge v2.14.2 — Raffle Safety Hotfix
+# Teal's Daily Fact Challenge v2.14.3 — Weekly Mystery + Navigation Polish
 
-**Teacher-side Weekly Mystery safety only:** prior-week raffle winners remain visible after the final class draw, including saved historical results. The Weekly Mystery teacher page is now projector-safe by default: current-week and next-week answers/clues stay behind collapsed teacher-only panels. The initial Draw Winner action saves and displays the winner without immediately rerunning away from the result.
+**Teacher-side polish only:** Weekly Mystery now opens with the current week first, keeps prior-week raffle history at the bottom, removes the explanatory projector/saved-result banners, and promotes Weekly Mystery into the main Teacher Dashboard navigation. The underlying v2.14.2 raffle-safety behavior remains intact: saved winners stay visible and current/next-week answers and clues remain inside collapsed teacher-only panels.
 
 The student Mystery experience, Daily 10, Practice, alternate Daily, Igniter, Fact Coach, adaptive/mastery behavior, persistent login/PIN components, Daily scoring, `TDFC-DAILY-v1`, and AWTRIX behavior remain protected. **No Supabase SQL, new Streamlit Secret, or AWTRIX reinstall is required.**
 
 ---
 
 # Teal's Daily Fact Challenge
+
+> **v2.14.3 — Weekly Mystery + Navigation Polish:** keeps the active Mystery at the top of the teacher page, moves prior-week raffle history to the bottom, removes developer-style safety banners while preserving collapsed answer/clue protection, and promotes Weekly Mystery to the main teacher navigation. No SQL, student-flow, scoring, mastery, or AWTRIX changes.
 
 > **v2.14.0 — Teacher Command Center:** introduced the Phase 1 all-class Today command center, grouped teacher navigation, quick teacher routes, safer exception controls, and stronger teacher-side data-failure isolation without changing student-facing gameplay.
 

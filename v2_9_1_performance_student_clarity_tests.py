@@ -17,13 +17,13 @@ def section(name: str, next_name: str | None = None, source: str = APP) -> str:
 
 def run():
     checks = {}
-    checks["version 2.9.3"] = APP_VERSION == "2.14.2"
+    checks["version 2.9.3"] = APP_VERSION == "2.14.3"
 
     teacher = section("render_teacher", "maybe_render_db_diagnostic")
     checks["teacher dashboard is lazy"] = "st.tabs(" not in teacher and 'primary = st.radio(' in teacher
     checks["only chosen teacher section dispatches"] = all(x in teacher for x in [
         'if primary == "📊 Today"', 'elif primary == "🧠 Warm-Up"', 'elif primary == "📈 Learning"',
-        'manage_section == "🕵️ Weekly Mystery"', 'manage_section == "👥 Classes & Rosters"',
+        'elif primary == "🕵️ Weekly Mystery"', 'manage_section == "👥 Classes & Rosters"',
         'learning_section == "📈 Learning Data"', 'render_teacher_test_student_launcher(store)'
     ])
 

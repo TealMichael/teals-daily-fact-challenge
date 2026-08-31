@@ -8,7 +8,7 @@ end = APP.index("\ndef render_daily(store", start)
 completed = APP[start:end]
 
 checks = {
-    "version": 'APP_VERSION = "2.14.2"' in ENGINE,
+    "version": 'APP_VERSION = "2.14.3"' in ENGINE,
     "compact completion message": 'st.success("✅ Daily 10 complete!")' in completed,
     "fix next step visible": 'st.markdown("### Next: Fix Your Misses")' in completed,
     "fix count visible": 'You have {missed_count} fact' in completed,

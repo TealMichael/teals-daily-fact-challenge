@@ -15,7 +15,7 @@ def check(name, condition):
     assert condition, name
     checks.append(name)
 
-check("v2.14.2 version", APP_VERSION == "2.14.2")
+check("v2.14.3 version", APP_VERSION == "2.14.3")
 check("Daily challenge contract unchanged", CHALLENGE_VERSION == "TDFC-DAILY-v1")
 
 # Execute real pure raffle-state helpers from app.py without importing Streamlit.
@@ -80,7 +80,7 @@ check("final draw celebrates winner", "st.balloons()" in APP)
 check("historical saved winner displays even if current eligibility changes", "This is the saved historical raffle result" in APP)
 
 # Projector safety: no answer/clue preview is rendered by default.
-check("projector-safe status is explicit", "Projector-safe by default" in APP)
+check("projector safety no longer needs a dashboard banner", "Projector-safe by default" not in APP)
 check("current mystery answer is behind collapsed teacher expander", 'with st.expander("🔒 Teacher Mystery details · contains the answer and clues", expanded=False):' in APP)
 check("next-week mystery planner is behind collapsed teacher expander", "with st.expander(f\"🔒 Plan Next Week's Mystery" in APP and "expanded=False" in APP)
 check("current preview only appears inside protected render function region", APP.index('_render_teacher_mystery_preview(mystery, label="Teacher preview")') > APP.index('with st.expander("🔒 Teacher Mystery details'))

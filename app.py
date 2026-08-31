@@ -1844,7 +1844,7 @@ def _go_teacher_tool(tool: str, class_name: str | None = None) -> None:
         "Warm-Up": ("🧠 Warm-Up", None, None),
         "Learning Data": ("📈 Learning", "📈 Learning Data", None),
         "Student Support": ("📈 Learning", "🛠️ Student Support", None),
-        "Weekly Mystery": ("⚙️ Manage", "🕵️ Weekly Mystery", None),
+        "Weekly Mystery": ("🕵️ Weekly Mystery", None, None),
         "Classes & Rosters": ("⚙️ Manage", "👥 Classes & Rosters", "👥 Rosters"),
         "Daily 10 Setup": ("⚙️ Manage", "👥 Classes & Rosters", "🎯 Daily 10 Setup"),
         "Clock": ("⚙️ Manage", "🖥️ Clock", None),
@@ -2591,7 +2591,6 @@ def _render_teacher_next_week_mystery_planner(store: SupabaseFactStore, next_wee
 def render_teacher_weekly_mystery(store: SupabaseFactStore) -> None:
     st.markdown("### 🕵️ Weekly Mystery")
     st.caption("One shared just-for-fun mystery. Full routines earn one clue Monday–Friday; Guess #1 is Thursday and Guess #2 is Friday.")
-    st.info("🛡️ Projector-safe by default: Mystery answers and clues stay hidden until you deliberately open a teacher-only details panel.")
     day = current_daily_date()
     try:
         week_start, record, mystery = ensure_weekly_mystery(store, day)
@@ -2603,22 +2602,8 @@ def render_teacher_weekly_mystery(store: SupabaseFactStore) -> None:
             st.exception(exc)
         return
 
-    previous_week = week_start - timedelta(days=7)
-    previous_pending = _mystery_raffle_has_pending_draw(store, previous_week)
-    previous_saved = _mystery_raffle_has_saved_winner(store, previous_week)
-    if previous_pending or previous_saved:
-        previous_label = previous_week.strftime('%B %d, %Y').replace(' 0', ' ')
-        if previous_pending:
-            st.warning("🎟️ Last week's raffle still needs attention. Saved winners remain visible while you finish any undrawn classes.")
-        else:
-            st.success("🎟️ Last week's raffle results are saved. They stay visible here so a final draw can never disappear before you see the winner.")
-        _render_teacher_mystery_raffle(
-            store, previous_week, day=day,
-            heading=f"Last Week's Prize Raffles · {previous_label}",
-            caption="Projector-safe raffle center. Saved winners stay attached to last week and do not affect the new week's Mystery.",
-        )
-        st.markdown("---")
-
+    # Current week stays first. Answer/clue protection remains structural through
+    # collapsed teacher-only panels rather than explanatory dashboard banners.
     st.markdown(f"#### This Week · {week_start.strftime('%B %d, %Y').replace(' 0', ' ')}")
     c1, c2, c3 = st.columns(3)
     c1.metric("Students unlocked", int(stats.get("students_unlocked", 0)))
@@ -2649,6 +2634,20 @@ def render_teacher_weekly_mystery(store: SupabaseFactStore) -> None:
     with st.expander(f"🔒 Plan Next Week's Mystery · {next_label} · contains answer and clues", expanded=False):
         st.caption("Keep this closed while the screen is visible to students.")
         _render_teacher_next_week_mystery_planner(store, next_week)
+
+    # Prior-week raffle history belongs at the bottom so today's Mystery is the
+    # first thing a teacher sees. Saved winners remain visible after final draw.
+    previous_week = week_start - timedelta(days=7)
+    previous_pending = _mystery_raffle_has_pending_draw(store, previous_week)
+    previous_saved = _mystery_raffle_has_saved_winner(store, previous_week)
+    if previous_pending or previous_saved:
+        st.markdown("---")
+        previous_label = previous_week.strftime('%B %d, %Y').replace(' 0', ' ')
+        _render_teacher_mystery_raffle(
+            store, previous_week, day=day,
+            heading=f"Last Week's Prize Raffles · {previous_label}",
+            caption="Saved winners and any remaining drawings from last week.",
+        )
 
 def _test_student_backup_keys() -> tuple[str, ...]:
     return ("student_id", "student_nickname", "student_class_id", "student_class_name", "student_is_test")
@@ -2747,14 +2746,14 @@ def render_teacher(store: SupabaseFactStore | None) -> None:
     top_left, top_right = st.columns([7, 1])
     with top_left:
         st.markdown("## Teacher Dashboard")
-        st.caption("Today and Warm-Up stay one tap away. Learning and administrative tools are grouped so the dashboard stays calm.")
+        st.caption("Your everyday classroom tools stay one tap away.")
     with top_right:
         if st.button("Log out"):
             st.session_state.teacher_authed = False
             st.session_state["teacher_projector_mode"] = False
             st.rerun()
 
-    teacher_primary_sections = ["📊 Today", "🧠 Warm-Up", "📈 Learning", "⚙️ Manage"]
+    teacher_primary_sections = ["📊 Today", "🧠 Warm-Up", "📈 Learning", "🕵️ Weekly Mystery", "⚙️ Manage"]
     current_primary = st.session_state.get("teacher_primary_section")
     if current_primary not in teacher_primary_sections:
         st.session_state["teacher_primary_section"] = "📊 Today"
@@ -2779,17 +2778,17 @@ def render_teacher(store: SupabaseFactStore | None) -> None:
             render_teacher_mastery_focus(store)
         else:
             render_teacher_student_tools(store)
+    elif primary == "🕵️ Weekly Mystery":
+        render_teacher_weekly_mystery(store)
     else:
-        manage_sections = ["🕵️ Weekly Mystery", "👥 Classes & Rosters", "🖥️ Clock", "🧪 Test Student"]
+        manage_sections = ["👥 Classes & Rosters", "🖥️ Clock", "🧪 Test Student"]
         if st.session_state.get("teacher_manage_section") not in manage_sections:
-            st.session_state["teacher_manage_section"] = "🕵️ Weekly Mystery"
+            st.session_state["teacher_manage_section"] = "👥 Classes & Rosters"
         manage_section = st.radio(
             "Manage tools", manage_sections, horizontal=True,
             label_visibility="collapsed", key="teacher_manage_section",
         )
-        if manage_section == "🕵️ Weekly Mystery":
-            render_teacher_weekly_mystery(store)
-        elif manage_section == "👥 Classes & Rosters":
+        if manage_section == "👥 Classes & Rosters":
             render_teacher_class_hub(store)
         elif manage_section == "🖥️ Clock":
             render_teacher_clock(store)

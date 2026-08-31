@@ -29,7 +29,7 @@ def check(name: str, condition: bool) -> None:
     checks.append(name)
 
 
-check("v2.14.2 version", APP_VERSION == "2.14.2")
+check("v2.14.3 version", APP_VERSION == "2.14.3")
 check("multiplication challenge untouched", CHALLENGE_VERSION == "TDFC-DAILY-v1")
 check("v2.14 requires no SQL migration", not (ROOT / "RUN_THIS_ONCE_IN_SUPABASE_v2_14.sql").exists())
 
@@ -97,9 +97,9 @@ check("4x30 attendance settings remain class-scoped", all(len(load_absent_studen
 check("attendance settings never deactivate students", all(len(scale_store.list_students(item.class_id)) == 30 for item in scale_classes))
 
 # Navigation grouping keeps daily tools prominent while retaining every old teacher destination.
-check("primary teacher nav is four calm destinations", '["📊 Today", "🧠 Warm-Up", "📈 Learning", "⚙️ Manage"]' in APP)
+check("primary teacher nav keeps everyday tools one tap away", '["📊 Today", "🧠 Warm-Up", "📈 Learning", "🕵️ Weekly Mystery", "⚙️ Manage"]' in APP)
 check("learning tools are grouped", '["📈 Learning Data", "🛠️ Student Support"]' in APP)
-check("administrative tools are grouped", '["🕵️ Weekly Mystery", "👥 Classes & Rosters", "🖥️ Clock", "🧪 Test Student"]' in APP)
+check("administrative tools are grouped", '["👥 Classes & Rosters", "🖥️ Clock", "🧪 Test Student"]' in APP)
 check("daily setup remains tucked with classes", '["👥 Rosters", "🎯 Daily 10 Setup"]' in APP)
 check("Today has all-class snapshot", "All Classes Snapshot" in TODAY and '"Open class"' in TODAY)
 check("Today has action center", "Quick follow-ups" in TODAY and "build_today_action_items" in TODAY)

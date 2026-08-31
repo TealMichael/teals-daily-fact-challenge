@@ -1,0 +1,13 @@
+Teal's Daily Fact Challenge v2.14.3 — Final Verification
+
+Focused v2.14.3 Mystery/nav polish regression: 18/18 passed
+v2.14.2 raffle-safety regression: 19/19 passed
+v2.14.0 Teacher Command Center regression: 49/49 passed
+Full historical/current regression inventory: 70/70 test files passed
+Python package smoke: 92 Python files parsed; 39 required app files present
+Runtime-name guard: 21 production modules passed
+Student Daily challenge contract remains TDFC-DAILY-v1
+No v2.14.3 Supabase migration
+No AWTRIX changes
+
+Release scope: teacher-side Weekly Mystery ordering/navigation polish only.

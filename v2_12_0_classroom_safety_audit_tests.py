@@ -41,7 +41,8 @@ print("PASS: AWTRIX remains out of student flow")
 
 # Teacher Clock stays lazy behind its own selected section.
 teacher = source("render_teacher")
-assert 'manage_sections = ["🕵️ Weekly Mystery", "👥 Classes & Rosters", "🖥️ Clock", "🧪 Test Student"]' in teacher
+assert 'teacher_primary_sections = ["📊 Today", "🧠 Warm-Up", "📈 Learning", "🕵️ Weekly Mystery", "⚙️ Manage"]' in teacher
+assert 'manage_sections = ["👥 Classes & Rosters", "🖥️ Clock", "🧪 Test Student"]' in teacher
 assert 'elif manage_section == "🖥️ Clock":' in teacher
 assert "render_teacher_clock(store)" in teacher
 print("PASS: Clock setup remains teacher-section only")
@@ -62,7 +63,7 @@ print("PASS: Projector remains recoverable on Daily-status failure")
 
 # Existing v2.12 behavior/contracts that matter for tomorrow.
 engine = (ROOT / "fact_engine.py").read_text(encoding="utf-8")
-assert 'APP_VERSION = "2.14.2"' in engine
+assert 'APP_VERSION = "2.14.3"' in engine
 assert 'CHALLENGE_VERSION = "TDFC-DAILY-v1"' in engine
 print("PASS: Daily challenge version unchanged")
 

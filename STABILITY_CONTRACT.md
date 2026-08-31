@@ -91,7 +91,7 @@ Future releases should run `python release_guard.py` plus the full `*_tests.py` 
 - A student who already completed the Daily 10 cannot be marked absent, preventing attendance metadata from silently changing a completed student-facing Top 10 result.
 - Reopening a Daily remains an explicit teacher action with confirmation and uses the existing reset/rebuild path.
 - Archiving a student uses the existing inactive-account behavior and preserves history/PIN for restoration.
-- Primary teacher navigation is intentionally limited to Today, Warm-Up, Learning, and Manage; all existing teacher tools remain reachable underneath those groups.
+- Primary teacher navigation keeps Today, Warm-Up, Learning, Weekly Mystery, and Manage one tap away; Classes & Rosters, Clock, and Test Student remain grouped under Manage.
 ## v2.14.2 Weekly Mystery raffle safety protections
 
 - A saved raffle result is historical data and must remain visible after all classes have been drawn; the UI must not depend only on whether a raffle is still pending.
@@ -100,3 +100,10 @@ Future releases should run `python release_guard.py` plus the full `*_tests.py` 
 - Teacher Weekly Mystery is projector-safe by default: mystery answers and clues for both the active week and planned next week remain inside collapsed teacher-only panels.
 - Delayed prior-week raffle drawing must never reveal the new week's mystery merely because the last pending raffle becomes complete.
 
+## v2.14.3 Weekly Mystery / teacher navigation protections
+
+- Teacher Weekly Mystery should show the active/current week before prior-week raffle history.
+- Prior-week saved raffle winners remain visible at the bottom even after every class drawing is complete.
+- Removing explanatory safety banners must never remove the actual projector-safety behavior: current and next-week answers/clues stay in collapsed teacher-only panels.
+- Weekly Mystery is a primary teacher navigation destination; Manage contains only Classes & Rosters, Clock, and Test Student.
+- This polish remains teacher-only and must not change student Mystery, Daily 10, mastery, login/PIN, or AWTRIX behavior.

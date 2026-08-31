@@ -1,30 +1,19 @@
-Teal's Daily Fact Challenge v2.14.2 — Raffle Safety Hotfix
+Teal's Daily Fact Challenge v2.14.3 — Weekly Mystery + Navigation Polish
 
-INSTALL FROM v2.14.1
+INSTALL FROM v2.14.2
 1. Do NOT run any Supabase SQL.
 2. Copy every file from COPY_INTO_GITHUB_REPO into the root of the existing GitHub repository.
 3. Allow replacements.
 4. Commit and push with GitHub Desktop.
 5. Let Streamlit Cloud redeploy and refresh the app.
-6. Open Teacher -> Manage -> Weekly Mystery.
+6. Open Teacher -> Weekly Mystery.
 
 EXPECTED RESULT
-- Last week's saved raffle winners remain visible even after all class raffles have been drawn.
-- Drawing the final winner shows the winner immediately and saves it.
-- Current and next-week Mystery answers/clues are hidden behind collapsed teacher-only panels by default.
+- Top navigation reads Today | Warm-Up | Learning | Weekly Mystery | Manage.
+- Weekly Mystery shows This Week first.
+- Next Week planning remains collapsed.
+- Last Week's Prize Raffles appear at the bottom when saved/pending results exist.
+- The blue projector-safety and green saved-results explanation boxes are gone.
+- Current and next-week answers/clues remain hidden in collapsed teacher-only panels.
 
 NO SQL. NO NEW STREAMLIT SECRET. NO AWTRIX CHANGE.
-
-RECOVER THE AUGUST 28 RAFFLE (READ-ONLY)
-In Supabase SQL Editor, if needed:
-
-select
-  setting_value->>'class_name' as class,
-  setting_value->>'nickname' as winner,
-  setting_value->>'drawn_at' as drawn_at,
-  setting_key
-from public.app_settings
-where setting_key like 'weekly_mystery_raffle::2026-08-24::%'
-order by setting_value->>'class_name';
-
-This query only reads saved results. Do not delete or update those rows.
