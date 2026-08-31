@@ -42,6 +42,7 @@ from daily_modes import configured_daily_mode, questions_for_mode
 from student_alt_daily_ui import render_alternate_daily
 from teacher_daily_setup_ui import render_teacher_daily_setup
 from teacher_learning_ui import render_teacher_mastery_focus, _override_label, _override_value
+from teacher_intelligence_ui import render_teacher_next_steps, render_teacher_weekly_recap, render_student_learning_snapshot
 from teacher_warmup_ui import render_teacher_warmup as _render_teacher_warmup_module
 from teacher_clock_ui import render_teacher_clock
 from teacher_today_ui import render_teacher_today_command_center as _render_teacher_today_command_center
@@ -1842,6 +1843,7 @@ def _go_teacher_tool(tool: str, class_name: str | None = None) -> None:
     routes = {
         "Today": ("📊 Today", None, None),
         "Warm-Up": ("🧠 Warm-Up", None, None),
+        "Next Steps": ("📈 Learning", "🧭 Next Steps", None),
         "Learning Data": ("📈 Learning", "📈 Learning Data", None),
         "Student Support": ("📈 Learning", "🛠️ Student Support", None),
         "Weekly Mystery": ("🕵️ Weekly Mystery", None, None),
@@ -2199,6 +2201,7 @@ def render_teacher_student_tools(store: SupabaseFactStore) -> None:
 
     st.markdown(f"#### {student.nickname}")
     st.caption(f"{class_record.class_name} · {'Active' if student.active else 'Inactive'} · PIN {student.pin_code or 'reset once'}")
+    render_student_learning_snapshot(store, class_record, students, student)
 
     action_key = f"student_support_action::{student.student_id}"
     if action_key not in st.session_state:
@@ -2767,17 +2770,21 @@ def render_teacher(store: SupabaseFactStore | None) -> None:
     elif primary == "🧠 Warm-Up":
         render_teacher_warmup(store)
     elif primary == "📈 Learning":
-        learning_sections = ["📈 Learning Data", "🛠️ Student Support"]
+        learning_sections = ["🧭 Next Steps", "📈 Learning Data", "🛠️ Student Support", "📅 Weekly Recap"]
         if st.session_state.get("teacher_learning_section") not in learning_sections:
-            st.session_state["teacher_learning_section"] = "📈 Learning Data"
+            st.session_state["teacher_learning_section"] = "🧭 Next Steps"
         learning_section = st.radio(
             "Learning tools", learning_sections, horizontal=True,
             label_visibility="collapsed", key="teacher_learning_section",
         )
-        if learning_section == "📈 Learning Data":
+        if learning_section == "🧭 Next Steps":
+            render_teacher_next_steps(store)
+        elif learning_section == "📈 Learning Data":
             render_teacher_mastery_focus(store)
-        else:
+        elif learning_section == "🛠️ Student Support":
             render_teacher_student_tools(store)
+        else:
+            render_teacher_weekly_recap(store)
     elif primary == "🕵️ Weekly Mystery":
         render_teacher_weekly_mystery(store)
     else:

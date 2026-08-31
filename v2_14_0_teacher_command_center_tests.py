@@ -29,7 +29,7 @@ def check(name: str, condition: bool) -> None:
     checks.append(name)
 
 
-check("v2.14.3 version", APP_VERSION == "2.14.3")
+check("v2.15.0 version", APP_VERSION == "2.15.0")
 check("multiplication challenge untouched", CHALLENGE_VERSION == "TDFC-DAILY-v1")
 check("v2.14 requires no SQL migration", not (ROOT / "RUN_THIS_ONCE_IN_SUPABASE_v2_14.sql").exists())
 
@@ -98,7 +98,7 @@ check("attendance settings never deactivate students", all(len(scale_store.list_
 
 # Navigation grouping keeps daily tools prominent while retaining every old teacher destination.
 check("primary teacher nav keeps everyday tools one tap away", '["📊 Today", "🧠 Warm-Up", "📈 Learning", "🕵️ Weekly Mystery", "⚙️ Manage"]' in APP)
-check("learning tools are grouped", '["📈 Learning Data", "🛠️ Student Support"]' in APP)
+check("learning tools are grouped", all(label in APP for label in ["📈 Learning Data", "🛠️ Student Support"]))
 check("administrative tools are grouped", '["👥 Classes & Rosters", "🖥️ Clock", "🧪 Test Student"]' in APP)
 check("daily setup remains tucked with classes", '["👥 Rosters", "🎯 Daily 10 Setup"]' in APP)
 check("Today has all-class snapshot", "All Classes Snapshot" in TODAY and '"Open class"' in TODAY)

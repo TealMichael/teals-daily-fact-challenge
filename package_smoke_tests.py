@@ -23,6 +23,8 @@ def run():
         "student_igniter_ui.py",
         "teacher_warmup_ui.py",
         "teacher_learning_ui.py",
+        "teacher_intelligence.py",
+        "teacher_intelligence_ui.py",
         "teacher_clock_ui.py",
         "AWTRIX_FactTop10.berry",
         "RUN_THIS_ONCE_IN_SUPABASE_v2_12.sql",

@@ -63,7 +63,7 @@ print("PASS: Projector remains recoverable on Daily-status failure")
 
 # Existing v2.12 behavior/contracts that matter for tomorrow.
 engine = (ROOT / "fact_engine.py").read_text(encoding="utf-8")
-assert 'APP_VERSION = "2.14.3"' in engine
+assert 'APP_VERSION = "2.15.0"' in engine
 assert 'CHALLENGE_VERSION = "TDFC-DAILY-v1"' in engine
 print("PASS: Daily challenge version unchanged")
 

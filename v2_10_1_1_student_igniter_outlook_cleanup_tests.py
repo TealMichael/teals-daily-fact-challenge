@@ -18,7 +18,7 @@ def section(name: str, next_name: str | None = None, source: str = APP) -> str:
 
 def run():
     checks = {}
-    checks["version 2.11.2"] = APP_VERSION == "2.14.3"
+    checks["version 2.11.2"] = APP_VERSION == "2.15.0"
 
     header = section("render_header", "render_db_setup_message")
     checks["prelogin forces student landing mode"] = 'if not signed_in and mode != "Teacher":' in header

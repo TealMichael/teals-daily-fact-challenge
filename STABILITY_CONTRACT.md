@@ -43,6 +43,8 @@ This contract was rebased in v2.11.2 on the proven v2.11.0.3 classroom build to 
 - `student_igniter_ui.py` — student Igniter only.
 - `teacher_warmup_ui.py` — teacher Igniter planning/results/email/export only.
 - `teacher_learning_ui.py` — Fact Fluency + Standards Tracker only.
+- `teacher_intelligence.py` — pure teacher-only Phase 2 interpretation helpers; no Streamlit routing or student writes.
+- `teacher_intelligence_ui.py` — Next Steps, Weekly Recap, and Student Support learning snapshots only.
 - `teacher_clock_ui.py` — teacher-only AWTRIX class mapping, token setup, and manual Top 10 queue controls only.
 - `ui_helpers.py` — small shared presentation helpers.
 - `fact_engine.py`, `adaptive_engine.py`, `teacher_insights.py` — domain logic; no Streamlit page routing.
@@ -107,3 +109,16 @@ Future releases should run `python release_guard.py` plus the full `*_tests.py` 
 - Removing explanatory safety banners must never remove the actual projector-safety behavior: current and next-week answers/clues stay in collapsed teacher-only panels.
 - Weekly Mystery is a primary teacher navigation destination; Manage contains only Classes & Rosters, Clock, and Test Student.
 - This polish remains teacher-only and must not change student Mystery, Daily 10, mastery, login/PIN, or AWTRIX behavior.
+
+## v2.15 Phase 2 instructional-intelligence protections
+
+- Phase 2 is teacher-facing interpretation only. It must not write mastery, assign Focus plans, alter Daily attempts, or change student-facing routines.
+- Alternate Daily 10 modes may count in teacher completion summaries, but only Multiplication Daily answers may contribute to fact-level fluency intelligence.
+- "Needs Help" and speed interpretations continue to use the existing conservative teacher band logic; a single miss or one slow classroom interruption must not create an intervention signal.
+- Repeated-error signals are recent (roughly two weeks) so recovered errors do not remain on the teacher watch list indefinitely.
+- Meaningful-progress signals require enough independent multiplication evidence in both comparison windows before showing an improvement claim.
+- Fragile retrieval is a conservative watch signal, not a claim that a student lost mastery; the current database does not store historical mastery-status snapshots.
+- Suggested groups are recommendations only and remain bounded/short. They do not automatically change any student Focus override.
+- Weekly Recap must label estimated/newly-secured fluency momentum honestly rather than presenting it as an exact historical status transition.
+- Teacher history reads must stay bulked/chunked so a class-level insight page does not create one database request per student or exceed PostgREST URL limits.
+- `teacher_insights.py` and the existing Learning Data UI remain unchanged; Phase 2 lives beside them in `teacher_intelligence.py` and `teacher_intelligence_ui.py`.

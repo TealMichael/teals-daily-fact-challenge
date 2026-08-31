@@ -443,10 +443,16 @@ class SupabaseFactStore:
         raise FactStoreError("Could not generate a unique class code.") from last_exc
 
     def list_classes(self, *, include_inactive: bool = False) -> list[ClassRecord]:
-        query = self.client.table("classes").select("*")
-        if not include_inactive:
-            query = query.eq("active", True)
-        rows = _rows(query.order("class_name").execute())
+        # Class lists sit at the top of several teacher workflows. A brief
+        # Supabase transport reset should not crash the entire dashboard; rebuild
+        # the query for each retry so a failed PostgREST builder is never reused.
+        def fetch_classes():
+            query = self.client.table("classes").select("*")
+            if not include_inactive:
+                query = query.eq("active", True)
+            return query.order("class_name").execute()
+
+        rows = _rows(_retry_transient(fetch_classes, attempts=4))
         return [_class(row) for row in rows]
 
     def get_class(self, class_id: str) -> ClassRecord:
@@ -1812,6 +1818,94 @@ class SupabaseFactStore:
             .eq("challenge_id", str(challenge_id)).in_("student_id", ids).execute()
         )
         return {str(row["student_id"]): _learning(row) for row in rows}
+
+    def teacher_daily_history(
+        self, class_id: str, start_date: date | str, end_date: date | str,
+        *, students: Sequence[StudentRecord] | None = None,
+    ) -> list[dict]:
+        """Return a compact teacher-only Daily history for instructional analysis.
+
+        The read is deliberately bulked into a small number of Supabase queries:
+        challenges, completed attempts, then chunked multiplication-answer reads.
+        Chunking keeps large classes below PostgREST URL limits. Alternate Daily
+        modes remain visible for completion summaries but never become
+        multiplication fact evidence.
+        """
+        start_key = start_date.isoformat() if isinstance(start_date, date) else str(start_date)
+        end_key = end_date.isoformat() if isinstance(end_date, date) else str(end_date)
+        students = list(students) if students is not None else self.list_students(class_id, include_inactive=True)
+        student_map = {str(student.student_id): student for student in students}
+        if not student_map:
+            return []
+
+        challenge_rows = _rows(_retry_transient(lambda: (
+            self.client.table("daily_challenges").select("challenge_id,challenge_date")
+            .gte("challenge_date", start_key).lte("challenge_date", end_key)
+            .order("challenge_date").range(0, 199).execute()
+        )))
+        challenge_dates = {str(row["challenge_id"]): str(row["challenge_date"]) for row in challenge_rows}
+        if not challenge_dates:
+            return []
+
+        attempt_rows = _rows(_retry_transient(lambda: (
+            self.client.table("daily_attempts")
+            .select("attempt_id,student_id,challenge_id,correct_count,timed_seconds,completed_at,daily_mode")
+            .in_("student_id", list(student_map))
+            .in_("challenge_id", list(challenge_dates))
+            .not_.is_("completed_at", "null")
+            .range(0, 4999).execute()
+        )))
+        if not attempt_rows:
+            return []
+
+        multiplication_attempt_ids = [
+            str(row["attempt_id"]) for row in attempt_rows
+            if str(row.get("daily_mode") or "Multiplication") == "Multiplication"
+        ]
+        answers_by_attempt: dict[str, list[dict]] = {attempt_id: [] for attempt_id in multiplication_attempt_ids}
+        answer_rows: list[dict] = []
+        for offset in range(0, len(multiplication_attempt_ids), 100):
+            attempt_batch = multiplication_attempt_ids[offset:offset + 100]
+            answer_rows.extend(_rows(_retry_transient(lambda batch=attempt_batch: (
+                self.client.table("daily_answers")
+                .select("attempt_id,question_number,a,b,correct,first_correct,response_seconds,submitted_at")
+                .in_("attempt_id", batch)
+                .order("submitted_at").range(0, 1999).execute()
+            ))))
+        for row in answer_rows:
+            attempt_id = str(row.get("attempt_id") or "")
+            if attempt_id not in answers_by_attempt:
+                continue
+            answers_by_attempt[attempt_id].append({
+                "question_number": int(row.get("question_number") or 0),
+                "a": int(row.get("a") or 0),
+                "b": int(row.get("b") or 0),
+                "correct": bool(row.get("correct")),
+                "first_correct": bool(row.get("first_correct")) if row.get("first_correct") is not None else bool(row.get("correct")),
+                "response_seconds": None if row.get("response_seconds") is None else float(row.get("response_seconds")),
+                "submitted_at": str(row.get("submitted_at") or ""),
+            })
+
+        history = []
+        for row in attempt_rows:
+            sid = str(row.get("student_id") or "")
+            challenge_id = str(row.get("challenge_id") or "")
+            student = student_map.get(sid)
+            challenge_date = challenge_dates.get(challenge_id)
+            if student is None or challenge_date is None:
+                continue
+            attempt_id = str(row.get("attempt_id") or "")
+            history.append({
+                "attempt_id": attempt_id, "student_id": sid, "nickname": student.nickname,
+                "challenge_id": challenge_id, "challenge_date": challenge_date,
+                "daily_mode": str(row.get("daily_mode") or "Multiplication"),
+                "correct_count": int(row.get("correct_count") or 0),
+                "timed_seconds": None if row.get("timed_seconds") is None else float(row.get("timed_seconds")),
+                "completed_at": str(row.get("completed_at") or ""),
+                "answers": list(answers_by_attempt.get(attempt_id, [])),
+            })
+        history.sort(key=lambda item: (item["challenge_date"], item["nickname"].casefold()))
+        return history
 
     # ----- Weekly Mystery -----
     @staticmethod

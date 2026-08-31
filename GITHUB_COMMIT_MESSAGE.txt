@@ -1,1 +1,1 @@
-v2.14.3 - polish Weekly Mystery layout and teacher navigation
+v2.15.0 - add teacher instructional intelligence and weekly recap

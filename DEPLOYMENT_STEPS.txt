@@ -1,19 +1,18 @@
-Teal's Daily Fact Challenge v2.14.3 — Weekly Mystery + Navigation Polish
+Teal's Daily Fact Challenge v2.15.0 — Phase 2: Instructional Intelligence
 
-INSTALL FROM v2.14.2
+INSTALL FROM v2.14.3
 1. Do NOT run any Supabase SQL.
 2. Copy every file from COPY_INTO_GITHUB_REPO into the root of the existing GitHub repository.
 3. Allow replacements.
 4. Commit and push with GitHub Desktop.
 5. Let Streamlit Cloud redeploy and refresh the app.
-6. Open Teacher -> Weekly Mystery.
+6. Open Teacher -> Learning.
 
 EXPECTED RESULT
-- Top navigation reads Today | Warm-Up | Learning | Weekly Mystery | Manage.
-- Weekly Mystery shows This Week first.
-- Next Week planning remains collapsed.
-- Last Week's Prize Raffles appear at the bottom when saved/pending results exist.
-- The blue projector-safety and green saved-results explanation boxes are gone.
-- Current and next-week answers/clues remain hidden in collapsed teacher-only panels.
+- Learning opens with Next Steps, alongside Learning Data, Student Support, and Weekly Recap.
+- Next Steps shows the best teaching opportunity, class priorities, suggested small groups, and students worth a look.
+- Student Support shows a learning snapshot and recent Daily 10 history above the existing support actions.
+- Weekly Recap separates multiplication fluency evidence from alternate Daily 10 modes.
+- No student-facing page or routine changes.
 
 NO SQL. NO NEW STREAMLIT SECRET. NO AWTRIX CHANGE.

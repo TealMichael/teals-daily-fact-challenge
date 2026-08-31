@@ -1,12 +1,14 @@
-# Teal's Daily Fact Challenge v2.14.3 — Weekly Mystery + Navigation Polish
+# Teal's Daily Fact Challenge v2.15.0 — Phase 2: Instructional Intelligence
 
-**Teacher-side polish only:** Weekly Mystery now opens with the current week first, keeps prior-week raffle history at the bottom, removes the explanatory projector/saved-result banners, and promotes Weekly Mystery into the main Teacher Dashboard navigation. The underlying v2.14.2 raffle-safety behavior remains intact: saved winners stay visible and current/next-week answers and clues remain inside collapsed teacher-only panels.
+**Teacher-side intelligence only:** Learning now opens with **Next Steps**, which identifies the strongest class teaching opportunity, repeated-error patterns, fragile retrieval signals, meaningful progress, and suggested small groups from evidence the app already stores. **Student Support** now includes an individual learning snapshot and recent Daily history. **Weekly Recap** summarizes completion, multiplication accuracy/time, common misses, progress, and fluency-momentum signals while keeping alternate Daily 10 modes separate from multiplication fluency.
 
-The student Mystery experience, Daily 10, Practice, alternate Daily, Igniter, Fact Coach, adaptive/mastery behavior, persistent login/PIN components, Daily scoring, `TDFC-DAILY-v1`, and AWTRIX behavior remain protected. **No Supabase SQL, new Streamlit Secret, or AWTRIX reinstall is required.**
+The intelligence layer is read-only: it does not assign Focus plans, alter mastery, change Daily scoring, or write new student evidence. The student Daily, alternate Daily, Practice, Fix/Focus, Fact Coach, Igniter, Mystery, login/PIN, `TDFC-DAILY-v1`, and AWTRIX behavior remain protected. **No Supabase SQL, new Streamlit Secret, or AWTRIX reinstall is required.**
 
 ---
 
 # Teal's Daily Fact Challenge
+
+> **v2.15.0 — Phase 2: Instructional Intelligence:** adds teacher-only Next Steps, evidence-based teaching priorities, suggested small groups, repeated-error/fragile-retrieval/progress signals, richer Student Support snapshots, and a Weekly Teacher Recap. Alternate Daily modes count for participation but never become multiplication fluency evidence. No SQL, student-flow, scoring, mastery, or AWTRIX changes.
 
 > **v2.14.3 — Weekly Mystery + Navigation Polish:** keeps the active Mystery at the top of the teacher page, moves prior-week raffle history to the bottom, removes developer-style safety banners while preserving collapsed answer/clue protection, and promotes Weekly Mystery to the main teacher navigation. No SQL, student-flow, scoring, mastery, or AWTRIX changes.
 

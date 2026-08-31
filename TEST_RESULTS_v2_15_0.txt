@@ -1,0 +1,22 @@
+Teal's Daily Fact Challenge v2.15.0 — Final Verification
+
+Focused v2.15.0 Instructional Intelligence regression: 56/56 passed
+Full historical/current regression inventory: 71/71 test files passed
+Classroom-scale Phase 2 simulation: 4 classes x 30 students passed
+Python package smoke: 95 Python files parsed; 41 required app files present
+Python compile: all 95 Python files passed
+Runtime-name guard: 23 production modules passed
+Browser JavaScript syntax: 6/6 components passed
+Student Daily challenge contract remains TDFC-DAILY-v1
+Alternate Daily modes remain excluded from multiplication fluency evidence
+Protected v2.14.3 student/Learning/Warm-Up/Mystery/AWTRIX surfaces remain byte-for-byte unchanged
+No v2.15.0 Supabase migration
+No Streamlit Secret changes
+No AWTRIX changes
+
+Production behavior scope from v2.14.3:
+- app.py: teacher Learning routing + Student Support snapshot hook
+- supabase_fact_store.py: additive teacher-only bulk/chunked history read
+- teacher_intelligence.py: new read-only instructional interpretation logic
+- teacher_intelligence_ui.py: new teacher Next Steps, Weekly Recap, and Student Support snapshot UI
+- fact_engine.py: version bump only
