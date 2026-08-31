@@ -1,0 +1,16 @@
+Teal's Daily Fact Challenge v2.14.2 — Final Verification
+
+- Full regression inventory: 69/69 test files passed in four observed batches.
+- v2.14.2 raffle safety regression: 19/19.
+- v2.14.1 teacher follow-up polish regression: 15/15.
+- v2.14 Teacher Command Center regression: 49/49.
+- v2.13 Daily-mode/multiplication protection regression: 50/50.
+- v2.13.2 class-list ReadError regression: 5/5.
+- Weekly Mystery core regression: 38 checks passed.
+- Raffle/test-student regression: 18/18.
+- Classroom-scale simulation: 3 classes x 30 students passed.
+- Package smoke: 91 Python files parsed; 39 required app files present.
+- Runtime-name guard: 21 production modules passed.
+- app.py remains below the 3,000-line architecture guard (2,839 lines).
+- CHALLENGE_VERSION remains TDFC-DAILY-v1.
+- No v2.14.2 SQL migration, secret, dependency, or AWTRIX change.

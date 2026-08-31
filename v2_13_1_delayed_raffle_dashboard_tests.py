@@ -16,7 +16,7 @@ def check(name, condition):
     assert condition, name
     checks.append(name)
 
-check("v2.14.1 version", APP_VERSION == "2.14.1")
+check("v2.14.2 version", APP_VERSION == "2.14.2")
 check("multiplication challenge version untouched", CHALLENGE_VERSION == "TDFC-DAILY-v1")
 
 # Execute the real pure raffle-state helpers from app.py without importing the Streamlit app shell.
@@ -62,7 +62,7 @@ check("all v2.13.1 teacher tools remain reachable after grouping", all(item in A
 check("daily setup tucked into class hub", '["👥 Rosters", "🎯 Daily 10 Setup"]' in APP and "render_teacher_daily_setup(store, show_heading=False)" in APP)
 check("embedded daily setup keeps same component", "def render_teacher_daily_setup(store: SupabaseFactStore, *, show_heading: bool = True)" in SETUP)
 check("logout no longer stretches across header column", 'if st.button("Log out"):' in APP)
-check("no v2.14.1 database migration required", not (ROOT / "RUN_THIS_ONCE_IN_SUPABASE_v2_13_1.sql").exists())
+check("no v2.14.2 database migration required", not (ROOT / "RUN_THIS_ONCE_IN_SUPABASE_v2_13_1.sql").exists())
 
 assert len(checks) == 17, len(checks)
-print(f"v2.14.1 delayed-raffle/dashboard regression: {len(checks)}/{len(checks)} checks passed")
+print(f"v2.14.2 delayed-raffle/dashboard regression: {len(checks)}/{len(checks)} checks passed")

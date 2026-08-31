@@ -29,7 +29,7 @@ def check(name: str, condition: bool) -> None:
     checks.append(name)
 
 
-check("v2.14.1 version", APP_VERSION == "2.14.1")
+check("v2.14.2 version", APP_VERSION == "2.14.2")
 check("multiplication challenge untouched", CHALLENGE_VERSION == "TDFC-DAILY-v1")
 check("v2.14 requires no SQL migration", not (ROOT / "RUN_THIS_ONCE_IN_SUPABASE_v2_14.sql").exists())
 
@@ -145,4 +145,4 @@ for name, expected in student_function_hashes.items():
     actual = hashlib.sha256(segment.encode("utf-8")).hexdigest()
     check(f"student app function unchanged: {name}", actual == expected)
 
-print(f"v2.14.1 Teacher Command Center: {len(checks)}/{len(checks)} checks passed")
+print(f"v2.14.2 Teacher Command Center: {len(checks)}/{len(checks)} checks passed")

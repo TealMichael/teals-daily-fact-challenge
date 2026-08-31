@@ -14,9 +14,9 @@ def check(name: str, condition: bool) -> None:
     assert condition, name
     checks.append(name)
 
-check("v2.14.1 version", APP_VERSION == "2.14.1")
+check("v2.14.2 version", APP_VERSION == "2.14.2")
 check("student Daily challenge remains protected", CHALLENGE_VERSION == "TDFC-DAILY-v1")
-check("v2.14.1 requires no SQL", not (ROOT / "RUN_THIS_ONCE_IN_SUPABASE_v2_14_1.sql").exists())
+check("v2.14.2 requires no SQL", not (ROOT / "RUN_THIS_ONCE_IN_SUPABASE_v2_14_1.sql").exists())
 
 names = build_today_action_items(
     daily_summary={"present": 5, "complete": 2, "in_progress": 1, "not_started": 2},
@@ -41,4 +41,4 @@ check("Warm-Up jump sends selected class", 'args=("Warm-Up", selected.class_name
 check("teacher router accepts class context", "def _go_teacher_tool(tool: str, class_name: str | None = None)" in APP)
 check("teacher router seeds Warm-Up class", 'st.session_state["teacher_warmup_class"] = str(class_name)' in APP)
 
-print(f"v2.14.1 Teacher Follow-up Polish: {len(checks)}/{len(checks)} checks passed")
+print(f"v2.14.2 Teacher Follow-up Polish: {len(checks)}/{len(checks)} checks passed")

@@ -63,7 +63,7 @@ def test_list_classes_recovers_from_readerror_and_rebuilds_query():
 def main():
     test_list_classes_recovers_from_readerror_and_rebuilds_query()
     checks = {
-        "version bumped": 'APP_VERSION = "2.14.1"' in ENGINE,
+        "version bumped": 'APP_VERSION = "2.14.2"' in ENGINE,
         "list_classes uses retry wrapper": "_retry_transient(fetch_classes, attempts=4)" in STORE,
         "list_classes rebuilds query": 'def fetch_classes()' in STORE,
         "production comment documents teacher crash protection": "should not crash the entire dashboard" in STORE,
@@ -71,7 +71,7 @@ def main():
     failed = [name for name, ok in checks.items() if not ok]
     if failed:
         raise AssertionError("Failed: " + ", ".join(failed))
-    print(f"v2.14.1 class-list ReadError hotfix: {len(checks) + 1}/{len(checks) + 1} checks passed")
+    print(f"v2.14.2 class-list ReadError hotfix: {len(checks) + 1}/{len(checks) + 1} checks passed")
 
 
 if __name__ == "__main__":

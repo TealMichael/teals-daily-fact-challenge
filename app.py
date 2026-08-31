@@ -2367,6 +2367,30 @@ def _mystery_raffle_has_pending_draw(store: SupabaseFactStore, week_start) -> bo
             return True
     return False
 
+def _mystery_raffle_saved_winners(store: SupabaseFactStore, week_start) -> list[dict]:
+    """Return saved raffle results for active classes, even after every draw is complete."""
+    try:
+        classes = store.list_classes()
+    except Exception:
+        return []
+    results = []
+    for class_record in classes:
+        class_id = str(class_record.class_id)
+        try:
+            saved = store.get_app_setting(_mystery_raffle_setting_key(week_start, class_id))
+        except Exception:
+            saved = None
+        if not isinstance(saved, dict) or not str(saved.get("student_id") or ""):
+            continue
+        result = dict(saved)
+        result.setdefault("class_id", class_id)
+        result.setdefault("class_name", class_record.class_name)
+        results.append(result)
+    return results
+
+def _mystery_raffle_has_saved_winner(store: SupabaseFactStore, week_start) -> bool:
+    return bool(_mystery_raffle_saved_winners(store, week_start))
+
 def _render_teacher_mystery_raffle(
     store: SupabaseFactStore, week_start, *, day, heading: str = "Friday Prize Raffles", caption: str | None = None
 ) -> None:
@@ -2414,10 +2438,17 @@ def _render_teacher_mystery_raffle(
 
         eligible_by_id = {str(item["student_id"]): item for item in pool}
         winner = saved if isinstance(saved, dict) else None
-        winner_is_valid = winner and str(winner.get("student_id") or "") in eligible_by_id
-        if winner_is_valid:
-            item = eligible_by_id[str(winner["student_id"])]
-            st.success(f"🏆 **{class_record.class_name} winner: {item['nickname']}**")
+        winner_id = str(winner.get("student_id") or "") if winner else ""
+        winner_is_valid = bool(winner_id and winner_id in eligible_by_id)
+        if winner_id:
+            winner_name = str(winner.get("nickname") or "").strip()
+            if winner_is_valid:
+                winner_name = str(eligible_by_id[winner_id]["nickname"])
+            if not winner_name:
+                winner_name = "Saved winner"
+            st.success(f"🏆 **{class_record.class_name} winner: {winner_name}**")
+            if not winner_is_valid:
+                st.caption("This is the saved historical raffle result. The student's current eligibility or roster status has changed since the draw.")
             with st.expander(f"Need to redraw {class_record.class_name}?", expanded=False):
                 st.warning("Redraw only if you need to replace the saved winner, such as when the student is absent.")
                 confirm = st.checkbox(
@@ -2426,7 +2457,7 @@ def _render_teacher_mystery_raffle(
                 )
                 if st.button(
                     f"🎲 Redraw {class_record.class_name} winner", use_container_width=True,
-                    disabled=not confirm, key=f"redraw_raffle_{week_start}_{class_id}",
+                    disabled=(not confirm or not pool), key=f"redraw_raffle_{week_start}_{class_id}",
                 ):
                     new_item = random.SystemRandom().choice(pool)
                     store.set_app_setting(setting_key, {
@@ -2436,8 +2467,6 @@ def _render_teacher_mystery_raffle(
                     })
                     st.rerun()
         else:
-            if winner:
-                st.warning("The saved winner is no longer eligible. Draw a new winner below.")
             if not pool:
                 st.caption("No raffle entries in this class yet.")
             if st.button(
@@ -2445,12 +2474,15 @@ def _render_teacher_mystery_raffle(
                 disabled=(not pool or not raffle_open), key=f"draw_raffle_{week_start}_{class_id}",
             ):
                 item = random.SystemRandom().choice(pool)
-                store.set_app_setting(setting_key, {
+                payload = {
                     "student_id": item["student_id"], "nickname": item["nickname"],
                     "class_id": class_id, "class_name": class_record.class_name,
                     "drawn_at": utc_now().isoformat(),
-                })
-                st.rerun()
+                }
+                store.set_app_setting(setting_key, payload)
+                st.success(f"🏆 **{class_record.class_name} winner: {item['nickname']}**")
+                st.caption("Winner saved. This result will remain available in Last Week's Prize Raffles after the final class draw.")
+                st.balloons()
         st.markdown("---")
 
 def _mystery_bank_label(mystery) -> str:
@@ -2470,57 +2502,7 @@ def _render_teacher_mystery_preview(mystery, *, label: str) -> None:
         st.write(learning_paragraph_for(mystery))
         st.info(f"🤯 **Fun fact:** {mystery.reveal_note}")
 
-def render_teacher_weekly_mystery(store: SupabaseFactStore) -> None:
-    st.markdown("### 🕵️ Weekly Mystery")
-    st.caption("One shared just-for-fun mystery. Full routines earn one clue Monday–Friday; Guess #1 is Thursday and Guess #2 is Friday.")
-    st.caption("Student guesses ignore capitalization/punctuation, honor your accepted aliases, and allow only small plausible spelling mistakes (for example, Abraham Lincon).")
-    day = current_daily_date()
-    try:
-        week_start, record, mystery = ensure_weekly_mystery(store, day)
-        locked = store.weekly_mystery_locked(week_start)
-        stats = store.weekly_mystery_teacher_stats(week_start)
-    except Exception as exc:
-        st.error("The Weekly Mystery tables are not ready. Check the earlier v2.5 Mystery database migration.")
-        if str(st.query_params.get("dbcheck", "0")) == "1":
-            st.exception(exc)
-        return
-
-    previous_week = week_start - timedelta(days=7)
-    if _mystery_raffle_has_pending_draw(store, previous_week):
-        previous_label = previous_week.strftime('%B %d, %Y').replace(' 0', ' ')
-        st.warning("🎟️ You still have an undrawn raffle from last week. You can finish it here without changing this week's Mystery.")
-        _render_teacher_mystery_raffle(
-            store, previous_week, day=day,
-            heading=f"Last Week's Prize Raffles · {previous_label}",
-            caption="Finish any missed Friday drawing here. Saved winners stay attached to last week and do not affect the new week's Mystery.",
-        )
-        st.markdown("---")
-
-    st.markdown(f"#### This Week · {week_start.strftime('%B %d, %Y').replace(' 0', ' ')}")
-    _render_teacher_mystery_preview(mystery, label="Teacher preview")
-
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Students unlocked", int(stats.get("students_unlocked", 0)))
-    c2.metric("Guesses used", int(stats.get("guesses", 0)))
-    c3.metric("Solved", int(stats.get("correct", 0)))
-
-    if locked:
-        st.info("🔒 This week's mystery is locked because at least one student has already earned a clue.")
-    else:
-        st.success("You can still swap this week's mystery. It locks automatically when the first student earns a clue.")
-        if st.button("🔄 Pick another mystery for this week", use_container_width=True, key="swap_current_mystery"):
-            try:
-                next_item = mystery_for_key(next_mystery_key(record.mystery_key))
-                store.save_mystery_plan(week_start, mystery_to_plan(next_item))
-                st.rerun()
-            except Exception as exc:
-                st.error(str(exc))
-
-    _render_teacher_mystery_raffle(store, week_start, day=day)
-
-    st.markdown("---")
-    next_week = week_start + timedelta(days=7)
-    st.markdown(f"#### 📅 Next Week's Mystery · {next_week.strftime('%B %d, %Y').replace(' 0', ' ')}")
+def _render_teacher_next_week_mystery_planner(store: SupabaseFactStore, next_week) -> None:
     st.caption("Plan ahead without changing this week's mystery. Your saved choice automatically becomes active when the new school week begins.")
 
     saved_plan = store.get_mystery_plan(next_week)
@@ -2605,6 +2587,68 @@ def render_teacher_weekly_mystery(store: SupabaseFactStore) -> None:
     with st.expander(f"Mystery bank · {len(MYSTERIES)} curated mysteries", expanded=False):
         st.caption("Places · animals · foods · sports · science/nature · history/people · music/entertainment · games/toys/objects")
         st.write("The bank is stored inside the app, so clue delivery never depends on a live internet search.")
+
+def render_teacher_weekly_mystery(store: SupabaseFactStore) -> None:
+    st.markdown("### 🕵️ Weekly Mystery")
+    st.caption("One shared just-for-fun mystery. Full routines earn one clue Monday–Friday; Guess #1 is Thursday and Guess #2 is Friday.")
+    st.info("🛡️ Projector-safe by default: Mystery answers and clues stay hidden until you deliberately open a teacher-only details panel.")
+    day = current_daily_date()
+    try:
+        week_start, record, mystery = ensure_weekly_mystery(store, day)
+        locked = store.weekly_mystery_locked(week_start)
+        stats = store.weekly_mystery_teacher_stats(week_start)
+    except Exception as exc:
+        st.error("The Weekly Mystery tables are not ready. Check the earlier v2.5 Mystery database migration.")
+        if str(st.query_params.get("dbcheck", "0")) == "1":
+            st.exception(exc)
+        return
+
+    previous_week = week_start - timedelta(days=7)
+    previous_pending = _mystery_raffle_has_pending_draw(store, previous_week)
+    previous_saved = _mystery_raffle_has_saved_winner(store, previous_week)
+    if previous_pending or previous_saved:
+        previous_label = previous_week.strftime('%B %d, %Y').replace(' 0', ' ')
+        if previous_pending:
+            st.warning("🎟️ Last week's raffle still needs attention. Saved winners remain visible while you finish any undrawn classes.")
+        else:
+            st.success("🎟️ Last week's raffle results are saved. They stay visible here so a final draw can never disappear before you see the winner.")
+        _render_teacher_mystery_raffle(
+            store, previous_week, day=day,
+            heading=f"Last Week's Prize Raffles · {previous_label}",
+            caption="Projector-safe raffle center. Saved winners stay attached to last week and do not affect the new week's Mystery.",
+        )
+        st.markdown("---")
+
+    st.markdown(f"#### This Week · {week_start.strftime('%B %d, %Y').replace(' 0', ' ')}")
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Students unlocked", int(stats.get("students_unlocked", 0)))
+    c2.metric("Guesses used", int(stats.get("guesses", 0)))
+    c3.metric("Solved", int(stats.get("correct", 0)))
+
+    with st.expander("🔒 Teacher Mystery details · contains the answer and clues", expanded=False):
+        st.caption("Keep this closed while the screen is visible to students.")
+        st.caption("Student guesses ignore capitalization/punctuation, honor your accepted aliases, and allow only small plausible spelling mistakes (for example, Abraham Lincon).")
+        _render_teacher_mystery_preview(mystery, label="Teacher preview")
+        if locked:
+            st.info("🔒 This week's mystery is locked because at least one student has already earned a clue.")
+        else:
+            st.success("You can still swap this week's mystery. It locks automatically when the first student earns a clue.")
+            if st.button("🔄 Pick another mystery for this week", use_container_width=True, key="swap_current_mystery"):
+                try:
+                    next_item = mystery_for_key(next_mystery_key(record.mystery_key))
+                    store.save_mystery_plan(week_start, mystery_to_plan(next_item))
+                    st.rerun()
+                except Exception as exc:
+                    st.error(str(exc))
+
+    _render_teacher_mystery_raffle(store, week_start, day=day)
+
+    st.markdown("---")
+    next_week = week_start + timedelta(days=7)
+    next_label = next_week.strftime('%B %d, %Y').replace(' 0', ' ')
+    with st.expander(f"🔒 Plan Next Week's Mystery · {next_label} · contains answer and clues", expanded=False):
+        st.caption("Keep this closed while the screen is visible to students.")
+        _render_teacher_next_week_mystery_planner(store, next_week)
 
 def _test_student_backup_keys() -> tuple[str, ...]:
     return ("student_id", "student_nickname", "student_class_id", "student_class_name", "student_is_test")

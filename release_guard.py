@@ -27,6 +27,7 @@ CRITICAL_SUITES = [
     "v2_13_2_class_list_readerror_hotfix_tests.py",
     "v2_14_0_teacher_command_center_tests.py",
     "v2_14_1_teacher_followup_polish_tests.py",
+    "v2_14_2_raffle_safety_tests.py",
     "runtime_name_guard_tests.py",
     "v2_11_2_final_top10_restore_tests.py",
     "v2_12_0_awtrix_top10_tests.py",

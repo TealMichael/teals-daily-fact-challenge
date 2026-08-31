@@ -92,3 +92,11 @@ Future releases should run `python release_guard.py` plus the full `*_tests.py` 
 - Reopening a Daily remains an explicit teacher action with confirmation and uses the existing reset/rebuild path.
 - Archiving a student uses the existing inactive-account behavior and preserves history/PIN for restoration.
 - Primary teacher navigation is intentionally limited to Today, Warm-Up, Learning, and Manage; all existing teacher tools remain reachable underneath those groups.
+## v2.14.2 Weekly Mystery raffle safety protections
+
+- A saved raffle result is historical data and must remain visible after all classes have been drawn; the UI must not depend only on whether a raffle is still pending.
+- The initial Draw Winner action must display the saved winner before any navigation/rerun can move the teacher away from the result.
+- Saved winner nickname/class metadata remains recoverable from `app_settings` even if later roster/eligibility state changes.
+- Teacher Weekly Mystery is projector-safe by default: mystery answers and clues for both the active week and planned next week remain inside collapsed teacher-only panels.
+- Delayed prior-week raffle drawing must never reveal the new week's mystery merely because the last pending raffle becomes complete.
+

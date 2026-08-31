@@ -12,7 +12,7 @@ UI_HELPERS = (ROOT / "ui_helpers.py").read_text(encoding="utf-8")
 
 def run():
     checks = {}
-    checks["version 2.8.0"] = APP_VERSION == "2.14.1"
+    checks["version 2.8.0"] = APP_VERSION == "2.14.2"
     checks["coach module imported"] = "from fact_coach import" in APP
     checks["guided items receive coach plan"] = '"coach": coach_plan_for_fact(fact)' in APP
     checks["fix starts in coach"] = 'start_state="coach"' in APP

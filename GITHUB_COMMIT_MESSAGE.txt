@@ -1,1 +1,1 @@
-v2.14.1 - polish Today follow-ups and preserve Warm-Up class
+v2.14.2 - keep raffle winners visible and protect Mystery spoilers

@@ -6,7 +6,7 @@ STORE = (ROOT / "supabase_fact_store.py").read_text()
 ENGINE = (ROOT / "fact_engine.py").read_text()
 
 checks = {}
-checks["version bumped"] = 'APP_VERSION = "2.14.1"' in ENGINE
+checks["version bumped"] = 'APP_VERSION = "2.14.2"' in ENGINE
 checks["challenge version unchanged"] = 'CHALLENGE_VERSION = "TDFC-DAILY-v1"' in ENGINE
 checks["timeout raised to 12"] = "POSTGREST_TIMEOUT_SECONDS = 12" in STORE
 checks["storage timeout raised to 12"] = "STORAGE_TIMEOUT_SECONDS = 12" in STORE

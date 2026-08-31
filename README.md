@@ -1,8 +1,8 @@
-# Teal's Daily Fact Challenge v2.14.1 — Teacher Today Polish
+# Teal's Daily Fact Challenge v2.14.2 — Raffle Safety Hotfix
 
-**Teacher-side polish only:** Today no longer asks the teacher to maintain attendance exceptions. The action area is renamed **Quick follow-ups**, shows the actual student nicknames that still need each step, and Today → Warm-Up now preserves the selected class instead of returning to Block 1.
+**Teacher-side Weekly Mystery safety only:** prior-week raffle winners remain visible after the final class draw, including saved historical results. The Weekly Mystery teacher page is now projector-safe by default: current-week and next-week answers/clues stay behind collapsed teacher-only panels. The initial Draw Winner action saves and displays the winner without immediately rerunning away from the result.
 
-The rest of the v2.14 Teacher Command Center remains intact: all-class snapshot, grouped **Today | Warm-Up | Learning | Manage** navigation, resilient teacher data refresh, confirmed Daily reopening, and Archive/Restore controls. Student sign-in, Daily, Practice, alternate Daily, Igniter, Fact Coach, adaptive/mastery behavior, persistent login/PIN components, Daily scoring, `TDFC-DAILY-v1`, Weekly Mystery student flow, and AWTRIX behavior remain protected. **No Supabase SQL, new Streamlit Secret, or AWTRIX reinstall is required.**
+The student Mystery experience, Daily 10, Practice, alternate Daily, Igniter, Fact Coach, adaptive/mastery behavior, persistent login/PIN components, Daily scoring, `TDFC-DAILY-v1`, and AWTRIX behavior remain protected. **No Supabase SQL, new Streamlit Secret, or AWTRIX reinstall is required.**
 
 ---
 

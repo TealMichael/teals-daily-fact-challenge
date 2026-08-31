@@ -1,33 +1,30 @@
-Teal's Daily Fact Challenge v2.14.1 — Teacher Today Polish
+Teal's Daily Fact Challenge v2.14.2 — Raffle Safety Hotfix
 
-INSTALL
-1. Keep the currently installed v2.14.0 app in place.
-2. Copy everything inside the v2.14.1 GitHub Desktop patch folder `COPY_INTO_GITHUB_REPO` into the root of the existing repository.
+INSTALL FROM v2.14.1
+1. Do NOT run any Supabase SQL.
+2. Copy every file from COPY_INTO_GITHUB_REPO into the root of the existing GitHub repository.
 3. Allow replacements.
-4. Commit and push in GitHub Desktop.
-5. Let Streamlit Cloud redeploy, then reload Teacher → Today.
+4. Commit and push with GitHub Desktop.
+5. Let Streamlit Cloud redeploy and refresh the app.
+6. Open Teacher -> Manage -> Weekly Mystery.
 
-NO DATABASE / DEVICE WORK
-- Do NOT run Supabase SQL.
-- Do NOT change Streamlit Secrets.
-- Do NOT reinstall or modify AWTRIX.
+EXPECTED RESULT
+- Last week's saved raffle winners remain visible even after all class raffles have been drawn.
+- Drawing the final winner shows the winner immediately and saves it.
+- Current and next-week Mystery answers/clues are hidden behind collapsed teacher-only panels by default.
 
-TEACHER-SIDE CHANGES ONLY
-- Removes the Attendance exceptions control and the Absent column from Today. Today again uses the active class roster directly; teachers do not need to maintain a separate attendance list.
-- Renames the selected-class action area from “What needs you” to “Quick follow-ups.”
-- Quick follow-ups now shows the actual student nicknames for Daily 10 not started, follow-up practice remaining, and Warm-Up not finished.
-- Clicking Warm-Up from Today preserves the currently selected class. Example: Block 2 → Warm-Up opens on Block 2.
-- The prior-week Weekly Mystery drawing reminder remains available.
+NO SQL. NO NEW STREAMLIT SECRET. NO AWTRIX CHANGE.
 
-PROTECTED / UNCHANGED
-- Student sign-in and student navigation.
-- Multiplication Daily generator and TDFC-DAILY-v1 challenge version.
-- Alternate Daily 10 modes and Daily scoring.
-- Fix Your Misses, Focus Practice, Practice, Fact Coach, and mastery/adaptive logic.
-- Student Igniter / Warm-Up experience.
-- Weekly Mystery student flow.
-- Login/PIN components.
-- AWTRIX scripts and clock integration.
+RECOVER THE AUGUST 28 RAFFLE (READ-ONLY)
+In Supabase SQL Editor, if needed:
 
-ROLLBACK
-Re-deploy the prior v2.14.0 repository commit. No database rollback is needed because v2.14.1 has no migration.
+select
+  setting_value->>'class_name' as class,
+  setting_value->>'nickname' as winner,
+  setting_value->>'drawn_at' as drawn_at,
+  setting_key
+from public.app_settings
+where setting_key like 'weekly_mystery_raffle::2026-08-24::%'
+order by setting_value->>'class_name';
+
+This query only reads saved results. Do not delete or update those rows.
