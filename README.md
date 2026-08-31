@@ -1,4 +1,14 @@
+# Teal's Daily Fact Challenge v2.14.0 — Teacher Command Center
+
+**Teacher-side Phase 1:** Today is now a true command center with an all-class snapshot, selected-class action alerts, teacher-only attendance exceptions, and clearer data freshness/retry behavior. Teacher navigation is grouped into **Today | Warm-Up | Learning | Manage**. Student Support now gives explicit, confirmed controls to reopen today's Daily and archive/restore students.
+
+This release intentionally leaves the student experience alone. Student sign-in, Daily, Practice, alternate Daily, Igniter, Fact Coach, adaptive/mastery behavior, persistent login/PIN components, Daily scoring, `TDFC-DAILY-v1`, and AWTRIX behavior remain protected. **No Supabase SQL, new Streamlit Secret, or AWTRIX reinstall is required.**
+
+---
+
 # Teal's Daily Fact Challenge
+
+> **v2.13.2 — Class List ReadError Hotfix:** adds transient retry protection to teacher class-list reads so brief Supabase `httpx.ReadError` resets do not crash class-based teacher screens. No SQL, scoring, mastery, Warm-Up content, Mystery, AWTRIX, login, or student behavior changes.
 
 > **v2.13.1 — Delayed Raffle + Teacher Dashboard Cleanup:** lets the teacher finish an undrawn prior-week Weekly Mystery raffle on Monday or later, without changing the new week's Mystery. The Teacher Dashboard now prioritizes Today and Warm-Up, removes Daily 10 Setup from the top-level navigation, and tucks the exact same setup tool inside Classes & Rosters. No database migration, Streamlit Secret, AWTRIX reinstall, Daily 10 logic, mastery logic, Igniter behavior, or student workflow changes are required.
 

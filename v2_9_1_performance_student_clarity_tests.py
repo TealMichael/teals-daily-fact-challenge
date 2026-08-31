@@ -6,6 +6,7 @@ ROOT = Path(__file__).resolve().parent
 APP = (ROOT / "app.py").read_text(encoding="utf-8")
 STORE = (ROOT / "supabase_fact_store.py").read_text(encoding="utf-8")
 LEARNING_UI = (ROOT / "teacher_learning_ui.py").read_text(encoding="utf-8")
+TODAY_UI = (ROOT / "teacher_today_ui.py").read_text(encoding="utf-8")
 
 
 def section(name: str, next_name: str | None = None, source: str = APP) -> str:
@@ -16,22 +17,22 @@ def section(name: str, next_name: str | None = None, source: str = APP) -> str:
 
 def run():
     checks = {}
-    checks["version 2.9.3"] = APP_VERSION == "2.13.1"
+    checks["version 2.9.3"] = APP_VERSION == "2.14.0"
 
     teacher = section("render_teacher", "maybe_render_db_diagnostic")
-    checks["teacher dashboard is lazy"] = "st.tabs(" not in teacher and 'section = st.radio(' in teacher
+    checks["teacher dashboard is lazy"] = "st.tabs(" not in teacher and 'primary = st.radio(' in teacher
     checks["only chosen teacher section dispatches"] = all(x in teacher for x in [
-        'if section == "📊 Today"', 'elif section == "👥 Classes & Rosters"',
-        'elif section == "📈 Learning Data"', 'elif section == "🕵️ Weekly Mystery"',
-        'elif section == "🛠️ Student Support"', 'render_teacher_test_student_launcher(store)'
+        'if primary == "📊 Today"', 'elif primary == "🧠 Warm-Up"', 'elif primary == "📈 Learning"',
+        'manage_section == "🕵️ Weekly Mystery"', 'manage_section == "👥 Classes & Rosters"',
+        'learning_section == "📈 Learning Data"', 'render_teacher_test_student_launcher(store)'
     ])
 
-    today = section("render_teacher_today", "render_teacher_classes")
-    checks["today loads roster once"] = today.count("store.list_students(selected.class_id)") == 1
-    checks["today reuses roster in status"] = "students=students" in today and "store.daily_status" in today
-    checks["today reuses roster in progress"] = "store.class_learning_progress(selected.class_id, challenge.challenge_id, students=students)" in today
-    checks["today reuses roster in streak stats"] = "store.class_learning_stats(selected.class_id, day, students=students)" in today
-    checks["today derives leaderboard locally"] = "_leaderboard_from_status(status" in today and "store.leaderboard(" not in today
+    today = section("render_teacher_today_command_center", source=TODAY_UI)
+    checks["today loads each class roster once"] = "store.list_students(class_record.class_id)" in today and "store.list_students(selected.class_id)" not in today
+    checks["today reuses roster in status"] = "students=roster" in today and "store.daily_status" in today
+    checks["today reuses selected snapshot in progress"] = "students = list(selected_snapshot.get(\"students\") or [])" in today and "store.class_learning_progress(selected.class_id, challenge.challenge_id, students=students)" in today
+    checks["today reuses selected snapshot in streak stats"] = "store.class_learning_stats(selected.class_id, day, students=students)" in today
+    checks["today derives leaderboard locally"] = "leaderboard_from_status(present_status" in today and "store.leaderboard(" not in today
     checks["today avoids duplicate completed query"] = "completed_attempts_for_class" not in today
 
     projector = section("render_teacher_projector", "render_teacher_today")

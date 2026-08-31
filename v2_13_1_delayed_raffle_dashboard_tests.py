@@ -16,7 +16,7 @@ def check(name, condition):
     assert condition, name
     checks.append(name)
 
-check("v2.13.1 version", APP_VERSION == "2.13.1")
+check("v2.14.0 version", APP_VERSION == "2.14.0")
 check("multiplication challenge version untouched", CHALLENGE_VERSION == "TDFC-DAILY-v1")
 
 # Execute the real pure raffle-state helpers from app.py without importing the Streamlit app shell.
@@ -53,21 +53,16 @@ check("previous week checked for undrawn raffle", "previous_week = week_start - 
 check("late raffle has explicit teacher heading", "Last Week's Prize Raffles" in APP)
 check("late raffle says current mystery is unaffected", "do not affect the new week's Mystery" in APP)
 
-nav_start = APP.index("teacher_sections = [")
-nav_end = APP.index("]", nav_start)
-nav = APP[nav_start:nav_end]
-expected_nav = [
-    "📊 Today", "🧠 Warm-Up", "📈 Learning Data", "🛠️ Student Support",
-    "🕵️ Weekly Mystery", "👥 Classes & Rosters", "🖥️ Clock", "🧪 Test Student",
-]
-check("main dashboard has eight focused sections", all(item in nav for item in expected_nav) and nav.count('"') == 16)
-check("daily setup removed from top-level navigation", "🎯 Daily 10 Setup" not in nav)
-positions = [nav.index(item) for item in expected_nav]
-check("dashboard order prioritizes Today and Warm-Up", positions == sorted(positions))
+primary_nav = '["📊 Today", "🧠 Warm-Up", "📈 Learning", "⚙️ Manage"]'
+check("v2.13.1 Today and Warm-Up remain first-class destinations", primary_nav in APP)
+check("daily setup remains outside primary navigation", "🎯 Daily 10 Setup" not in primary_nav)
+check("all v2.13.1 teacher tools remain reachable after grouping", all(item in APP for item in [
+    "📈 Learning Data", "🛠️ Student Support", "🕵️ Weekly Mystery", "👥 Classes & Rosters", "🖥️ Clock", "🧪 Test Student",
+]))
 check("daily setup tucked into class hub", '["👥 Rosters", "🎯 Daily 10 Setup"]' in APP and "render_teacher_daily_setup(store, show_heading=False)" in APP)
 check("embedded daily setup keeps same component", "def render_teacher_daily_setup(store: SupabaseFactStore, *, show_heading: bool = True)" in SETUP)
 check("logout no longer stretches across header column", 'if st.button("Log out"):' in APP)
-check("no v2.13.1 database migration required", not (ROOT / "RUN_THIS_ONCE_IN_SUPABASE_v2_13_1.sql").exists())
+check("no v2.14.0 database migration required", not (ROOT / "RUN_THIS_ONCE_IN_SUPABASE_v2_13_1.sql").exists())
 
 assert len(checks) == 17, len(checks)
-print(f"v2.13.1 delayed-raffle/dashboard regression: {len(checks)}/{len(checks)} checks passed")
+print(f"v2.14.0 delayed-raffle/dashboard regression: {len(checks)}/{len(checks)} checks passed")

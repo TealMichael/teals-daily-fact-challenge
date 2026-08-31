@@ -5,11 +5,13 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 APP = (ROOT / "app.py").read_text(encoding="utf-8")
+TODAY_UI = (ROOT / "teacher_today_ui.py").read_text(encoding="utf-8")
 TREE = ast.parse(APP)
+TODAY_TREE = ast.parse(TODAY_UI)
 
 
-def function_node(name: str) -> ast.FunctionDef:
-    for node in TREE.body:
+def function_node(name: str, *, tree=TREE) -> ast.FunctionDef:
+    for node in tree.body:
         if isinstance(node, ast.FunctionDef) and node.name == name:
             return node
     raise AssertionError(f"Missing function: {name}")
@@ -26,22 +28,22 @@ def try_wraps_daily_status(fn: ast.FunctionDef) -> bool:
     return False
 
 
-today = function_node("render_teacher_today")
+today = function_node("render_teacher_today_command_center", tree=TODAY_TREE)
 projector = function_node("render_teacher_projector")
 
 assert try_wraps_daily_status(today), "Teacher Today daily_status must be exception-isolated"
 assert try_wraps_daily_status(projector), "Projector daily_status must be exception-isolated"
 
-assert 'daily_status_error = None' in APP
-assert 'Daily 10 status could not load just now. Igniter results and other teacher tools are still available' in APP
-assert 'Igniter results above are unaffected' in APP
-assert 'if str(st.query_params.get("dbcheck", "0")) == "1":' in APP
+assert 'daily_status_error = selected_snapshot.get("error")' in TODAY_UI
+assert 'Daily 10 status could not load just now.' in TODAY_UI
+assert 'Warm-Up results above are unaffected' in TODAY_UI
+assert 'if str(st.query_params.get("dbcheck", "0")) == "1":' in TODAY_UI
 
 # A Daily-status outage must not prevent the independent Igniter reads.
-today_source = ast.get_source_segment(APP, today) or ""
+today_source = ast.get_source_segment(TODAY_UI, today) or ""
 assert 'store.get_warmup_set(selected.class_id, day)' in today_source
 assert 'store.list_warmup_answers(day, day, class_id=selected.class_id)' in today_source
-assert today_source.index('daily_status_error = None') < today_source.index('store.get_warmup_set(selected.class_id, day)')
+assert today_source.index('status_rows = store.daily_status') < today_source.index('store.get_warmup_set(selected.class_id, day)')
 
 # Do not fabricate Daily/Top-10 data when the Daily status query is unavailable.
 assert 'c1.metric("🟢 Done", "—")' in today_source

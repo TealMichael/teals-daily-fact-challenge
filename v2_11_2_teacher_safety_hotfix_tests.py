@@ -4,6 +4,7 @@ import ast
 
 ROOT = Path(__file__).resolve().parent
 APP = (ROOT / "app.py").read_text(encoding="utf-8")
+TODAY = (ROOT / "teacher_today_ui.py").read_text(encoding="utf-8")
 WARMUP = (ROOT / "teacher_warmup_ui.py").read_text(encoding="utf-8")
 RELEASE_GUARD = (ROOT / "release_guard.py").read_text(encoding="utf-8")
 
@@ -25,11 +26,11 @@ def run():
 
     # The foundation extraction moved these helpers into modules. app.py must import
     # the helpers it still invokes from Teacher Today and Student Support.
-    checks["Today Warm-Up groups helper imported"] = "from teacher_warmup_ui import _render_warmup_groups_and_email" in APP
+    checks["Today Warm-Up groups helper imported"] = "from teacher_warmup_ui import _render_warmup_groups_and_email" in TODAY
     checks["Student Support focus helpers imported"] = (
         "render_teacher_mastery_focus, _override_label, _override_value" in APP
     )
-    checks["Today still calls Warm-Up groups"] = "_render_warmup_groups_and_email(" in APP
+    checks["Today still calls Warm-Up groups"] = "_render_warmup_groups_and_email(" in TODAY
     checks["Student Support still calls focus helpers"] = (
         "_override_label(current_override)" in APP and "_override_value(personal_choice)" in APP
     )

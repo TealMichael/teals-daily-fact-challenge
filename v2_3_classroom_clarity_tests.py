@@ -5,7 +5,8 @@ ROOT = Path(__file__).resolve().parent
 APP = (ROOT / "app.py").read_text(encoding="utf-8")
 ENGINE = (ROOT / "fact_engine.py").read_text(encoding="utf-8")
 LEARNING = (ROOT / "teacher_learning_ui.py").read_text(encoding="utf-8")
-ALL_UI = APP + "\n" + LEARNING
+TODAY = (ROOT / "teacher_today_ui.py").read_text(encoding="utf-8")
+ALL_UI = APP + "\n" + LEARNING + "\n" + TODAY
 
 
 def function_body(name: str, next_name: str) -> str:
@@ -17,7 +18,7 @@ leader_context = function_body("load_leaderboard_context", "_leaderboard_cache_k
 leader_render = function_body("render_leaderboard", "render_daily_review")
 
 a = {
-    "version 2.6": 'APP_VERSION = "2.13.1"' in ENGINE,
+    "version 2.6": 'APP_VERSION = "2.14.0"' in ENGINE,
     "four-step routine strip": 'def render_routine_strip(stage: str)' in APP and '1 · Daily 10' in APP and '4 · Mystery' in APP,
     "daily shows routine strip": 'render_routine_strip("daily")' in APP,
     "done screen is unmistakable": "YOU'RE DONE FOR TODAY!" in APP,
@@ -31,10 +32,10 @@ a = {
     "student leaderboard context strips timed_seconds": '"timed_seconds"' not in leader_context,
     "student leaderboard render has no score field": "leader-score" not in leader_render,
     "student leaderboard only builds rank and nickname": '"rank": index' in leader_context and '"nickname": row["nickname"]' in leader_context,
-    "teacher today defines Done": "Done means Daily 10 + Fix Your Misses + Focus Practice are complete" in APP,
-    "teacher today says mystery optional": "The Mystery guess is optional" in APP,
-    "teacher today has done working not-started": 'c1.metric("🟢 Done"' in APP and 'c2.metric("🟡 Working"' in APP and 'c3.metric("⚪ Not started"' in APP,
-    "teacher performance details are teacher-only": "Teacher-only accuracy & timing" in APP,
+    "teacher today defines Done": "Done means Daily 10 + Fix Your Misses + Focus Practice are complete" in TODAY,
+    "teacher today says mystery optional": "The Mystery guess is optional" in TODAY,
+    "teacher today has done working not-started": 'c1.metric("🟢 Done"' in TODAY and 'c2.metric("🟡 Working"' in TODAY and 'c3.metric("⚪ Not started"' in TODAY,
+    "teacher performance details are teacher-only": "Teacher-only accuracy & timing" in TODAY,
     "teacher Top 10 preview states exact privacy": "rank + nickname only" in APP,
     "teacher tabs reorganized": all(x in APP for x in ["📊 Today", "👥 Classes & Rosters", "📈 Learning Data", "🕵️ Weekly Mystery", "🛠️ Student Support"]),
     "classes keeps class creation": "Create a class" in APP and "Create students + PINs" in APP,
@@ -44,10 +45,10 @@ a = {
     "student support keeps nickname": "Save nickname" in APP,
     "student support keeps visible PIN": "Current classroom PIN" in APP,
     "student support keeps PIN reset": "Generate new PIN" in APP,
-    "student support keeps daily reset": "Reset today's Daily attempt" in APP,
+    "student support keeps confirmed daily reopen": "Reopen with a fresh Daily attempt" in APP and "confirm_reopen_daily" in APP,
     "student support keeps focus override": "Adjust Focus Practice" in APP and "Student Focus" in APP,
     "student support keeps move": "Move student" in APP,
-    "student support keeps deactivate/reactivate": "Deactivate student" in APP and "Reactivate student" in APP,
+    "student support keeps archive/restore": "Archive student" in APP and "Restore student" in APP,
     "student support keeps permanent delete": "Delete student permanently" in APP,
     "mastery keeps global override": "Save everyone focus" in ALL_UI,
     "mastery keeps class override": "Save class focus" in ALL_UI,

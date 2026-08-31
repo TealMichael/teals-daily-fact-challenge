@@ -6,10 +6,12 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent
 APP = (ROOT / "app.py").read_text(encoding="utf-8")
 TREE = ast.parse(APP)
+TODAY_UI = (ROOT / "teacher_today_ui.py").read_text(encoding="utf-8")
+TODAY_TREE = ast.parse(TODAY_UI)
 
 
-def fn(name: str) -> ast.FunctionDef:
-    for node in TREE.body:
+def fn(name: str, *, tree=TREE) -> ast.FunctionDef:
+    for node in tree.body:
         if isinstance(node, ast.FunctionDef) and node.name == name:
             return node
     raise AssertionError(f"Missing function: {name}")
@@ -17,6 +19,9 @@ def fn(name: str) -> ast.FunctionDef:
 
 def source(name: str) -> str:
     return ast.get_source_segment(APP, fn(name)) or ""
+
+def today_source(name: str) -> str:
+    return ast.get_source_segment(TODAY_UI, fn(name, tree=TODAY_TREE)) or ""
 
 # The clock integration must remain teacher-only. It may be imported globally,
 # but student Daily/Practice must not call its queue/setup helpers.
@@ -36,15 +41,16 @@ print("PASS: AWTRIX remains out of student flow")
 
 # Teacher Clock stays lazy behind its own selected section.
 teacher = source("render_teacher")
-assert 'elif section == "🖥️ Clock":' in teacher
+assert 'manage_sections = ["🕵️ Weekly Mystery", "👥 Classes & Rosters", "🖥️ Clock", "🧪 Test Student"]' in teacher
+assert 'elif manage_section == "🖥️ Clock":' in teacher
 assert "render_teacher_clock(store)" in teacher
 print("PASS: Clock setup remains teacher-section only")
 
 # Teacher Today keeps the manual clock send, while its read-only Daily snapshot
 # remains exception-isolated so a PostgREST hiccup cannot block Igniter results.
-today = source("render_teacher_today")
+today = today_source("render_teacher_today_command_center")
 assert "queue_clock_top10_for_class(store, selected.class_id)" in today
-assert "daily_status_error = None" in today
+assert "daily_status_error = selected_snapshot.get(\"error\")" in today
 assert "Daily standings are temporarily unavailable" in today
 assert "store.get_warmup_set(selected.class_id, day)" in today
 print("PASS: Teacher Today keeps clock send plus Daily-status isolation")
@@ -56,7 +62,7 @@ print("PASS: Projector remains recoverable on Daily-status failure")
 
 # Existing v2.12 behavior/contracts that matter for tomorrow.
 engine = (ROOT / "fact_engine.py").read_text(encoding="utf-8")
-assert 'APP_VERSION = "2.13.1"' in engine
+assert 'APP_VERSION = "2.14.0"' in engine
 assert 'CHALLENGE_VERSION = "TDFC-DAILY-v1"' in engine
 print("PASS: Daily challenge version unchanged")
 

@@ -37,7 +37,9 @@ This contract was rebased in v2.11.2 on the proven v2.11.0.3 classroom build to 
 
 ## Module boundaries
 
-- `app.py` — routing, shared session state, Student Daily/Practice, Teacher Today/roster/support/mystery shell.
+- `app.py` — routing, shared session state, Student Daily/Practice, teacher roster/support/mystery shell.
+- `teacher_today_ui.py` — teacher-only Today Command Center, all-class snapshot, attendance exceptions, and quick actions.
+- `teacher_command_center.py` — pure teacher-only Today/attendance summary helpers; no student routing.
 - `student_igniter_ui.py` — student Igniter only.
 - `teacher_warmup_ui.py` — teacher Igniter planning/results/email/export only.
 - `teacher_learning_ui.py` — Fact Fluency + Standards Tracker only.
@@ -81,3 +83,12 @@ Future releases should run `python release_guard.py` plus the full `*_tests.py` 
 - The separate Class Schedule script and its sounds remain untouched.
 - Student app flow and student database workload remain unchanged by clock sound behavior.
 
+
+## v2.14 Teacher Command Center protections
+
+- The student-facing sign-in, Daily, Practice, Igniter, alternate Daily, browser components, Fact Coach, adaptive engine, and persistent-login paths remain unchanged from v2.13.2.
+- Teacher attendance exceptions live in existing private `app_settings`; they require no schema change and adjust teacher completion denominators only.
+- A student who already completed the Daily 10 cannot be marked absent, preventing attendance metadata from silently changing a completed student-facing Top 10 result.
+- Reopening a Daily remains an explicit teacher action with confirmation and uses the existing reset/rebuild path.
+- Archiving a student uses the existing inactive-account behavior and preserves history/PIN for restoration.
+- Primary teacher navigation is intentionally limited to Today, Warm-Up, Learning, and Manage; all existing teacher tools remain reachable underneath those groups.

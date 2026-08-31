@@ -8,12 +8,13 @@ ROOT = Path(__file__).resolve().parent
 APP = (ROOT / "app.py").read_text(encoding="utf-8")
 STORE = (ROOT / "supabase_fact_store.py").read_text(encoding="utf-8")
 LEARNING = (ROOT / "teacher_learning_ui.py").read_text(encoding="utf-8")
-ALL_UI = APP + "\n" + LEARNING
+TODAY = (ROOT / "teacher_today_ui.py").read_text(encoding="utf-8")
+ALL_UI = APP + "\n" + LEARNING + "\n" + TODAY
 
 
 def run():
     checks = {}
-    checks["version 2.7.0"] = APP_VERSION == "2.13.1"
+    checks["version 2.7.0"] = APP_VERSION == "2.14.0"
 
     # Friday is a real fifth clue, with no skipped-day backfill.
     checks["all bank mysteries resolve to five clues"] = all(len(mystery_for_key(item.key).clues) == 5 for item in MYSTERIES)
@@ -45,9 +46,9 @@ def run():
     # Teacher refresh + display-safe leaderboard.
     checks["teacher refresh button"] = "🔄 Refresh data" in APP
     checks["teacher refresh keeps session"] = "teacher_authed = False" not in APP[APP.index("def _teacher_refresh_control"):APP.index("def render_teacher_projector")]
-    checks["live top 10"] = "Live Top 10" in APP and "standings may change" in APP
-    checks["final top 10"] = "Final Top 10" in APP and "Mark standings Final" in APP
-    checks["projector mode"] = "Display Top 10" in APP and "render_teacher_projector" in APP
+    checks["live top 10"] = "Live Top 10" in TODAY and "standings may change" in TODAY
+    checks["final top 10"] = "Final Top 10" in TODAY and "Mark standings Final" in TODAY
+    checks["projector mode"] = "Display Top 10" in TODAY and "render_teacher_projector" in APP
     projector = APP[APP.index("def render_teacher_projector"):APP.index("def render_teacher_today")]
     checks["projector hides teacher-only metrics"] = "timed_seconds" not in projector and "correct_count" not in projector and "row[\"pin_code\"]" not in projector
     checks["projector only rank nickname"] = 'row["rank"]' in projector and ("row[\'nickname\']" in projector or 'row["nickname"]' in projector)

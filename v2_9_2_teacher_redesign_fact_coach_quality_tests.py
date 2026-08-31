@@ -17,7 +17,7 @@ def section(name: str, next_name: str | None = None, source: str = APP) -> str:
 
 def run():
     checks = {}
-    checks["version 2.9.3"] = APP_VERSION == "2.13.1"
+    checks["version 2.9.3"] = APP_VERSION == "2.14.0"
 
     mastery = section("render_teacher_mastery_focus", source=LEARNING_UI)
     fluency = section("_render_teacher_fact_fluency", "_render_teacher_standards_tracker", LEARNING_UI)
@@ -30,7 +30,7 @@ def run():
 
     support = section("render_teacher_student_tools", "_mystery_raffle_setting_key")
     checks["student support uses action buttons"] = all(text in support for text in [
-        "🔑 Account & PIN", "🧰 Fix today's Daily", "🎯 Adjust Focus Practice", "↔️ Move / Status"
+        "🔑 Account & PIN", "🧰 Reopen today's Daily", "🎯 Adjust Focus Practice", "↔️ Move / Archive"
     ])
     checks["student support old toggle stack removed"] = all(text not in support for text in [
         "Show today's Daily troubleshooting", "Show Personal Focus override", "Show Bulk move shortcut"

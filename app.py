@@ -15,10 +15,10 @@ import streamlit.components.v1 as components
 from fact_engine import (
     APP_VERSION,
     CHALLENGE_VERSION,
+    DAILY_TIMEZONE,
     Fact,
     current_daily_date,
     daily_facts_for_date,
-    daily_mix_summary,
     fact_family_options,
     practice_fact,
     repeated_addition_text,
@@ -43,8 +43,8 @@ from student_alt_daily_ui import render_alternate_daily
 from teacher_daily_setup_ui import render_teacher_daily_setup
 from teacher_learning_ui import render_teacher_mastery_focus, _override_label, _override_value
 from teacher_warmup_ui import render_teacher_warmup as _render_teacher_warmup_module
-from teacher_warmup_ui import _render_warmup_groups_and_email
-from teacher_clock_ui import render_teacher_clock, queue_clock_top10_for_class
+from teacher_clock_ui import render_teacher_clock
+from teacher_today_ui import render_teacher_today_command_center as _render_teacher_today_command_center
 from weekly_mystery import (
     MYSTERIES,
     default_mystery_key_for_week,
@@ -443,6 +443,9 @@ def init_state() -> None:
         "practice_focus_queue_batch": 0,
         "student_nav": "Today",
         "teacher_section": "📊 Today",
+        "teacher_primary_section": "📊 Today",
+        "teacher_learning_section": "📈 Learning Data",
+        "teacher_manage_section": "🕵️ Weekly Mystery",
         "bulk_created_credentials": None,
         "practice_retry_correct": False,
         "practice_retry_count": 0,
@@ -1799,7 +1802,7 @@ def _leaderboard_from_status(status: list[dict], *, limit: int = 10) -> list[dic
     return [dict(row, rank=index) for index, row in enumerate(completed[:limit], start=1)]
 
 def _set_teacher_refresh_stamp() -> None:
-    st.session_state["teacher_last_refresh_at"] = datetime.now().strftime("%I:%M:%S %p").lstrip("0")
+    st.session_state["teacher_last_refresh_at"] = datetime.now(DAILY_TIMEZONE).strftime("%I:%M:%S %p").lstrip("0")
 
 def _request_teacher_refresh() -> None:
     """Force the next teacher render to use a brand-new Supabase client.
@@ -1832,6 +1835,29 @@ def _teacher_refresh_control(*, key: str) -> None:
         st.caption("Refreshing latest Supabase data…")
     elif stamp:
         st.caption(f"✅ Data updated {stamp}")
+
+
+def _go_teacher_tool(tool: str) -> None:
+    """Route a teacher quick action without changing the underlying tool renderers."""
+    routes = {
+        "Today": ("📊 Today", None, None),
+        "Warm-Up": ("🧠 Warm-Up", None, None),
+        "Learning Data": ("📈 Learning", "📈 Learning Data", None),
+        "Student Support": ("📈 Learning", "🛠️ Student Support", None),
+        "Weekly Mystery": ("⚙️ Manage", "🕵️ Weekly Mystery", None),
+        "Classes & Rosters": ("⚙️ Manage", "👥 Classes & Rosters", "👥 Rosters"),
+        "Daily 10 Setup": ("⚙️ Manage", "👥 Classes & Rosters", "🎯 Daily 10 Setup"),
+        "Clock": ("⚙️ Manage", "🖥️ Clock", None),
+        "Test Student": ("⚙️ Manage", "🧪 Test Student", None),
+    }
+    primary, secondary, class_tool = routes.get(str(tool), ("📊 Today", None, None))
+    st.session_state["teacher_primary_section"] = primary
+    if primary == "📈 Learning" and secondary:
+        st.session_state["teacher_learning_section"] = secondary
+    if primary == "⚙️ Manage" and secondary:
+        st.session_state["teacher_manage_section"] = secondary
+    if class_tool:
+        st.session_state["teacher_class_tool"] = class_tool
 
 def render_teacher_projector(store: SupabaseFactStore) -> None:
     class_id = st.session_state.get("teacher_projector_class_id")
@@ -1900,203 +1926,18 @@ def render_teacher_projector(store: SupabaseFactStore) -> None:
     st.caption("Student-safe display: rank + nickname only. Scores, times, PINs, and teacher data are hidden.")
 
 def render_teacher_today(store: SupabaseFactStore) -> None:
-    header_left, header_right = st.columns([4.2, 1.4])
-    with header_left:
-        st.markdown("### 📊 Today")
-        st.caption("Done means Daily 10 + Fix Your Misses + Focus Practice are complete. The Mystery guess is optional.")
-    with header_right:
-        _teacher_refresh_control(key="teacher_today_refresh")
-
-    classes = store.list_classes()
-    if not classes:
-        st.info("Create your first class in Classes & Rosters.")
-        return
-    class_by_name = {item.class_name: item for item in classes}
-    selected_name = st.selectbox("Class", list(class_by_name), key="teacher_today_class")
-    selected = class_by_name[selected_name]
-    day, facts, challenge = ensure_today(store)
-
-    # One roster read feeds every Today section. The remaining reads are the
-    # actual data sets we need rather than reloading the roster for each one.
-    students = store.list_students(selected.class_id)
-    daily_status_error = None
-    try:
-        status = store.daily_status(selected.class_id, challenge.challenge_id, students=students)
-    except Exception as exc:
-        # Daily status cannot block independently loaded Igniter/teacher tools.
-        status = []
-        daily_status_error = exc
-    if daily_status_error is None:
-        progress_map = store.class_learning_progress(selected.class_id, challenge.challenge_id, students=students)
-        learning_stats = store.class_learning_stats(selected.class_id, day, students=students)
-    else:
-        progress_map = {}
-        learning_stats = {}
-    warmup_error = None
-    try:
-        warmup_today = store.get_warmup_set(selected.class_id, day)
-        warmup_rows = store.list_warmup_answers(day, day, class_id=selected.class_id) if warmup_today is not None else []
-    except Exception as exc:
-        # Warm-Up is a trial feature and must never take down the rest of the
-        # Teacher Today dashboard. Surface the issue while preserving Daily,
-        # Focus, leaderboard, and roster data.
-        warmup_today = None
-        warmup_rows = []
-        warmup_error = exc
-    completed_rows = [row for row in status if row.get("status") == "Complete"]
-    if daily_status_error is None:
-        _finish_teacher_refresh()
-    else:
-        st.session_state.pop("teacher_refresh_pending", False)
-
-    total = len(status) if daily_status_error is None else len(students)
-    full_complete = sum(
-        bool(progress_map.get(row["student_id"]) and progress_map[row["student_id"]].completed_at)
-        for row in status
+    return _render_teacher_today_command_center(
+        store,
+        ensure_today_fn=ensure_today,
+        refresh_control=_teacher_refresh_control,
+        finish_refresh=_finish_teacher_refresh,
+        set_refresh_stamp=_set_teacher_refresh_stamp,
+        leaderboard_from_status=_leaderboard_from_status,
+        leaderboard_is_final=_leaderboard_is_final,
+        leaderboard_final_key=_leaderboard_final_key,
+        mystery_pending_draw=_mystery_raffle_has_pending_draw,
+        go_teacher_tool=_go_teacher_tool,
     )
-    not_started = sum(row["status"] == "Not started" for row in status)
-    working = max(0, total - full_complete - not_started) if daily_status_error is None else 0
-    daily_complete = len(completed_rows)
-    average_accuracy = (
-        sum(int(row["correct_count"]) for row in completed_rows) / len(completed_rows)
-        if completed_rows else 0
-    )
-    median_time = (
-        float(pd.Series([row["timed_seconds"] for row in completed_rows]).median())
-        if completed_rows else 0
-    )
-
-    c1, c2, c3, c4 = st.columns(4)
-    if daily_status_error is None:
-        c1.metric("🟢 Done", f"{full_complete}/{total}")
-        c2.metric("🟡 Working", working)
-        c3.metric("⚪ Not started", not_started)
-        c4.metric("Daily 10 finished", f"{daily_complete}/{total}")
-    else:
-        c1.metric("🟢 Done", "—")
-        c2.metric("🟡 Working", "—")
-        c3.metric("⚪ Not started", "—")
-        c4.metric("Daily 10 finished", "—")
-        st.warning("Daily 10 status could not load just now. Igniter results and other teacher tools are still available; tap Refresh data to retry the Daily snapshot.")
-        if str(st.query_params.get("dbcheck", "0")) == "1":
-            st.exception(daily_status_error)
-    if warmup_error is not None:
-        st.warning("Warm-Up data could not load just now. The rest of Today is still available; try Refresh data once.")
-        if str(st.query_params.get("dbcheck", "0")) == "1":
-            st.exception(warmup_error)
-
-    if warmup_today is not None:
-        real_ids = {student.student_id for student in students}
-        warmup_rows = [row for row in warmup_rows if row.student_id in real_ids]
-        q1_rows = [row for row in warmup_rows if row.question_slot == 1]
-        q2_rows = [row for row in warmup_rows if row.question_slot == 2]
-        warmup_done = {row.student_id for row in q1_rows} & {row.student_id for row in q2_rows}
-        q1_accuracy = (sum(row.correct for row in q1_rows) / len(q1_rows) * 100) if q1_rows else None
-        q2_accuracy = (sum(row.correct for row in q2_rows) / len(q2_rows) * 100) if q2_rows else None
-        st.markdown("#### 🧠 Quick Warm-Up")
-        w1, w2, w3 = st.columns(3)
-        w1.metric("Finished", f"{len(warmup_done)}/{len(students)}")
-        w2.metric("Spiral accuracy", "—" if q1_accuracy is None else f"{q1_accuracy:.0f}%")
-        w3.metric("Yesterday accuracy", "—" if q2_accuracy is None else f"{q2_accuracy:.0f}%")
-        st.caption("Unfinished students are not counted as incorrect. Open the groups below whenever you are ready to act on the current data.")
-        if st.toggle("🎯 Show Warm-Up groups & email", key=f"teacher_today_warmup_groups_{selected.class_id}"):
-            _render_warmup_groups_and_email(
-                store, selected, day, warmup_today, warmup_rows, students,
-                key_prefix=f"teacher_today_warmup_{selected.class_id}_{day.isoformat()}",
-            )
-
-    st.markdown("#### 🏆 Class Top 10")
-    if daily_status_error is not None:
-        st.caption("Daily standings are temporarily unavailable. Igniter results above are unaffected; tap Refresh data to retry.")
-    else:
-        board = _leaderboard_from_status(status, limit=10)
-        final = _leaderboard_is_final(store, day, selected.class_id, completed=daily_complete, total=total)
-        if final:
-            st.success("**Final Top 10** · final standings for today")
-        else:
-            st.info(f"**Live Top 10** · {daily_complete} of {total} finished · standings may change")
-        board_frame = pd.DataFrame([{"Rank": row["rank"], "Nickname": row["nickname"]} for row in board]) if board else pd.DataFrame(columns=["Rank", "Nickname"])
-        if board:
-            st.dataframe(board_frame, hide_index=True, use_container_width=True)
-        else:
-            st.caption("No completed Daily attempts yet today.")
-
-        top10_a, top10_b = st.columns(2)
-        with top10_a:
-            if st.button("🏆 Display Top 10", use_container_width=True, key=f"display_top10_{selected.class_id}"):
-                st.session_state["teacher_projector_mode"] = True
-                st.session_state["teacher_projector_class_id"] = selected.class_id
-                st.session_state["teacher_projector_class_name"] = selected.class_name
-                st.rerun()
-        with top10_b:
-            if final and not (total > 0 and daily_complete >= total):
-                if st.button("Return standings to Live", use_container_width=True, key=f"unfinal_top10_{selected.class_id}"):
-                    store.set_app_setting(_leaderboard_final_key(day, selected.class_id), False)
-                    st.rerun()
-            elif not final:
-                if st.button("Mark standings Final", use_container_width=True, key=f"final_top10_{selected.class_id}"):
-                    store.set_app_setting(_leaderboard_final_key(day, selected.class_id), True)
-                    st.rerun()
-            else:
-                st.caption("Everyone has finished the Daily 10, so standings are automatically Final.")
-
-    if st.button("📟 Send Top 10 to Clock Now", use_container_width=True, key=f"send_clock_top10_{selected.class_id}"):
-        try:
-            block = queue_clock_top10_for_class(store, selected.class_id)
-            st.success(f"Block {block} Top 10 queued for the classroom clock. An online clock should pick it up within about 15 seconds.")
-        except Exception as exc:
-            st.warning(f"Clock send is not ready yet: {exc}")
-
-    teacher_students = {student.student_id: student for student in students}
-    summary_rows = []
-    performance_rows = []
-    for row in status:
-        sid = row["student_id"]
-        progress = progress_map.get(sid)
-        if progress and progress.completed_at:
-            routine = "🟢 Done"
-        elif row["status"] == "Not started":
-            routine = "⚪ Not started"
-        elif row["status"] != "Complete":
-            routine = "🟡 Daily 10"
-        elif progress and progress.fix_completed_at:
-            routine = "🟡 Focus Practice"
-        else:
-            routine = "🟡 Fix Your Misses"
-        stats = learning_stats.get(sid, {"current_streak": 0, "stars": 0})
-        student_record = teacher_students.get(sid)
-        pin = student_record.pin_code if student_record and student_record.pin_code else "Reset once"
-        summary_rows.append({
-            "Nickname": row["nickname"],
-            "PIN": pin,
-            "Status": routine,
-            "Streak": f"🔥 {stats.get('current_streak', 0)}" if stats.get("current_streak", 0) else "—",
-            "Days Completed": int(stats.get("stars", 0)),
-        })
-        performance_rows.append({
-            "Nickname": row["nickname"],
-            "PIN": pin,
-            "Daily accuracy": "" if row["correct_count"] is None else f"{int(row['correct_count'])}/10",
-            "Timed sprint": "" if row["timed_seconds"] is None else format_seconds(float(row["timed_seconds"])),
-        })
-    if summary_rows:
-        st.markdown("#### Where everyone is")
-        st.dataframe(pd.DataFrame(summary_rows), hide_index=True, use_container_width=True)
-
-    with st.expander("Teacher-only accuracy & timing", expanded=False):
-        st.caption("Students never see these scores or times. Accuracy ranks first; time only breaks ties.")
-        if completed_rows:
-            st.caption(f"Class average: {average_accuracy:.1f}/10 · median timed sprint: {format_seconds(median_time)}")
-        st.dataframe(pd.DataFrame(performance_rows), hide_index=True, use_container_width=True)
-
-    with st.expander("Preview today's balanced 10", expanded=False):
-        mix = daily_mix_summary(facts)
-        st.caption(
-            f"Core mix: {mix['easy']} easier retrieval · {mix['medium']} medium · {mix['hard']} harder"
-            + (f" · {mix['extension']} 11/12 extension" if mix["extension"] else " · no 11/12 fact today")
-        )
-        for index, fact in enumerate(facts, start=1):
-            st.write(f"{index}. **{fact.label} = {fact.product}** · {fact.tier}")
 
 def render_teacher_classes(store: SupabaseFactStore, *, show_heading: bool = True) -> None:
     if show_heading:
@@ -2365,14 +2206,14 @@ def render_teacher_student_tools(store: SupabaseFactStore) -> None:
         if st.button("🔑 Account & PIN", use_container_width=True, key=f"support_account_{student.student_id}"):
             st.session_state[action_key] = "account"
     with row1b:
-        if st.button("🧰 Fix today's Daily", use_container_width=True, key=f"support_daily_{student.student_id}"):
+        if st.button("🧰 Reopen today's Daily", use_container_width=True, key=f"support_daily_{student.student_id}"):
             st.session_state[action_key] = "daily"
     row2a, row2b = st.columns(2)
     with row2a:
         if st.button("🎯 Adjust Focus Practice", use_container_width=True, key=f"support_focus_{student.student_id}"):
             st.session_state[action_key] = "focus"
     with row2b:
-        if st.button("↔️ Move / Status", use_container_width=True, key=f"support_move_{student.student_id}"):
+        if st.button("↔️ Move / Archive", use_container_width=True, key=f"support_move_{student.student_id}"):
             st.session_state[action_key] = "move"
 
     action = st.session_state.get(action_key, "account")
@@ -2411,8 +2252,8 @@ def render_teacher_student_tools(store: SupabaseFactStore) -> None:
                 st.rerun()
 
     elif action == "daily":
-        st.markdown("#### 🧰 Fix today's Daily")
-        st.caption("Use this only for a technology problem or accidental start. It gives this student a fresh Daily attempt.")
+        st.markdown("#### 🧰 Reopen today's Daily")
+        st.caption("Use this for a technology problem or accidental attempt. Reopening removes today's attempt and follow-up work, rebuilds multiplication mastery from the remaining evidence, and gives the student a fresh Daily.")
         try:
             _, _, challenge = ensure_today(store)
             attempt = store.get_attempt_for_student(student.student_id, challenge.challenge_id)
@@ -2424,9 +2265,16 @@ def render_teacher_student_tools(store: SupabaseFactStore) -> None:
         else:
             state = "Complete" if attempt.completed_at else "Timer running" if attempt.timed_started_at else "Opened"
             st.write(f"Current state: **{state}**")
-            if st.button("Reset today's Daily attempt", use_container_width=True, type="primary", key=f"reset_daily_{student.student_id}"):
+            confirm_reopen = st.checkbox(
+                "I understand this removes today's saved attempt and gives the student a fresh Daily.",
+                key=f"confirm_reopen_daily_{student.student_id}",
+            )
+            if st.button(
+                "Reopen with a fresh Daily attempt", use_container_width=True, type="primary",
+                disabled=not confirm_reopen, key=f"reset_daily_{student.student_id}",
+            ):
                 store.reset_daily_attempt(student.student_id, challenge.challenge_id)
-                st.success("Today's attempt was reset.")
+                st.success("Today's Daily was reopened. The student can start a fresh attempt.")
                 st.rerun()
 
     elif action == "focus":
@@ -2444,7 +2292,7 @@ def render_teacher_student_tools(store: SupabaseFactStore) -> None:
             st.rerun()
 
     else:
-        st.markdown("#### ↔️ Move / Status")
+        st.markdown("#### ↔️ Move / Archive")
         if len(classes) >= 2:
             destination_options = [item for item in classes if item.class_id != student.class_id]
             destination_by_name = {item.class_name: item for item in destination_options}
@@ -2462,7 +2310,8 @@ def render_teacher_student_tools(store: SupabaseFactStore) -> None:
             st.caption("Create another class before moving this student.")
 
         target_active = not student.active
-        status_label = "Reactivate student" if target_active else "Deactivate student"
+        status_label = "Restore student" if target_active else "Archive student"
+        st.caption("Archiving keeps the student's history and PIN but removes the account from active classroom rosters. Restore it anytime.")
         if st.button(status_label, use_container_width=True, key=f"student_active_{student.student_id}"):
             store.set_student_active(student.student_id, target_active)
             st.rerun()
@@ -2852,36 +2701,54 @@ def render_teacher(store: SupabaseFactStore | None) -> None:
     top_left, top_right = st.columns([7, 1])
     with top_left:
         st.markdown("## Teacher Dashboard")
-        st.caption("Today and Warm-Up are your everyday tools. Only the section you open loads; students still only see their class Top 10.")
+        st.caption("Today and Warm-Up stay one tap away. Learning and administrative tools are grouped so the dashboard stays calm.")
     with top_right:
         if st.button("Log out"):
             st.session_state.teacher_authed = False
             st.session_state["teacher_projector_mode"] = False
             st.rerun()
 
-    teacher_sections = [
-        "📊 Today", "🧠 Warm-Up", "📈 Learning Data", "🛠️ Student Support",
-        "🕵️ Weekly Mystery", "👥 Classes & Rosters", "🖥️ Clock", "🧪 Test Student",
-    ]
-    section = st.radio(
-        "Teacher section", teacher_sections, horizontal=True, label_visibility="collapsed", key="teacher_section"
+    teacher_primary_sections = ["📊 Today", "🧠 Warm-Up", "📈 Learning", "⚙️ Manage"]
+    current_primary = st.session_state.get("teacher_primary_section")
+    if current_primary not in teacher_primary_sections:
+        st.session_state["teacher_primary_section"] = "📊 Today"
+    primary = st.radio(
+        "Teacher section", teacher_primary_sections, horizontal=True,
+        label_visibility="collapsed", key="teacher_primary_section",
     )
-    if section == "📊 Today":
+
+    if primary == "📊 Today":
         render_teacher_today(store)
-    elif section == "🧠 Warm-Up":
+    elif primary == "🧠 Warm-Up":
         render_teacher_warmup(store)
-    elif section == "📈 Learning Data":
-        render_teacher_mastery_focus(store)
-    elif section == "🕵️ Weekly Mystery":
-        render_teacher_weekly_mystery(store)
-    elif section == "🛠️ Student Support":
-        render_teacher_student_tools(store)
-    elif section == "👥 Classes & Rosters":
-        render_teacher_class_hub(store)
-    elif section == "🖥️ Clock":
-        render_teacher_clock(store)
+    elif primary == "📈 Learning":
+        learning_sections = ["📈 Learning Data", "🛠️ Student Support"]
+        if st.session_state.get("teacher_learning_section") not in learning_sections:
+            st.session_state["teacher_learning_section"] = "📈 Learning Data"
+        learning_section = st.radio(
+            "Learning tools", learning_sections, horizontal=True,
+            label_visibility="collapsed", key="teacher_learning_section",
+        )
+        if learning_section == "📈 Learning Data":
+            render_teacher_mastery_focus(store)
+        else:
+            render_teacher_student_tools(store)
     else:
-        render_teacher_test_student_launcher(store)
+        manage_sections = ["🕵️ Weekly Mystery", "👥 Classes & Rosters", "🖥️ Clock", "🧪 Test Student"]
+        if st.session_state.get("teacher_manage_section") not in manage_sections:
+            st.session_state["teacher_manage_section"] = "🕵️ Weekly Mystery"
+        manage_section = st.radio(
+            "Manage tools", manage_sections, horizontal=True,
+            label_visibility="collapsed", key="teacher_manage_section",
+        )
+        if manage_section == "🕵️ Weekly Mystery":
+            render_teacher_weekly_mystery(store)
+        elif manage_section == "👥 Classes & Rosters":
+            render_teacher_class_hub(store)
+        elif manage_section == "🖥️ Clock":
+            render_teacher_clock(store)
+        else:
+            render_teacher_test_student_launcher(store)
 
     st.markdown("---")
     st.caption(f"Teal's Daily Fact Challenge · v{APP_VERSION} · Teacher-only data is never shown on student leaderboards.")

@@ -5,6 +5,7 @@ from fact_store import InMemoryFactStore, FactStoreError
 
 ROOT = Path(__file__).resolve().parent
 APP = (ROOT / "app.py").read_text(encoding="utf-8")
+TODAY_UI = (ROOT / "teacher_today_ui.py").read_text(encoding="utf-8")
 CLOCK_UI = (ROOT / "teacher_clock_ui.py").read_text(encoding="utf-8")
 SQL = (ROOT / "RUN_THIS_ONCE_IN_SUPABASE_v2_12.sql").read_text(encoding="utf-8")
 SCRIPT = (ROOT / "AWTRIX_FactTop10.berry").read_text(encoding="utf-8")
@@ -14,10 +15,10 @@ GUARD = (ROOT / "release_guard.py").read_text(encoding="utf-8")
 def run():
     checks = {}
 
-    checks["release version"] = APP_VERSION == "2.13.1"
+    checks["release version"] = APP_VERSION == "2.14.0"
     checks["teacher clock section"] = '"🖥️ Clock"' in APP and "render_teacher_clock(store)" in APP
-    checks["manual Today button"] = '📟 Send Top 10 to Clock Now' in APP
-    checks["manual queue is class-mapped"] = "queue_clock_top10_for_class(store, selected.class_id)" in APP
+    checks["manual Today button"] = '📟 Send Top 10 to Clock Now' in TODAY_UI
+    checks["manual queue is class-mapped"] = "queue_clock_top10_for_class(store, selected.class_id)" in TODAY_UI
     checks["teacher UI protects secret key"] = "SUPABASE_SECRET_KEY" not in CLOCK_UI
     checks["teacher UI accepts public key only"] = "SUPABASE_PUBLISHABLE_KEY" in CLOCK_UI and "SUPABASE_ANON_KEY" in CLOCK_UI
     checks["mapping confirmation survives rerun"] = "awtrix_mapping_saved" in CLOCK_UI and 'st.session_state["awtrix_mapping_saved"] = True' in CLOCK_UI

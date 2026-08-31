@@ -31,6 +31,8 @@ def run():
         "daily_alt_component/index.html",
         "student_alt_daily_ui.py",
         "teacher_daily_setup_ui.py",
+        "teacher_command_center.py",
+        "teacher_today_ui.py",
         "ui_helpers.py",
         "STABILITY_CONTRACT.md",
         "release_guard.py",

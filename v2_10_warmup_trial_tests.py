@@ -18,7 +18,7 @@ SUPABASE = (ROOT / "supabase_fact_store.py").read_text()
 
 def run():
     checks = 0
-    assert APP_VERSION == "2.13.1"; checks += 1
+    assert APP_VERSION == "2.14.0"; checks += 1
 
     # Matching is useful for decimals/fractions without fuzzy grading.
     assert answer_matches("14.40", "14.4"); checks += 1

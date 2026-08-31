@@ -15,7 +15,7 @@ def run():
         "guided_practice_component",
         "Teacher Dashboard",
         "Create students + PINs",
-        "Reset today's Daily attempt",
+        "Reopen with a fresh Daily attempt",
         "TEACHER_PASSWORD",
     ]
     for phrase in required:
