@@ -6,7 +6,7 @@ ROOT = Path(__file__).resolve().parent
 HTML = (ROOT / "guided_practice_component" / "index.html").read_text()
 
 checks = {
-    "version 2.8.3": APP_VERSION == "2.15.0",
+    "version 2.8.3": APP_VERSION == "2.16.0",
     "removable rows are marked": 'data-remove-row=' in HTML,
     "student remove prompt exists": 'TAP ${removeCount} ${noun} OF ${size} TO TAKE' in HTML,
     "remove-ready state exists": 'remove-ready' in HTML,

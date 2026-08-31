@@ -1,0 +1,19 @@
+Teal's Daily Fact Challenge v2.16.0 — Phase 3: Planning & History
+Final development verification
+
+PASS: 72/72 historical/current regression files
+PASS: 58/58 dedicated v2.16 Planning & History checks
+PASS: package smoke — 99 Python files parsed / 44 required app files present
+PASS: runtime-name guard — 26 production modules
+PASS: 4 classes × 5 school days weekly scheduler simulation
+PASS: student-facing browser components protected byte-for-byte from v2.15.0
+PASS: Phase 2 intelligence modules protected byte-for-byte from v2.15.0
+PASS: app.py remains below the 3,000-line architecture guard
+PASS: no v2.16 Supabase SQL migration
+PASS: TDFC-DAILY-v1 unchanged
+
+Phase 3 scope:
+- Warm-Up: previous-school-day copy, targeted class copy, reuse next week, templates, student-style preview.
+- Daily 10 Setup: Mon–Fri weekly planner, previous-week copy, source-class-to-all copy, reset to Multiplication, tomorrow preview.
+- Learning: Class History by class/date with Daily 10 summary/Top 10/common multiplication misses, Warm-Up evidence, and Weekly Mystery history.
+- Historical raw Warm-Up response text remains governed by the existing privacy/retention rule; correctness and standards evidence remain available.

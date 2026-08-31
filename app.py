@@ -43,6 +43,7 @@ from student_alt_daily_ui import render_alternate_daily
 from teacher_daily_setup_ui import render_teacher_daily_setup
 from teacher_learning_ui import render_teacher_mastery_focus, _override_label, _override_value
 from teacher_intelligence_ui import render_teacher_next_steps, render_teacher_weekly_recap, render_student_learning_snapshot
+from teacher_class_history_ui import render_teacher_class_history
 from teacher_warmup_ui import render_teacher_warmup as _render_teacher_warmup_module
 from teacher_clock_ui import render_teacher_clock
 from teacher_today_ui import render_teacher_today_command_center as _render_teacher_today_command_center
@@ -1846,6 +1847,7 @@ def _go_teacher_tool(tool: str, class_name: str | None = None) -> None:
         "Next Steps": ("📈 Learning", "🧭 Next Steps", None),
         "Learning Data": ("📈 Learning", "📈 Learning Data", None),
         "Student Support": ("📈 Learning", "🛠️ Student Support", None),
+        "Class History": ("📈 Learning", "🗓️ Class History", None),
         "Weekly Mystery": ("🕵️ Weekly Mystery", None, None),
         "Classes & Rosters": ("⚙️ Manage", "👥 Classes & Rosters", "👥 Rosters"),
         "Daily 10 Setup": ("⚙️ Manage", "👥 Classes & Rosters", "🎯 Daily 10 Setup"),
@@ -2770,7 +2772,7 @@ def render_teacher(store: SupabaseFactStore | None) -> None:
     elif primary == "🧠 Warm-Up":
         render_teacher_warmup(store)
     elif primary == "📈 Learning":
-        learning_sections = ["🧭 Next Steps", "📈 Learning Data", "🛠️ Student Support", "📅 Weekly Recap"]
+        learning_sections = ["🧭 Next Steps", "📈 Learning Data", "🛠️ Student Support", "📅 Weekly Recap"] + ["🗓️ Class History"]
         if st.session_state.get("teacher_learning_section") not in learning_sections:
             st.session_state["teacher_learning_section"] = "🧭 Next Steps"
         learning_section = st.radio(
@@ -2783,8 +2785,10 @@ def render_teacher(store: SupabaseFactStore | None) -> None:
             render_teacher_mastery_focus(store)
         elif learning_section == "🛠️ Student Support":
             render_teacher_student_tools(store)
-        else:
+        elif learning_section == "📅 Weekly Recap":
             render_teacher_weekly_recap(store)
+        else:
+            render_teacher_class_history(store)
     elif primary == "🕵️ Weekly Mystery":
         render_teacher_weekly_mystery(store)
     else:

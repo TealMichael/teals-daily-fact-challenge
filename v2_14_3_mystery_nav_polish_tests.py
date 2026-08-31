@@ -13,7 +13,7 @@ def check(name, condition):
     assert condition, name
     checks.append(name)
 
-check("v2.15.0 version", APP_VERSION == "2.15.0")
+check("v2.16.0 version", APP_VERSION == "2.16.0")
 check("Daily challenge contract unchanged", CHALLENGE_VERSION == "TDFC-DAILY-v1")
 
 # Isolate the Weekly Mystery teacher renderer so ordering assertions do not
@@ -41,7 +41,7 @@ check("Weekly Mystery has direct render branch", 'elif primary == "🕵️ Weekl
 check("Manage now contains only administrative destinations", '["👥 Classes & Rosters", "🖥️ Clock", "🧪 Test Student"]' in APP)
 check("Manage no longer duplicates Weekly Mystery", 'manage_sections = ["🕵️ Weekly Mystery"' not in APP)
 check("teacher nav caption simplified", "Your everyday classroom tools stay one tap away." in APP)
-check("no v2.15.0 SQL migration", not (ROOT / "RUN_THIS_ONCE_IN_SUPABASE_v2_14_3.sql").exists())
+check("no v2.16.0 SQL migration", not (ROOT / "RUN_THIS_ONCE_IN_SUPABASE_v2_14_3.sql").exists())
 
 assert len(checks) == 18, len(checks)
-print(f"v2.15.0 Mystery/nav polish regression: {len(checks)}/{len(checks)} checks passed")
+print(f"v2.16.0 Mystery/nav polish regression: {len(checks)}/{len(checks)} checks passed")

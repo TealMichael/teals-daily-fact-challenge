@@ -5,7 +5,7 @@ APP = (ROOT / "app.py").read_text()
 ENGINE = (ROOT / "fact_engine.py").read_text()
 
 checks = {
-    "version bumped": 'APP_VERSION = "2.15.0"' in ENGINE,
+    "version bumped": 'APP_VERSION = "2.16.0"' in ENGINE,
     "roster management visible": '🔧 Roster Management' in APP,
     "bulk selector": '"Select student(s)"' in APP,
     "bulk move visible": '"Move selected student(s)"' in APP,

@@ -122,3 +122,14 @@ Future releases should run `python release_guard.py` plus the full `*_tests.py` 
 - Weekly Recap must label estimated/newly-secured fluency momentum honestly rather than presenting it as an exact historical status transition.
 - Teacher history reads must stay bulked/chunked so a class-level insight page does not create one database request per student or exceed PostgREST URL limits.
 - `teacher_insights.py` and the existing Learning Data UI remain unchanged; Phase 2 lives beside them in `teacher_intelligence.py` and `teacher_intelligence_ui.py`.
+
+## v2.16 Phase 3 planning/history protections
+
+- Phase 3 remains teacher-only. Student Daily, Practice, Fix/Focus, Fact Coach, mastery, student Igniter, student Mystery, login/PIN, and AWTRIX behavior must not change.
+- Warm-Up copy/template actions may never overwrite a Warm-Up after a real student has answered it; the existing Warm-Up lock remains authoritative.
+- Warm-Up student preview must hide correct answers.
+- Historical raw Warm-Up response text remains subject to the existing next-day cleanup policy; Class History may show correctness/standards evidence but must not claim old raw response text still exists.
+- Daily 10 weekly planning reuses the existing per-class/date mode settings. Multiplication remains the default and `TDFC-DAILY-v1` remains unchanged.
+- Alternate Daily 10 modes remain separate from multiplication fluency evidence in Class History and Phase 2 intelligence.
+- Class History is read-only: viewing a past date must not reopen attempts, change mastery, edit Warm-Ups, or alter Mystery records.
+- Current/next Mystery answers remain protected behind collapsed teacher-only details where they could be visible on a projector.

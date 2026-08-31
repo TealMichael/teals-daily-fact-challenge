@@ -1,1 +1,1 @@
-v2.15.0 - add teacher instructional intelligence and weekly recap
+v2.16.0 - add teacher planning tools and class history

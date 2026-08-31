@@ -1,12 +1,14 @@
-# Teal's Daily Fact Challenge v2.15.0 — Phase 2: Instructional Intelligence
+# Teal's Daily Fact Challenge v2.16.0 — Phase 3: Planning & History
 
-**Teacher-side intelligence only:** Learning now opens with **Next Steps**, which identifies the strongest class teaching opportunity, repeated-error patterns, fragile retrieval signals, meaningful progress, and suggested small groups from evidence the app already stores. **Student Support** now includes an individual learning snapshot and recent Daily history. **Weekly Recap** summarizes completion, multiplication accuracy/time, common misses, progress, and fluency-momentum signals while keeping alternate Daily 10 modes separate from multiplication fluency.
+**Teacher planning/history only:** Warm-Up gains planning shortcuts, reusable templates, targeted copying, reuse-next-week, and a student-style preview. Daily 10 Setup becomes a Mon–Fri weekly planner with copy/reset/apply-to-all tools and tomorrow preview. Learning gains a read-only Class History view for Daily 10 results/Top 10/common misses, Warm-Up evidence, and Weekly Mystery history by class/date.
 
-The intelligence layer is read-only: it does not assign Focus plans, alter mastery, change Daily scoring, or write new student evidence. The student Daily, alternate Daily, Practice, Fix/Focus, Fact Coach, Igniter, Mystery, login/PIN, `TDFC-DAILY-v1`, and AWTRIX behavior remain protected. **No Supabase SQL, new Streamlit Secret, or AWTRIX reinstall is required.**
+The student-facing Daily, alternate Daily, Practice, Fix/Focus, Fact Coach, mastery engine, Igniter student flow, Mystery student flow, login/PIN, `TDFC-DAILY-v1`, and AWTRIX remain protected. **No Supabase SQL, new Streamlit Secret, or AWTRIX reinstall is required.**
 
 ---
 
 # Teal's Daily Fact Challenge
+
+> **v2.16.0 — Phase 3: Planning & History:** adds Warm-Up planning shortcuts/templates, a weekly Daily 10 planner, and teacher-only Class History. Historical raw Warm-Up response text remains intentionally cleared after the day; correctness and standards evidence remain visible. No SQL, student-flow, scoring, mastery, or AWTRIX changes.
 
 > **v2.15.0 — Phase 2: Instructional Intelligence:** adds teacher-only Next Steps, evidence-based teaching priorities, suggested small groups, repeated-error/fragile-retrieval/progress signals, richer Student Support snapshots, and a Weekly Teacher Recap. Alternate Daily modes count for participation but never become multiplication fluency evidence. No SQL, student-flow, scoring, mastery, or AWTRIX changes.
 

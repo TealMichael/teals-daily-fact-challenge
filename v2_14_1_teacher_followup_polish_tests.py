@@ -14,7 +14,7 @@ def check(name: str, condition: bool) -> None:
     assert condition, name
     checks.append(name)
 
-check("v2.15.0 version", APP_VERSION == "2.15.0")
+check("v2.16.0 version", APP_VERSION == "2.16.0")
 check("student Daily challenge remains protected", CHALLENGE_VERSION == "TDFC-DAILY-v1")
 check("v2.14.2 requires no SQL", not (ROOT / "RUN_THIS_ONCE_IN_SUPABASE_v2_14_1.sql").exists())
 

@@ -30,6 +30,7 @@ CRITICAL_SUITES = [
     "v2_14_2_raffle_safety_tests.py",
     "v2_14_3_mystery_nav_polish_tests.py",
     "v2_15_0_instructional_intelligence_tests.py",
+    "v2_16_0_planning_history_tests.py",
     "runtime_name_guard_tests.py",
     "v2_11_2_final_top10_restore_tests.py",
     "v2_12_0_awtrix_top10_tests.py",

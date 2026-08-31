@@ -1,18 +1,25 @@
-Teal's Daily Fact Challenge v2.15.0 — Phase 2: Instructional Intelligence
+TEAL'S DAILY FACT CHALLENGE v2.16.0 — DEPLOYMENT
+=================================================
 
-INSTALL FROM v2.14.3
-1. Do NOT run any Supabase SQL.
-2. Copy every file from COPY_INTO_GITHUB_REPO into the root of the existing GitHub repository.
-3. Allow replacements.
-4. Commit and push with GitHub Desktop.
-5. Let Streamlit Cloud redeploy and refresh the app.
-6. Open Teacher -> Learning.
+NORMAL UPGRADE PATH
+-------------------
+Upgrade from installed v2.15.0 using the v2.16.0 GitHub Desktop patch.
 
-EXPECTED RESULT
-- Learning opens with Next Steps, alongside Learning Data, Student Support, and Weekly Recap.
-- Next Steps shows the best teaching opportunity, class priorities, suggested small groups, and students worth a look.
-- Student Support shows a learning snapshot and recent Daily 10 history above the existing support actions.
-- Weekly Recap separates multiplication fluency evidence from alternate Daily 10 modes.
-- No student-facing page or routine changes.
+1. Unzip Teals_Daily_Fact_Challenge_v2_16_0_GITHUB_DESKTOP_PATCH.zip.
+2. Open COPY_INTO_GITHUB_REPO.
+3. Copy everything inside that folder into the root of the existing GitHub repository.
+4. Allow file replacements.
+5. In GitHub Desktop, review the changes, commit, and push.
+6. Let Streamlit Cloud redeploy.
+7. Verify Teacher → Warm-Up planning shortcuts, Manage → Classes & Rosters → Daily 10 Setup, and Learning → Class History.
 
-NO SQL. NO NEW STREAMLIT SECRET. NO AWTRIX CHANGE.
+NO DATABASE STEP
+----------------
+- Do NOT run a v2.16 SQL migration; there is none.
+- Do NOT rerun the v2.13 SQL just for this release.
+- No new Streamlit Secret is required.
+- No AWTRIX script reinstall or clock change is required.
+
+ROLLBACK
+--------
+The separate v2.16.0 FULL_CURRENT_APP ZIP is a complete backup. If rollback is ever necessary, restore the previous known-good v2.15.0 repository files. v2.16.0 introduces no schema change, so rollback does not require database cleanup.

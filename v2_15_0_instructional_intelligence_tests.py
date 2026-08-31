@@ -29,7 +29,7 @@ def check(name, condition):
     assert condition, name
     checks.append(name)
 
-check("v2.15 version", APP_VERSION == "2.15.0")
+check("v2.15 version", APP_VERSION == "2.16.0")
 check("student Daily contract unchanged", CHALLENGE_VERSION == "TDFC-DAILY-v1")
 
 # Phase 2 navigation + teacher UI contract.
@@ -168,7 +168,6 @@ protected = {
     "requirements.txt": "3436997a9043e9843f0960bac0ade5a33acb72eba52a3070bd98a49b3fed7180",
     "teacher_insights.py": "4fdf3516e75a8d697747f4d92aadd3f39c51a116e5990054c5eca4c66b0094a5",
     "teacher_learning_ui.py": "2fd90f8c24022c572cf290e3c9c6556fd9ad00b7382d26c2d176f32b264fd0e9",
-    "teacher_warmup_ui.py": "285b8fd739bca90f445310a35f2aa0750846a3eb8838802bf4df56c88d0733ae",
     "teacher_today_ui.py": "db9e6672a1274ca1a597947ad9a06e8624788057fa02ab39e60a03ce22aa4286",
 }
 for relative, expected in protected.items():
@@ -177,4 +176,4 @@ for relative, expected in protected.items():
 
 check("app architecture remains under 3000 lines", len(APP.splitlines()) < 3000)
 
-print(f"v2.15.0 Instructional Intelligence regression: {len(checks)}/{len(checks)} checks passed")
+print(f"v2.16.0 Instructional Intelligence regression: {len(checks)}/{len(checks)} checks passed")

@@ -18,6 +18,12 @@ from fact_engine import current_daily_date
 from fact_store import FactStoreError
 from supabase_fact_store import SupabaseFactStore
 from warmup import QUESTION_TYPES, display_student_response, prepare_question as prepare_warmup_question, question_for_slot
+from teacher_planning import (
+    copy_warmup_set as _copy_warmup_set,
+    previous_school_day as _previous_school_day,
+    save_warmup_template as _save_warmup_template,
+    warmup_templates as _warmup_templates,
+)
 from indiana_math_standards import (
     BY_CODE as INDIANA_STANDARD_BY_CODE,
     CUSTOM_CODE as CUSTOM_STANDARD_CODE,
@@ -30,6 +36,23 @@ def _next_school_day(value: date) -> date:
     while result.weekday() >= 5:
         result += timedelta(days=1)
     return result
+
+
+def _render_warmup_student_preview(warmup) -> None:
+    st.caption("Student-style preview. Correct answers stay hidden.")
+    for slot, question in ((1, warmup.question_one), (2, warmup.question_two)):
+        label = "Spiral Review" if slot == 1 else "Yesterday Check"
+        st.markdown(f"**{slot}. {label}**")
+        st.write(str(question.get("prompt") or ""))
+        qtype = str(question.get("question_type") or "Short answer")
+        st.caption(f"Answer type: {qtype}")
+        if qtype == "Multiple choice":
+            options = list(question.get("options") or [])
+            if options:
+                st.write(" · ".join(str(option) for option in options))
+        elif qtype == "Multi-Part — 2 answers":
+            st.caption("Students see two answer boxes.")
+
 
 
 def _lines(value: str) -> list[str]:
@@ -462,6 +485,77 @@ def render_teacher_warmup(store: SupabaseFactStore, *, refresh_control, finish_r
     locked = bool(existing and store.warmup_set_locked(existing.warmup_set_id))
     if locked:
         st.info("🔒 This Warm-Up is locked because a real student has already answered it. Historical data stays attached to the exact questions they saw.")
+
+    with st.expander("⚡ Planning shortcuts", expanded=False):
+        previous_date = _previous_school_day(target_date)
+        try:
+            previous = store.get_warmup_set(selected.class_id, previous_date)
+        except Exception:
+            previous = None
+        previous_label = previous_date.strftime("%A, %B %d").replace(" 0", " ")
+        if previous is None:
+            st.caption(f"No Warm-Up is saved for the previous school day ({previous_label}).")
+        else:
+            previous_action = "Replace with previous school day" if existing else "Use previous school day's Warm-Up"
+            if st.button(previous_action, use_container_width=True, disabled=locked, key=f"warmup_previous_{selected.class_id}_{target_date}"):
+                try:
+                    _copy_warmup_set(store, source=previous, target_class_id=selected.class_id, target_date=target_date)
+                    st.success(f"Copied {previous_label} into this date.")
+                    st.rerun()
+                except Exception as exc:
+                    st.error(str(exc))
+
+        if existing is not None:
+            st.markdown("**Reuse this Warm-Up**")
+            reuse_a, reuse_b = st.columns(2)
+            next_week_date = target_date + timedelta(days=7)
+            with reuse_a:
+                if st.button("Reuse next week", use_container_width=True, key=f"warmup_reuse_week_{selected.class_id}_{target_date}"):
+                    try:
+                        _copy_warmup_set(store, source=existing, target_class_id=selected.class_id, target_date=next_week_date)
+                        st.success(f"Copied to {next_week_date.strftime('%A, %B %d').replace(' 0', ' ')}.")
+                    except Exception as exc:
+                        st.error(str(exc))
+            with reuse_b:
+                other_classes = [item for item in classes if item.class_id != selected.class_id]
+                if other_classes:
+                    target_by_name = {item.class_name: item for item in other_classes}
+                    target_name = st.selectbox("Copy to class", list(target_by_name), key=f"warmup_copy_class_{selected.class_id}_{target_date}")
+                    if st.button("Copy to selected class", use_container_width=True, key=f"warmup_copy_class_button_{selected.class_id}_{target_date}"):
+                        try:
+                            _copy_warmup_set(store, source=existing, target_class_id=target_by_name[target_name].class_id, target_date=target_date)
+                            st.success(f"Copied to {target_name} for the same date.")
+                        except Exception as exc:
+                            st.error(str(exc))
+
+            st.markdown("**Templates**")
+            template_name = st.text_input("Template name", placeholder="e.g. Decimal division check", key=f"warmup_template_name_{selected.class_id}_{target_date}")
+            if st.button("Save this Warm-Up as a template", use_container_width=True, key=f"warmup_template_save_{selected.class_id}_{target_date}"):
+                try:
+                    _save_warmup_template(store, template_name, existing.question_one, existing.question_two)
+                    st.success("Warm-Up template saved.")
+                    st.rerun()
+                except Exception as exc:
+                    st.error(str(exc))
+
+            with st.expander("👀 Preview student view", expanded=False):
+                _render_warmup_student_preview(existing)
+
+        templates = _warmup_templates(store)
+        if templates:
+            template_by_name = {item["name"]: item for item in templates}
+            template_choice = st.selectbox("Load a saved template", list(template_by_name), key=f"warmup_template_load_{selected.class_id}_{target_date}")
+            if st.button("Use template on this date", use_container_width=True, disabled=locked, key=f"warmup_template_load_button_{selected.class_id}_{target_date}"):
+                try:
+                    item = template_by_name[template_choice]
+                    class _TemplateSource:
+                        question_one = item["question_one"]
+                        question_two = item["question_two"]
+                    _copy_warmup_set(store, source=_TemplateSource(), target_class_id=selected.class_id, target_date=target_date)
+                    st.success(f"Loaded template: {template_choice}.")
+                    st.rerun()
+                except Exception as exc:
+                    st.error(str(exc))
 
     q1_existing = dict(existing.question_one) if existing else {}
     q2_existing = dict(existing.question_two) if existing else {}
