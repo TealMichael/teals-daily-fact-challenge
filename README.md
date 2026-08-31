@@ -1,12 +1,14 @@
-# Teal's Daily Fact Challenge v2.14.0 — Teacher Command Center
+# Teal's Daily Fact Challenge v2.14.1 — Teacher Today Polish
 
-**Teacher-side Phase 1:** Today is now a true command center with an all-class snapshot, selected-class action alerts, teacher-only attendance exceptions, and clearer data freshness/retry behavior. Teacher navigation is grouped into **Today | Warm-Up | Learning | Manage**. Student Support now gives explicit, confirmed controls to reopen today's Daily and archive/restore students.
+**Teacher-side polish only:** Today no longer asks the teacher to maintain attendance exceptions. The action area is renamed **Quick follow-ups**, shows the actual student nicknames that still need each step, and Today → Warm-Up now preserves the selected class instead of returning to Block 1.
 
-This release intentionally leaves the student experience alone. Student sign-in, Daily, Practice, alternate Daily, Igniter, Fact Coach, adaptive/mastery behavior, persistent login/PIN components, Daily scoring, `TDFC-DAILY-v1`, and AWTRIX behavior remain protected. **No Supabase SQL, new Streamlit Secret, or AWTRIX reinstall is required.**
+The rest of the v2.14 Teacher Command Center remains intact: all-class snapshot, grouped **Today | Warm-Up | Learning | Manage** navigation, resilient teacher data refresh, confirmed Daily reopening, and Archive/Restore controls. Student sign-in, Daily, Practice, alternate Daily, Igniter, Fact Coach, adaptive/mastery behavior, persistent login/PIN components, Daily scoring, `TDFC-DAILY-v1`, Weekly Mystery student flow, and AWTRIX behavior remain protected. **No Supabase SQL, new Streamlit Secret, or AWTRIX reinstall is required.**
 
 ---
 
 # Teal's Daily Fact Challenge
+
+> **v2.14.0 — Teacher Command Center:** introduced the Phase 1 all-class Today command center, grouped teacher navigation, quick teacher routes, safer exception controls, and stronger teacher-side data-failure isolation without changing student-facing gameplay.
 
 > **v2.13.2 — Class List ReadError Hotfix:** adds transient retry protection to teacher class-list reads so brief Supabase `httpx.ReadError` resets do not crash class-based teacher screens. No SQL, scoring, mastery, Warm-Up content, Mystery, AWTRIX, login, or student behavior changes.
 

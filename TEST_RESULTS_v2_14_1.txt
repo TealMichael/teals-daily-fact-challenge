@@ -1,0 +1,35 @@
+Teal's Daily Fact Challenge v2.14.1 — Final Verification
+
+FOCUSED REGRESSIONS
+- v2.14.1 Teacher Follow-up Polish: 15/15 checks passed.
+- v2.14 Teacher Command Center regression: 49/49 checks passed after the attendance UI removal.
+- v2.13 Daily 10 / multiplication protection: 50/50 checks passed.
+- v2.13.1 delayed-raffle/dashboard regression: 17/17 checks passed.
+- v2.13.2 class-list ReadError hotfix: 5/5 checks passed.
+
+FULL REGRESSION INVENTORY
+- 68/68 *_tests.py files passed.
+- release_guard.py passed all 30 critical suites.
+- Runtime-name guard passed across 21 production modules.
+- Package smoke guard passed with all required application files present.
+
+SCOPE / PROTECTION
+- No Supabase migration.
+- No Streamlit Secret change.
+- No AWTRIX change.
+- CHALLENGE_VERSION remains TDFC-DAILY-v1.
+- Student-facing protected module hashes remain unchanged from v2.14.0.
+- Production behavior changes are limited to app.py, teacher_today_ui.py, and teacher_command_center.py; fact_engine.py changes only APP_VERSION 2.14.0 -> 2.14.1.
+
+KEY BEHAVIOR CHECKS
+- Today has no Attendance exceptions UI and no Absent column.
+- Today uses the active roster directly for class counts.
+- “What needs you” is replaced by “Quick follow-ups.”
+- Student nicknames appear directly in unfinished Daily, follow-up practice, and unfinished Warm-Up action rows.
+- Today → Warm-Up seeds the selected class into the existing Warm-Up class selector.
+
+PACKAGE / BROWSER VERIFICATION
+- 6/6 browser components passed JavaScript syntax validation.
+- Actual final package smoke: 90 Python files parsed; 39 required app files present.
+- Actual final runtime-name audit: 21 production modules passed.
+- Fresh v2.14.0 + v2.14.1 GitHub Desktop patch reconstructed the full v2.14.1 repository exactly: 147 files, 0 missing, 0 extra, 0 SHA-256 mismatches.

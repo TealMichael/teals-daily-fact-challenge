@@ -29,7 +29,7 @@ def check(name: str, condition: bool) -> None:
     checks.append(name)
 
 
-check("v2.14.0 version", APP_VERSION == "2.14.0")
+check("v2.14.1 version", APP_VERSION == "2.14.1")
 check("multiplication challenge untouched", CHALLENGE_VERSION == "TDFC-DAILY-v1")
 check("v2.14 requires no SQL migration", not (ROOT / "RUN_THIS_ONCE_IN_SUPABASE_v2_14.sql").exists())
 
@@ -75,7 +75,7 @@ actions = build_today_action_items(
     warmup_finished=0,
     pending_prior_raffle=True,
 )
-check("command center surfaces follow-up work", any("follow-up work" in item["title"] for item in actions))
+check("command center surfaces follow-up work", any("Follow-up practice remaining" in item["title"] for item in actions))
 check("command center does not nag when no Warm-Up is assigned", not any("No Warm-Up" in item["title"] for item in actions))
 check("command center surfaces missed raffle", any("raffle" in item["title"].lower() for item in actions))
 partial_actions = build_today_action_items(
@@ -83,8 +83,8 @@ partial_actions = build_today_action_items(
     routine_summary={"done": 0, "daily": 0, "fix": 0, "focus": 0, "not_started": 2},
     warmup_assigned=True, warmup_finished=2, pending_prior_raffle=False,
 )
-check("command center flags partial Daily start", any("have not started the Daily 10" in item["title"] for item in partial_actions))
-check("command center flags partial Warm-Up completion", any("Warm-Up is still open" in item["title"] for item in partial_actions))
+check("command center flags partial Daily start", any("Daily 10 not started" in item["title"] for item in partial_actions))
+check("command center flags partial Warm-Up completion", any("Warm-Up not finished" in item["title"] for item in partial_actions))
 
 # Classroom-scale attendance metadata stays class-scoped and never changes roster records.
 scale_store = InMemoryFactStore()
@@ -102,9 +102,9 @@ check("learning tools are grouped", '["📈 Learning Data", "🛠️ Student Sup
 check("administrative tools are grouped", '["🕵️ Weekly Mystery", "👥 Classes & Rosters", "🖥️ Clock", "🧪 Test Student"]' in APP)
 check("daily setup remains tucked with classes", '["👥 Rosters", "🎯 Daily 10 Setup"]' in APP)
 check("Today has all-class snapshot", "All Classes Snapshot" in TODAY and '"Open class"' in TODAY)
-check("Today has action center", "What needs you" in TODAY and "build_today_action_items" in TODAY)
+check("Today has action center", "Quick follow-ups" in TODAY and "build_today_action_items" in TODAY)
 check("Today exposes quick teacher routes", all(label in TODAY for label in ["today_go_warmup", "today_go_support", "today_go_mystery", "today_go_daily_setup"]))
-check("Today has attendance exceptions", "Attendance exceptions" in TODAY and "Save attendance exceptions" in TODAY)
+check("Today does not require attendance maintenance", "Attendance exceptions" not in TODAY and "Save attendance exceptions" not in TODAY)
 check("refresh timestamp uses Indiana timezone", 'datetime.now(DAILY_TIMEZONE)' in APP)
 check("class-list terminal failure no longer crashes Today", "Classes could not load just now" in TODAY)
 check("student support has confirmed reopen", "Reopen with a fresh Daily attempt" in APP and "confirm_reopen_daily" in APP)
@@ -145,4 +145,4 @@ for name, expected in student_function_hashes.items():
     actual = hashlib.sha256(segment.encode("utf-8")).hexdigest()
     check(f"student app function unchanged: {name}", actual == expected)
 
-print(f"v2.14.0 Teacher Command Center: {len(checks)}/{len(checks)} checks passed")
+print(f"v2.14.1 Teacher Command Center: {len(checks)}/{len(checks)} checks passed")

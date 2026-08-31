@@ -101,6 +101,11 @@ def summarize_learning_routine(status_rows: Iterable[Mapping], progress_map: Map
     return result
 
 
+def _action_name_line(names: Iterable[str], fallback: str) -> str:
+    cleaned = [str(name).strip() for name in names if str(name).strip()]
+    return ", ".join(cleaned) if cleaned else fallback
+
+
 def build_today_action_items(
     *,
     daily_summary: Mapping[str, int],
@@ -108,8 +113,11 @@ def build_today_action_items(
     warmup_assigned: bool,
     warmup_finished: int,
     pending_prior_raffle: bool,
+    not_started_names: Iterable[str] = (),
+    follow_up_names: Iterable[str] = (),
+    warmup_missing_names: Iterable[str] = (),
 ) -> list[dict[str, str]]:
-    """Return concise teacher actions, not analytics.  Phase 2 owns deeper diagnosis."""
+    """Return concise teacher follow-ups with the student names already visible."""
     actions: list[dict[str, str]] = []
     present = int(daily_summary.get("present", 0))
     not_started = int(daily_summary.get("not_started", 0))
@@ -117,38 +125,38 @@ def build_today_action_items(
     if not_started and started:
         actions.append({
             "icon": "⚪",
-            "title": f"{not_started} student{'s' if not_started != 1 else ''} have not started the Daily 10",
-            "detail": "Some classmates have started, so this may be attendance or a device check.",
+            "title": f"Daily 10 not started · {not_started}",
+            "detail": _action_name_line(not_started_names, "Open the class list below to see who has not started."),
             "route": "Student Support",
         })
     follow_up = int(routine_summary.get("fix", 0)) + int(routine_summary.get("focus", 0))
     if follow_up:
         actions.append({
             "icon": "🟡",
-            "title": f"{follow_up} student{'s' if follow_up != 1 else ''} finished the Daily 10 but still have follow-up work",
-            "detail": "They are in Fix Your Misses or Focus Practice.",
+            "title": f"Follow-up practice remaining · {follow_up}",
+            "detail": _action_name_line(follow_up_names, "Fix Your Misses or Focus Practice is still open."),
             "route": "Student Support",
         })
     if warmup_assigned and 0 < warmup_finished < present:
         remaining = max(0, present - int(warmup_finished))
         actions.append({
             "icon": "🧠",
-            "title": f"Warm-Up is still open for {remaining} student{'s' if remaining != 1 else ''}",
-            "detail": "Some responses are in; open Warm-Up when you are ready to review them.",
+            "title": f"Warm-Up not finished · {remaining}",
+            "detail": _action_name_line(warmup_missing_names, "Open Warm-Up to review the remaining students."),
             "route": "Warm-Up",
         })
     if pending_prior_raffle:
         actions.append({
             "icon": "🎟️",
-            "title": "A prior Weekly Mystery raffle still needs a drawing",
-            "detail": "The missed raffle can be drawn without changing this week's Mystery.",
+            "title": "Prior Weekly Mystery raffle needs a drawing",
+            "detail": "You can draw it without changing this week's Mystery.",
             "route": "Weekly Mystery",
         })
     if not actions and present:
         actions.append({
             "icon": "✅",
-            "title": "Nothing needs your attention right now",
-            "detail": "Today's teacher-side checks are clear for this class.",
+            "title": "All clear for now",
+            "detail": "No unfinished teacher follow-ups for this class.",
             "route": "",
         })
     return actions

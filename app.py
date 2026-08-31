@@ -1837,8 +1837,8 @@ def _teacher_refresh_control(*, key: str) -> None:
         st.caption(f"✅ Data updated {stamp}")
 
 
-def _go_teacher_tool(tool: str) -> None:
-    """Route a teacher quick action without changing the underlying tool renderers."""
+def _go_teacher_tool(tool: str, class_name: str | None = None) -> None:
+    """Route a teacher quick action while preserving class context when useful."""
     routes = {
         "Today": ("📊 Today", None, None),
         "Warm-Up": ("🧠 Warm-Up", None, None),
@@ -1852,6 +1852,8 @@ def _go_teacher_tool(tool: str) -> None:
     }
     primary, secondary, class_tool = routes.get(str(tool), ("📊 Today", None, None))
     st.session_state["teacher_primary_section"] = primary
+    if tool == "Warm-Up" and class_name:
+        st.session_state["teacher_warmup_class"] = str(class_name)
     if primary == "📈 Learning" and secondary:
         st.session_state["teacher_learning_section"] = secondary
     if primary == "⚙️ Manage" and secondary:

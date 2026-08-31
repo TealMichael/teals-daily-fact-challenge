@@ -14,11 +14,6 @@ from supabase_fact_store import SupabaseFactStore
 from teacher_clock_ui import queue_clock_top10_for_class
 from teacher_command_center import (
     build_today_action_items,
-    eligible_absence_student_ids,
-    load_absent_student_ids,
-    normalize_absent_student_ids,
-    present_status_rows,
-    save_absent_student_ids,
     summarize_daily_status,
     summarize_learning_routine,
 )
@@ -64,14 +59,11 @@ def render_teacher_today_command_center(
         try:
             roster = store.list_students(class_record.class_id)
             status_rows = store.daily_status(class_record.class_id, challenge.challenge_id, students=roster)
-            saved_absent = load_absent_student_ids(store, day, class_record.class_id)
-            effective_absent = normalize_absent_student_ids(status_rows, saved_absent)
-            summary = summarize_daily_status(status_rows, effective_absent)
+            summary = summarize_daily_status(status_rows)
             mode = configured_daily_mode(store, class_record.class_id, day)
             class_snapshot[class_record.class_id] = {
                 "students": roster,
                 "status": status_rows,
-                "absent_ids": effective_absent,
                 "summary": summary,
                 "mode": mode,
             }
@@ -81,18 +73,17 @@ def render_teacher_today_command_center(
                 "Finished": f"{summary['complete']}/{summary['present']}",
                 "In progress": summary["in_progress"],
                 "Not started": summary["not_started"],
-                "Absent": summary["absent"],
             })
         except Exception as exc:
             overview_errors.append((class_record.class_name, exc))
             class_snapshot[class_record.class_id] = {
-                "students": [], "status": [], "absent_ids": set(), "summary": None,
+                "students": [], "status": [], "summary": None,
                 "mode": configured_daily_mode(store, class_record.class_id, day), "error": exc,
             }
             overview_rows.append({
                 "Class": class_record.class_name,
                 "Daily 10": class_snapshot[class_record.class_id]["mode"],
-                "Finished": "—", "In progress": "—", "Not started": "—", "Absent": "—",
+                "Finished": "—", "In progress": "—", "Not started": "—",
             })
 
     st.markdown("#### All Classes Snapshot")
@@ -107,7 +98,7 @@ def render_teacher_today_command_center(
     selected_snapshot = class_snapshot.get(selected.class_id, {})
     students = list(selected_snapshot.get("students") or [])
     status = list(selected_snapshot.get("status") or [])
-    absent_ids = set(selected_snapshot.get("absent_ids") or set())
+    absent_ids: set[str] = set()
     daily_status_error = selected_snapshot.get("error")
     daily_mode = str(selected_snapshot.get("mode") or configured_daily_mode(store, selected.class_id, day))
 
@@ -149,40 +140,18 @@ def render_teacher_today_command_center(
     if stamp:
         st.caption(f"🟢 Teacher data checked {stamp} · Refresh data forces a new Supabase connection.")
 
-    # Attendance exceptions are teacher-side only.  They adjust teacher counts
-    # but never delete student work or silently remove a completed Top 10 score.
-    if daily_status_error is None:
-        with st.expander("👥 Attendance exceptions", expanded=False):
-            st.caption("Mark students absent only if they have not started today's Daily 10. This changes teacher completion counts only; it does not alter accounts or history.")
-            student_by_label = {student.nickname: student for student in students}
-            eligible_ids = eligible_absence_student_ids(status)
-            eligible_labels = [student.nickname for student in students if student.student_id in eligible_ids]
-            current_labels = [student.nickname for student in students if student.student_id in absent_ids and student.student_id in eligible_ids]
-            chosen_labels = st.multiselect(
-                "Absent today", eligible_labels, default=current_labels,
-                key=f"teacher_absent_{day.isoformat()}_{selected.class_id}",
-            )
-            if st.button("Save attendance exceptions", use_container_width=True, key=f"save_absent_{day}_{selected.class_id}"):
-                requested_ids = {student_by_label[label].student_id for label in chosen_labels if label in student_by_label}
-                cleaned = normalize_absent_student_ids(status, requested_ids)
-                try:
-                    save_absent_student_ids(store, day, selected.class_id, cleaned)
-                    st.toast("✅ Attendance exceptions saved")
-                    st.rerun()
-                except Exception as exc:
-                    st.warning("Attendance exceptions could not be saved just now. Try Refresh data and save again.")
-                    if str(st.query_params.get("dbcheck", "0")) == "1":
-                        st.exception(exc)
+    # v2.14.1 intentionally keeps Today roster-based. Teachers do not need to
+    # maintain a separate attendance list just to understand the class snapshot.
 
     if daily_status_error is None:
-        daily_summary = summarize_daily_status(status, absent_ids)
-        present_status = present_status_rows(status, absent_ids)
+        daily_summary = summarize_daily_status(status)
+        present_status = list(status)
         completed_rows = [row for row in present_status if row.get("status") == "Complete"]
         total = daily_summary["present"]
         not_started = daily_summary["not_started"]
         daily_complete = daily_summary["complete"]
         if progress_error is None:
-            routine_summary = summarize_learning_routine(status, progress_map, absent_ids)
+            routine_summary = summarize_learning_routine(status, progress_map)
             full_complete = routine_summary["done"]
             working = routine_summary["daily"] + routine_summary["fix"] + routine_summary["focus"]
         else:
@@ -210,7 +179,7 @@ def render_teacher_today_command_center(
     q1_accuracy = q2_accuracy = None
     if warmup_today is not None:
         real_ids = {student.student_id for student in students}
-        warmup_rows = [row for row in warmup_rows if row.student_id in real_ids and row.student_id not in absent_ids]
+        warmup_rows = [row for row in warmup_rows if row.student_id in real_ids]
         q1_rows = [row for row in warmup_rows if row.question_slot == 1]
         q2_rows = [row for row in warmup_rows if row.question_slot == 2]
         warmup_done = {row.student_id for row in q1_rows} & {row.student_id for row in q2_rows}
@@ -224,13 +193,35 @@ def render_teacher_today_command_center(
     except Exception:
         pending_prior_raffle = False
 
-    st.markdown(f"#### {selected.class_name} · What needs you")
+    not_started_names = [
+        str(row.get("nickname") or "").strip()
+        for row in status
+        if str(row.get("status") or "") == "Not started" and str(row.get("nickname") or "").strip()
+    ]
+    follow_up_names = []
+    if progress_error is None:
+        for row in status:
+            if str(row.get("status") or "") != "Complete":
+                continue
+            progress = progress_map.get(str(row.get("student_id") or ""))
+            if progress is None or not getattr(progress, "completed_at", None):
+                nickname = str(row.get("nickname") or "").strip()
+                if nickname:
+                    follow_up_names.append(nickname)
+    warmup_missing_names = [
+        student.nickname for student in students if student.student_id not in warmup_done
+    ] if warmup_today is not None else []
+
+    st.markdown(f"#### {selected.class_name} · Quick follow-ups")
     actions = build_today_action_items(
         daily_summary=daily_summary,
         routine_summary=routine_summary,
         warmup_assigned=warmup_today is not None,
         warmup_finished=len(warmup_done),
         pending_prior_raffle=pending_prior_raffle,
+        not_started_names=not_started_names,
+        follow_up_names=follow_up_names,
+        warmup_missing_names=warmup_missing_names,
     ) if daily_status_error is None else []
     if actions:
         action_html = "".join(
@@ -242,7 +233,10 @@ def render_teacher_today_command_center(
 
     qa1, qa2, qa3, qa4 = st.columns(4)
     with qa1:
-        st.button("🧠 Warm-Up", use_container_width=True, key="today_go_warmup", on_click=go_teacher_tool, args=("Warm-Up",))
+        st.button(
+            "🧠 Warm-Up", use_container_width=True, key="today_go_warmup",
+            on_click=go_teacher_tool, args=("Warm-Up", selected.class_name),
+        )
     with qa2:
         st.button("🛠️ Student Support", use_container_width=True, key="today_go_support", on_click=go_teacher_tool, args=("Student Support",))
     with qa3:
@@ -256,10 +250,7 @@ def render_teacher_today_command_center(
         c2.metric("🟡 Working", "—" if working is None else working)
         c3.metric("⚪ Not started", not_started)
         c4.metric("Daily 10 finished", f"{daily_complete}/{total}")
-        attendance_note = f"Present: {total}"
-        if daily_summary["absent"]:
-            attendance_note += f" · Absent: {daily_summary['absent']}"
-        st.caption(f"{attendance_note} · Daily 10 mode: **{daily_mode}**")
+        st.caption(f"Students: {total} · Daily 10 mode: **{daily_mode}**")
     else:
         c1.metric("🟢 Done", "—")
         c2.metric("🟡 Working", "—")
@@ -303,7 +294,7 @@ def render_teacher_today_command_center(
         if final:
             st.success("**Final Top 10** · final standings for today")
         else:
-            st.info(f"**Live Top 10** · {daily_complete} of {total} present students finished · standings may change")
+            st.info(f"**Live Top 10** · {daily_complete} of {total} students finished · standings may change")
         board_frame = pd.DataFrame([{"Rank": row["rank"], "Nickname": row["nickname"]} for row in board]) if board else pd.DataFrame(columns=["Rank", "Nickname"])
         if board:
             st.dataframe(board_frame, hide_index=True, use_container_width=True)
@@ -327,7 +318,7 @@ def render_teacher_today_command_center(
                     store.set_app_setting(leaderboard_final_key(day, selected.class_id), True)
                     st.rerun()
             else:
-                st.caption("Everyone present has finished the Daily 10, so standings are automatically Final.")
+                st.caption("Everyone has finished the Daily 10, so standings are automatically Final.")
 
     if st.button("📟 Send Top 10 to Clock Now", use_container_width=True, key=f"send_clock_top10_{selected.class_id}"):
         try:
@@ -342,9 +333,7 @@ def render_teacher_today_command_center(
     for row in status:
         sid = row["student_id"]
         progress = progress_map.get(sid)
-        if sid in absent_ids:
-            routine = "🔵 Absent"
-        elif progress and progress.completed_at:
+        if progress and progress.completed_at:
             routine = "🟢 Done"
         elif row["status"] == "Not started":
             routine = "⚪ Not started"

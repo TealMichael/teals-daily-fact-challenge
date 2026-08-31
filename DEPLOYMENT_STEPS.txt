@@ -1,33 +1,33 @@
-Teal's Daily Fact Challenge v2.14.0 — Teacher Command Center
+Teal's Daily Fact Challenge v2.14.1 — Teacher Today Polish
 
 INSTALL
-1. No Supabase SQL is required.
-2. Copy the v2.14.0 GitHub Desktop patch into the root of the existing v2.13.2 repository.
+1. Keep the currently installed v2.14.0 app in place.
+2. Copy everything inside the v2.14.1 GitHub Desktop patch folder `COPY_INTO_GITHUB_REPO` into the root of the existing repository.
 3. Allow replacements.
 4. Commit and push in GitHub Desktop.
-5. Let Streamlit Cloud redeploy, then reload the app.
+5. Let Streamlit Cloud redeploy, then reload Teacher → Today.
 
-WHAT THIS RELEASE ADDS — TEACHER SIDE ONLY
-- Teacher → Today becomes a command center with an All Classes Snapshot.
-- The selected class shows a focused “What needs you” action list instead of making the teacher hunt through data.
-- Teacher-only attendance exceptions can mark not-started students absent for that class/date. This changes teacher completion denominators only; it does not alter student accounts, attempts, history, or mastery.
-- Teacher navigation is grouped into Today | Warm-Up | Learning | Manage, while retaining all existing teacher tools.
-- Daily 10 Setup remains available inside Classes & Rosters.
-- Student Support has an explicit confirmed “Reopen with a fresh Daily attempt” action using the existing reset/rebuild behavior.
-- Student Support uses clearer Archive student / Restore student wording while preserving the existing inactive-student behavior and history.
-- Today shows an Indiana-time freshness stamp and isolates transient teacher-data failures so one failed read does not unnecessarily take down the whole dashboard.
+NO DATABASE / DEVICE WORK
+- Do NOT run Supabase SQL.
+- Do NOT change Streamlit Secrets.
+- Do NOT reinstall or modify AWTRIX.
 
-WHAT IT DOES NOT CHANGE
-- No Supabase migration or schema change.
-- No new Streamlit Secret.
-- No student-facing design or workflow changes.
-- No Daily 10 scoring/generation changes.
-- No multiplication/mastery algorithm changes.
-- `TDFC-DAILY-v1` remains unchanged.
-- No Warm-Up student behavior changes.
-- No Weekly Mystery student behavior changes.
-- No AWTRIX script or clock changes.
-- No login/PIN behavior changes.
+TEACHER-SIDE CHANGES ONLY
+- Removes the Attendance exceptions control and the Absent column from Today. Today again uses the active class roster directly; teachers do not need to maintain a separate attendance list.
+- Renames the selected-class action area from “What needs you” to “Quick follow-ups.”
+- Quick follow-ups now shows the actual student nicknames for Daily 10 not started, follow-up practice remaining, and Warm-Up not finished.
+- Clicking Warm-Up from Today preserves the currently selected class. Example: Block 2 → Warm-Up opens on Block 2.
+- The prior-week Weekly Mystery drawing reminder remains available.
+
+PROTECTED / UNCHANGED
+- Student sign-in and student navigation.
+- Multiplication Daily generator and TDFC-DAILY-v1 challenge version.
+- Alternate Daily 10 modes and Daily scoring.
+- Fix Your Misses, Focus Practice, Practice, Fact Coach, and mastery/adaptive logic.
+- Student Igniter / Warm-Up experience.
+- Weekly Mystery student flow.
+- Login/PIN components.
+- AWTRIX scripts and clock integration.
 
 ROLLBACK
-Re-deploy the prior v2.13.2 repository commit. No database rollback is needed because v2.14.0 has no database migration.
+Re-deploy the prior v2.14.0 repository commit. No database rollback is needed because v2.14.1 has no migration.
