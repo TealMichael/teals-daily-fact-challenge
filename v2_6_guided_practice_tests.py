@@ -13,7 +13,7 @@ SQL = (ROOT / "RUN_THIS_ONCE_IN_SUPABASE_v2_6.sql").read_text(encoding="utf-8")
 
 def run():
     checks = {}
-    checks["version 2.6"] = APP_VERSION == "2.16.1"
+    checks["version 2.6"] = APP_VERSION == "2.16.2"
     checks["guided component declared"] = "GUIDED_PRACTICE_COMPONENT" in APP and "guided_practice_component" in APP
     checks["fix uses guided component"] = 'mode="fix"' in APP and 'step_label="Step 2 · Fix Your Misses"' in APP
     checks["focus uses guided component"] = 'mode="focus"' in APP and 'step_label="Step 3 · Your Focus Practice"' in APP

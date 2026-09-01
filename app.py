@@ -842,18 +842,44 @@ def _render_mystery_win(mystery, solved_guess, week_start) -> None:
     _render_mystery_learning(mystery)
 
 def render_weekly_mystery_reward(store: SupabaseFactStore, day, challenge, *, show_heading: bool = True) -> None:
-    """Earn one clue Monday-Friday; guessing exists only Thursday and Friday."""
+    """Earn one clue for each school day whose required routine was completed."""
     try:
         week_start, _, mystery = ensure_weekly_mystery(store, day)
         day_number = school_day_number(day)
         if day_number is not None:
+            # Save today's clue first. The student is already on the completed-routine
+            # reward screen, so today's work is proven complete without any extra read.
             store.unlock_mystery_day(
                 st.session_state.student_id, week_start, day_number, challenge.challenge_id
             )
+
+            # Then repair an older missing clue receipt only when already-saved
+            # completion data proves that the student truly finished that school day.
+            # A genuinely skipped day is never backfilled. If this optional repair
+            # read has a bad moment, today's clue still remains saved and visible.
+            if int(day_number) > 1:
+                try:
+                    qualified_days = store.completed_mystery_days(
+                        st.session_state.student_id, week_start, through_day_number=int(day_number) - 1
+                    )
+                    for earned_day, earned_challenge_id in qualified_days:
+                        store.unlock_mystery_day(
+                            st.session_state.student_id, week_start, earned_day, earned_challenge_id
+                        )
+                except Exception as repair_exc:
+                    if _is_transient_classroom_error(repair_exc):
+                        _log_private_connection_failure("mystery_clue_repair", repair_exc)
+                    elif str(st.query_params.get("dbcheck", "0")) == "1":
+                        st.exception(repair_exc)
         unlocks = store.list_mystery_unlocks(st.session_state.student_id, week_start)
         guesses = store.list_mystery_guesses(st.session_state.student_id, week_start)
     except Exception as exc:
-        st.info("🕵️ Weekly Mystery is not ready yet. Ask your teacher to finish the app setup.")
+        if _is_transient_classroom_error(exc):
+            st.warning("🕵️ Your Mystery clue is taking a moment to load. Your finished work is saved.")
+            if st.button("Try Mystery again", use_container_width=True, type="primary", key=f"retry_mystery_{day}"):
+                st.rerun()
+        else:
+            st.info("🕵️ Weekly Mystery isn't available right now. Your finished work is saved.")
         if str(st.query_params.get("dbcheck", "0")) == "1":
             st.exception(exc)
         return

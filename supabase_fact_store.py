@@ -1912,11 +1912,79 @@ class SupabaseFactStore:
     def _week_key(value: date | str) -> str:
         return value.isoformat() if isinstance(value, date) else str(value)
 
+    def completed_mystery_days(
+        self, student_id: str, week_start: date | str, *, through_day_number: int = 5
+    ) -> list[tuple[int, str]]:
+        """Return school days this week whose required routine was truly completed.
+
+        Mystery unlock rows are a reward receipt, not the source of truth for whether
+        the student finished. If a short network reset loses that receipt, this method
+        lets the app repair it from already-saved Daily / learning completion data.
+        A day with no completed required routine is never included.
+        """
+        week_key = self._week_key(week_start)
+        monday = date.fromisoformat(week_key)
+        through = max(0, min(5, int(through_day_number)))
+        if through <= 0:
+            return []
+        end_key = (monday + timedelta(days=through - 1)).isoformat()
+        challenge_rows = _rows(_retry_transient(lambda: (
+            self.client.table("daily_challenges")
+            .select("challenge_id,challenge_date")
+            .gte("challenge_date", week_key)
+            .lte("challenge_date", end_key)
+            .order("challenge_date")
+            .execute()
+        )))
+        if not challenge_rows:
+            return []
+        challenge_by_id = {str(row["challenge_id"]): str(row["challenge_date"]) for row in challenge_rows}
+        challenge_ids = list(challenge_by_id)
+        attempt_rows = _rows(_retry_transient(lambda: (
+            self.client.table("daily_attempts")
+            .select("challenge_id,daily_mode,completed_at")
+            .eq("student_id", str(student_id))
+            .in_("challenge_id", challenge_ids)
+            .not_.is_("completed_at", "null")
+            .execute()
+        )))
+        if not attempt_rows:
+            return []
+
+        multiplication_ids = [
+            str(row["challenge_id"]) for row in attempt_rows
+            if str(row.get("daily_mode") or "Multiplication") == "Multiplication"
+        ]
+        completed_learning: set[str] = set()
+        if multiplication_ids:
+            progress_rows = _rows(_retry_transient(lambda: (
+                self.client.table("daily_learning_progress")
+                .select("challenge_id,completed_at")
+                .eq("student_id", str(student_id))
+                .in_("challenge_id", multiplication_ids)
+                .not_.is_("completed_at", "null")
+                .execute()
+            )))
+            completed_learning = {str(row["challenge_id"]) for row in progress_rows}
+
+        qualified: list[tuple[int, str]] = []
+        for row in attempt_rows:
+            challenge_id = str(row["challenge_id"])
+            mode = str(row.get("daily_mode") or "Multiplication")
+            if mode == "Multiplication" and challenge_id not in completed_learning:
+                continue
+            challenge_date = date.fromisoformat(challenge_by_id[challenge_id])
+            day_number = (challenge_date - monday).days + 1
+            if 1 <= day_number <= through:
+                qualified.append((day_number, challenge_id))
+        qualified.sort(key=lambda item: item[0])
+        return qualified
+
     def get_weekly_mystery(self, week_start: date | str) -> WeeklyMysteryRecord | None:
-        row = _first(
+        row = _first(_retry_transient(lambda: (
             self.client.table("weekly_mysteries").select("*")
             .eq("week_start", self._week_key(week_start)).limit(1).execute()
-        )
+        )))
         return None if row is None else _weekly_mystery(row)
 
     def get_or_create_weekly_mystery(self, week_start: date | str, mystery_key: str) -> WeeklyMysteryRecord:
@@ -1924,22 +1992,22 @@ class SupabaseFactStore:
         existing = self.get_weekly_mystery(week_key)
         if existing is not None:
             return existing
+        payload = {"week_start": week_key, "mystery_key": str(mystery_key)}
         try:
-            row = _first(
-                _execute_returning(self.client.table("weekly_mysteries").insert({
-                    "week_start": week_key,
-                    "mystery_key": str(mystery_key),
-                }))
-            )
-            if row is None:
-                raise FactStoreError("Supabase did not return the weekly mystery.")
-            return _weekly_mystery(row)
+            row = _first(_retry_transient(lambda: (
+                _execute_returning(self.client.table("weekly_mysteries").insert(payload))
+            )))
+            if row is not None:
+                return _weekly_mystery(row)
         except Exception as exc:
-            if _is_unique(exc):
-                concurrent = self.get_weekly_mystery(week_key)
-                if concurrent is not None:
-                    return concurrent
-            raise
+            # The insert may have landed even if its HTTP response was lost, or a
+            # classmate may have won the first-create race. Re-read before failing.
+            if not (_is_unique(exc) or _is_transient_http_error(exc)):
+                raise
+        concurrent = self.get_weekly_mystery(week_key)
+        if concurrent is not None:
+            return concurrent
+        raise FactStoreError("Could not load this week's Mystery.")
 
     def weekly_mystery_locked(self, week_start: date | str) -> bool:
         rows = _rows(_retry_transient(lambda: self.client.table("weekly_mystery_unlocks").select("student_id")
@@ -1952,11 +2020,11 @@ class SupabaseFactStore:
         if self.weekly_mystery_locked(week_key):
             raise FactStoreError("This week's mystery is locked because a student has already unlocked a clue.")
         now = utc_now().isoformat()
-        response = _execute_returning(self.client.table("weekly_mysteries").upsert({
+        response = _retry_transient(lambda: _execute_returning(self.client.table("weekly_mysteries").upsert({
             "week_start": week_key,
             "mystery_key": str(mystery_key),
             "updated_at": now,
-        }, on_conflict="week_start"))
+        }, on_conflict="week_start")))
         row = _first(response)
         if row is None:
             raise FactStoreError("Supabase did not return the replaced weekly mystery.")
@@ -1969,11 +2037,15 @@ class SupabaseFactStore:
         if day_number not in {1, 2, 3, 4, 5}:
             raise ValueError("Mystery day number must be 1 through 5.")
         week_key = self._week_key(week_start)
-        existing = _first(
-            self.client.table("weekly_mystery_unlocks").select("*")
-            .eq("student_id", str(student_id)).eq("week_start", week_key)
-            .eq("day_number", day_number).limit(1).execute()
-        )
+
+        def fetch_existing():
+            return _first(_retry_transient(lambda: (
+                self.client.table("weekly_mystery_unlocks").select("*")
+                .eq("student_id", str(student_id)).eq("week_start", week_key)
+                .eq("day_number", day_number).limit(1).execute()
+            )))
+
+        existing = fetch_existing()
         if existing is not None:
             return _mystery_unlock(existing)
         payload = {
@@ -1983,47 +2055,50 @@ class SupabaseFactStore:
             "challenge_id": str(challenge_id),
         }
         try:
-            row = _first(_execute_returning(self.client.table("weekly_mystery_unlocks").insert(payload)))
-            if row is None:
-                raise FactStoreError("Supabase did not return the mystery unlock.")
-            return _mystery_unlock(row)
+            row = _first(_retry_transient(lambda: (
+                _execute_returning(self.client.table("weekly_mystery_unlocks").insert(payload))
+            )))
+            if row is not None:
+                return _mystery_unlock(row)
         except Exception as exc:
-            if _is_unique(exc):
-                row = _first(
-                    self.client.table("weekly_mystery_unlocks").select("*")
-                    .eq("student_id", str(student_id)).eq("week_start", week_key)
-                    .eq("day_number", day_number).limit(1).execute()
-                )
-                if row is not None:
-                    return _mystery_unlock(row)
-            raise
+            # A lost insert response can turn the retry into a duplicate-key error.
+            # Either way, a fresh read tells us whether the clue receipt exists.
+            if not (_is_unique(exc) or _is_transient_http_error(exc)):
+                raise
+        row = fetch_existing()
+        if row is not None:
+            return _mystery_unlock(row)
+        raise FactStoreError("Could not save today's Mystery clue.")
 
     def list_mystery_unlocks(self, student_id: str, week_start: date | str) -> list[MysteryUnlockRecord]:
-        rows = _rows(
+        rows = _rows(_retry_transient(lambda: (
             self.client.table("weekly_mystery_unlocks").select("*")
             .eq("student_id", str(student_id)).eq("week_start", self._week_key(week_start))
             .order("day_number").execute()
-        )
+        )))
         return [_mystery_unlock(row) for row in rows]
 
     def get_mystery_guess(
         self, student_id: str, week_start: date | str, *, guess_day: int | None = None
     ) -> MysteryGuessRecord | None:
-        query = (
-            self.client.table("weekly_mystery_guesses").select("*")
-            .eq("student_id", str(student_id)).eq("week_start", self._week_key(week_start))
-        )
-        if guess_day is not None:
-            query = query.eq("guess_day", int(guess_day))
-        row = _first(query.order("guess_day").limit(1).execute())
+        def fetch_guess():
+            query = (
+                self.client.table("weekly_mystery_guesses").select("*")
+                .eq("student_id", str(student_id)).eq("week_start", self._week_key(week_start))
+            )
+            if guess_day is not None:
+                query = query.eq("guess_day", int(guess_day))
+            return query.order("guess_day").limit(1).execute()
+
+        row = _first(_retry_transient(fetch_guess))
         return None if row is None else _mystery_guess(row)
 
     def list_mystery_guesses(self, student_id: str, week_start: date | str) -> list[MysteryGuessRecord]:
-        rows = _rows(
+        rows = _rows(_retry_transient(lambda: (
             self.client.table("weekly_mystery_guesses").select("*")
             .eq("student_id", str(student_id)).eq("week_start", self._week_key(week_start))
             .order("guess_day").execute()
-        )
+        )))
         return [_mystery_guess(row) for row in rows]
 
     def submit_mystery_guess(
@@ -2052,22 +2127,24 @@ class SupabaseFactStore:
             "clue_count": clue_count,
         }
         try:
-            row = _first(_execute_returning(self.client.table("weekly_mystery_guesses").insert(payload)))
-            if row is None:
-                raise FactStoreError("Supabase did not return the mystery guess.")
-            return _mystery_guess(row)
+            row = _first(_retry_transient(lambda: (
+                _execute_returning(self.client.table("weekly_mystery_guesses").insert(payload))
+            )))
+            if row is not None:
+                return _mystery_guess(row)
         except Exception as exc:
-            if _is_unique(exc):
-                row = self.get_mystery_guess(student_id, week_key, guess_day=guess_day)
-                if row is not None:
-                    return row
-            raise
+            if not (_is_unique(exc) or _is_transient_http_error(exc)):
+                raise
+        row = self.get_mystery_guess(student_id, week_key, guess_day=guess_day)
+        if row is not None:
+            return row
+        raise FactStoreError("Could not save the Mystery guess.")
 
     def mystery_student_stats(self, student_id: str) -> dict[str, int | None]:
-        rows = _rows(
+        rows = _rows(_retry_transient(lambda: (
             self.client.table("weekly_mystery_guesses").select("week_start,correct,clue_count")
             .eq("student_id", str(student_id)).range(0, 4999).execute()
-        )
+        )))
         correct_rows = [row for row in rows if bool(row.get("correct"))]
         return {
             "guesses": len(rows),
@@ -2117,14 +2194,14 @@ class SupabaseFactStore:
     def weekly_mystery_teacher_stats(self, week_start: date | str) -> dict[str, int]:
         week_key = self._week_key(week_start)
         test_ids = self._test_student_ids()
-        unlock_rows = _rows(
+        unlock_rows = _rows(_retry_transient(lambda: (
             self.client.table("weekly_mystery_unlocks").select("student_id")
             .eq("week_start", week_key).range(0, 9999).execute()
-        )
-        guess_rows = _rows(
+        )))
+        guess_rows = _rows(_retry_transient(lambda: (
             self.client.table("weekly_mystery_guesses").select("student_id,correct")
             .eq("week_start", week_key).range(0, 9999).execute()
-        )
+        )))
         unlock_rows = [row for row in unlock_rows if str(row["student_id"]) not in test_ids]
         guess_rows = [row for row in guess_rows if str(row["student_id"]) not in test_ids]
         return {

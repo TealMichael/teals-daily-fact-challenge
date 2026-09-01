@@ -1175,6 +1175,34 @@ class InMemoryFactStore:
         self.delete_app_setting(self._mystery_plan_key(key))
 
     # ----- Weekly Mystery -----
+    def completed_mystery_days(
+        self, student_id: str, week_start: date | str, *, through_day_number: int = 5
+    ) -> list[tuple[int, str]]:
+        """Return school days this week whose required routine was truly completed.
+
+        This is used only to repair a missing Mystery unlock after a transient
+        connection failure. A genuinely skipped day is never backfilled.
+        """
+        self.get_student(student_id)
+        week_key = _as_date_key(week_start)
+        monday = date.fromisoformat(week_key)
+        through = max(0, min(5, int(through_day_number)))
+        qualified: list[tuple[int, str]] = []
+        for day_number in range(1, through + 1):
+            day_key = (monday + timedelta(days=day_number - 1)).isoformat()
+            challenge = self.get_challenge(day_key)
+            if challenge is None:
+                continue
+            attempt = self.get_attempt_for_student(student_id, challenge.challenge_id)
+            if attempt is None or attempt.completed_at is None:
+                continue
+            if str(attempt.daily_mode or "Multiplication") == "Multiplication":
+                progress = self.learning_progress.get((str(student_id), str(challenge.challenge_id)))
+                if progress is None or progress.completed_at is None:
+                    continue
+            qualified.append((day_number, challenge.challenge_id))
+        return qualified
+
     def get_weekly_mystery(self, week_start: date | str) -> WeeklyMysteryRecord | None:
         return self.weekly_mysteries.get(_as_date_key(week_start))
 

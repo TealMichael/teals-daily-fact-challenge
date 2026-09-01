@@ -1,12 +1,15 @@
-# Teal's Daily Fact Challenge v2.16.1 — UI Language Polish
+# Teal's Daily Fact Challenge v2.16.2 — Mystery Clue Reliability Hotfix
 
-**Plain classroom language throughout the normal app:** this release removes build/developer wording from teacher screens, setup messages, Test Student tools, Warm-Up, Learning, Today, Class History, and the classroom Clock page. Necessary clock-install details are still available inside a collapsed **One-time clock setup** area instead of filling the everyday teacher view.
+**Mystery clues now recover from short connection interruptions:** this release adds retry protection around Weekly Mystery reads/writes and repairs a missing prior-day clue only when saved app data proves the student actually completed that day's required routine. A genuinely skipped day still earns no clue. Students who are already one clue short can reopen Today after deployment and the app will repair any qualifying missing clue automatically.
 
-This is a wording/presentation polish release. Daily 10 generation/scoring, mastery, Warm-Up grading, Mystery rules, Top 10, login/PIN behavior, Supabase persistence, `TDFC-DAILY-v1`, and AWTRIX behavior are unchanged. **No SQL migration, new secret, or clock reinstall is required.**
+This is a reliability hotfix. Daily generation/scoring, mastery rules, Warm-Up, Mystery questions/answers, guessing rules, raffle rules, teacher planning/intelligence, login/PIN behavior, `TDFC-DAILY-v1`, and AWTRIX behavior are unchanged. **No SQL migration, new secret, or clock reinstall is required.**
 
 ---
 
+
 # Teal's Daily Fact Challenge
+
+> **v2.16.2 — Mystery Clue Reliability Hotfix:** retries short-lived Weekly Mystery connection failures and safely repairs a missing prior-day clue only when the student's already-saved Daily/learning records prove that day was fully completed. Skipped days still do not backfill. No SQL, scoring, mastery, Mystery-content/rule, student Daily, teacher-planning, or AWTRIX changes.
 
 > **v2.16.1 — UI Language Polish:** removes developer/build jargon from normal teacher and student-visible copy while preserving the underlying workflows. Everyday screens no longer talk about Supabase, migrations, sandboxes, engine views, protected generators, evidence plumbing, or implementation details. Necessary technical clock-install information is tucked into a collapsed One-time clock setup panel. No SQL, scoring, mastery, Daily-generation, Mystery-rule, or AWTRIX behavior changes.
 

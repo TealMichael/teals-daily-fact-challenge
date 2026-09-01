@@ -41,7 +41,7 @@ def test_transport_classifier():
 
 
 checks = {
-    "version bumped": 'APP_VERSION = "2.16.1"' in ENGINE,
+    "version bumped": 'APP_VERSION = "2.16.2"' in ENGINE,
     "batch mastery updater exists": "def record_mastery_evidence_batch(" in STORE,
     "Daily completion uses batch mastery": "self.record_mastery_evidence_batch(" in STORE,
     "batch rationale documents classroom burst": "~20 mastery database calls per student" in STORE,

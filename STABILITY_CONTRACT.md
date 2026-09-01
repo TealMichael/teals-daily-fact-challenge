@@ -141,3 +141,13 @@ Future releases should run `python release_guard.py` plus the full `*_tests.py` 
 - Technical clock-install details remain available only inside the collapsed **One-time clock setup** area because they are needed for recovery/reinstallation.
 - Copy edits must not change Daily generation/scoring, mastery, Warm-Up grading, Mystery rules, login/PIN behavior, Top 10 privacy, persistence, or AWTRIX behavior.
 - Copy-polished student functions are protected structurally in `v2_16_1_ui_language_polish_tests.py`; changing visible strings must not silently change their control flow.
+
+
+## v2.16.2 Weekly Mystery clue reliability protections
+
+- A Mystery clue is earned only for a school day whose required routine was actually completed. A genuinely skipped day must never be backfilled.
+- The current day's clue is saved first when the student reaches the completed-routine Mystery reward. Optional prior-day repair work must not block today's reward.
+- A missing prior-day clue receipt may be restored only when already-saved Daily/learning records prove that day was completed.
+- Alternate Daily modes qualify from the completed Daily attempt because they intentionally have no Fix/Focus routine; Multiplication qualifies only after `daily_learning_progress.completed_at` is saved.
+- Weekly Mystery reads, clue writes, guess reads/writes, and student Mystery stats use transient HTTP retry protection. Lost mutation responses must be re-read safely before reporting failure.
+- Mystery reliability repair must not change Mystery content, clue order, Thursday/Friday guess rules, raffle eligibility, `TDFC-DAILY-v1`, mastery evidence, Daily scoring, or AWTRIX behavior.

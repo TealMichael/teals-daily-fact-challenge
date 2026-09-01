@@ -15,9 +15,9 @@ def check(name: str, condition: bool) -> None:
     checks.append(name)
 
 
-check("v2.16.1 version", APP_VERSION == "2.16.1")
+check("v2.16.2 version", APP_VERSION == "2.16.2")
 check("Daily challenge version unchanged", CHALLENGE_VERSION == "TDFC-DAILY-v1")
-check("v2.16.1 requires no SQL migration", not (ROOT / "RUN_THIS_ONCE_IN_SUPABASE_v2_16_1.sql").exists())
+check("v2.16.2 requires no SQL migration", not (ROOT / "RUN_THIS_ONCE_IN_SUPABASE_v2_16_2.sql").exists())
 
 # The normal classroom UI should no longer expose implementation/build language.
 normal_ui_files = [
@@ -90,7 +90,7 @@ protected_hashes = {
     "daily_modes.py": "2e6633604d9ea2f21b4054e38827eea1eec99f47e5562befa4c1e62f840f3b5e",
     "warmup.py": "e9dc2faabf9234c4463f84fc02c3453b4a1f5e37376cd8461d1adccc34bb816b",
     "weekly_mystery.py": "dfe98e7ba8c9f86daa28396e9a61282bd2705f5f132c84ff7cbb5051b4740b1f",
-    "supabase_fact_store.py": "2a3594ec4bbe847b812545c4c7acc45294a3979f3b8aed9f7f98ae1556a93642",
+    "supabase_fact_store.py": "3af69ee77c2a725f0f9cb87f3a2cc937a2069df1bec587321e42df4c57f956dc",
     "teacher_insights.py": "4fdf3516e75a8d697747f4d92aadd3f39c51a116e5990054c5eca4c66b0094a5",
     "AWTRIX_FactTop10.berry": "4ab1b8a25e84535591a2ff2d68a49edc3e2" if False else "4ab1b8a25e84535591a2ff7905366aa89f18c83b41c2b56d22f2d68a49edc3e2",
     "requirements.txt": "3436997a9043e9843f0960bac0ade5a33acb72eba52a3070bd98a49b3fed7180",
@@ -137,7 +137,7 @@ student_function_hashes = {
     "render_practice": "c26833c2f32ea44b1faa2fa5b32f5d04bf983733fd05a8c351b4448dbc2cf8b7",
     "handle_persistent_student_login": "b94bf690025f20b491f1145b3d211bf6f67a280760b2da81fab7b38143c0737f",
     "render_header": "07e13773bc274384cf8243edcc550fda548203b41727de53632ecf093f956842",
-    "render_weekly_mystery_reward": "c711d91095a67117b575638728c9365cda652928deaa55d585ccdc24e5f1a193",
+    "render_weekly_mystery_reward": "6b7bdff47fdfa642eef3092d01ebae747b5633e3d7a879cae7e680eac466deed",
     "_render_mystery_win": "5e709c70ac076edaa156fd163b6e689f88108eb5935fc3fafb329185276bc87f",
 }
 for name, expected in student_function_hashes.items():
@@ -158,4 +158,4 @@ check("Class History remains read-only over established history", all(marker in 
 ]))
 check("Class History adds no write calls", not any(marker in history for marker in ["set_app_setting(", "save_", "update_", "delete_"]))
 
-print(f"v2.16.1 UI Language Polish: {len(checks)}/{len(checks)} checks passed")
+print(f"v2.16.2 UI Language Polish: {len(checks)}/{len(checks)} checks passed")

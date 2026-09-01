@@ -1,25 +1,32 @@
-TEAL'S DAILY FACT CHALLENGE v2.16.1 — DEPLOYMENT
-=================================================
+Teal's Daily Fact Challenge v2.16.2 — Mystery Clue Reliability Hotfix
+===================================================================
 
-NORMAL UPGRADE PATH
--------------------
-Upgrade from installed v2.16.0 using the v2.16.1 GitHub Desktop patch.
+Install over the currently deployed v2.16.1 app.
 
-1. Unzip Teals_Daily_Fact_Challenge_v2_16_1_GITHUB_DESKTOP_PATCH.zip.
+1. Unzip the v2.16.2 GitHub Desktop patch.
 2. Open COPY_INTO_GITHUB_REPO.
 3. Copy everything inside that folder into the root of the existing GitHub repository.
-4. Allow file replacements.
-5. In GitHub Desktop, review the changes, commit, and push.
+4. Allow replacements.
+5. Review the changes in GitHub Desktop, commit, and push.
 6. Let Streamlit Cloud redeploy.
-7. Open Teacher → Today, Warm-Up, Learning, Weekly Mystery, and Manage to spot-check the cleaner wording.
 
-NO DATABASE OR CLOCK STEP
--------------------------
-- There is no v2.16.1 SQL migration.
-- Do not rerun an older migration for this release.
-- No new Streamlit Secret is required.
-- No AWTRIX script reinstall or clock change is required.
+No Supabase SQL migration is required.
+Do not rerun older SQL migrations.
+No Streamlit Secret changes are required.
+No AWTRIX reinstall or clock changes are required.
 
-ROLLBACK
+Student recovery after deployment
+---------------------------------
+If a student is missing a Mystery clue even though they completed that day's required routine, have the student reopen Today after the deployment. The app checks the current Mystery week and restores a missing prior-day clue only when saved completion records prove the student earned it. A day the student genuinely skipped remains locked.
+
+What changed
+------------
+- Weekly Mystery reads/writes now use the same transient HTTP retry protection as other classroom-critical store operations.
+- A lost clue-write response is re-read safely so a successful insert is not mistaken for failure.
+- Prior-day clue receipts can be repaired from already-saved completion records.
+- Today's clue is saved first so the optional prior-day repair cannot block the current reward.
+- Mystery clue load failures now give students a simple retry action while confirming their finished work is saved.
+
+Rollback
 --------
-The separate v2.16.1 FULL_CURRENT_APP ZIP is a complete backup. If rollback is ever necessary, restore the previous known-good v2.16.0 repository files. v2.16.1 introduces no schema change, so rollback does not require database cleanup.
+The v2.16.1 full-current-app package remains the rollback source. This release adds no schema changes, so rollback is code-only.
