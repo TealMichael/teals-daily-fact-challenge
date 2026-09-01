@@ -18,7 +18,7 @@ def check(name, condition):
     checks.append(name)
 
 DAY = date(2026, 8, 26)
-check("v2.13 version", APP_VERSION == "2.16.2")
+check("v2.13 version", APP_VERSION == "2.16.3")
 check("multiplication challenge version untouched", CHALLENGE_VERSION == "TDFC-DAILY-v1")
 expected = [(6,10,'medium'),(4,4,'easy'),(11,3,'extension'),(5,10,'easy'),(3,7,'hard'),(8,7,'hard'),(9,3,'medium'),(8,5,'medium'),(5,4,'easy'),(6,5,'medium')]
 check("known multiplication daily unchanged", [(f.a,f.b,f.tier) for f in daily_facts_for_date(DAY)] == expected)
@@ -26,7 +26,7 @@ check("six teacher modes", tuple(DAILY_MODES) == ("Multiplication","Addition Fac
 
 # Freeze the proven Hotfix 3 surfaces that v2.13 is not allowed to redesign.
 PROTECTED_HASHES = {
-    "daily_sprint_component/index.html": "f7abd3d565c20c89ebba833362229eeaa1a8706904d7abc7f3395acecc990fdb",
+    "daily_sprint_component/index.html": "dc8a59e1dbab86b3dd23f3eec37a4054fdc4fa9e117ffdb8b35395a4c9dcabad",
     "fact_coach.py": "dcbaf3aa62774a4627724d6de65fab31fb87254a25e601c16201980f806af9fb",
     "adaptive_engine.py": "b828414cd7207a04c10feb71a797ee8650d09fba81017a503a4eacf274a1e6e9",
     "guided_practice_component/index.html": "f073b8fa704a7f52ebb45a046082d30bbad8892b8340fa2b933132bbf7c835cd",

@@ -59,8 +59,16 @@
   function timerText(state){ return !state.startedMs ? 'Fact 1 starts the timer' : 'Timer running quietly'; }
   function progressHtml(state){ let out='<div class="progress">'; for(let i=0;i<10;i++){let cls='seg'; if(i===state.index)cls+=' current'; else if(state.answers[i]!==null)cls+=' done'; out+=`<div class="${cls}"></div>`;} return out+'</div>'; }
 
-  function addDigit(d){ if(digits.length>=3)return; digits+=d; if(digits.length>1)digits=digits.replace(/^0+/,'')||'0'; render(); }
-  function erase(){ digits=digits.slice(0,-1); render(); }
+  function updateDigitDisplay(){
+    const entry=document.querySelector('.entry');
+    if(!entry)return;
+    entry.textContent=digits||'Tap your answer';
+    entry.className=digits?'entry':'entry empty';
+    const error=document.getElementById('error');
+    if(error)error.textContent='';
+  }
+  function addDigit(d){ if(digits.length>=3)return; digits+=d; if(digits.length>1)digits=digits.replace(/^0+/,'')||'0'; updateDigitDisplay(); }
+  function erase(){ digits=digits.slice(0,-1); updateDigitDisplay(); }
   function submitAnswer(){
     const value=Number(digits); const error=document.getElementById('error');
     if(!digits || !Number.isInteger(value) || value<0 || value>200){ if(error)error.textContent='Enter a whole-number answer.'; return; }

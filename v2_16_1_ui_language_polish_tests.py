@@ -15,9 +15,9 @@ def check(name: str, condition: bool) -> None:
     checks.append(name)
 
 
-check("v2.16.2 version", APP_VERSION == "2.16.2")
+check("v2.16.3 version", APP_VERSION == "2.16.3")
 check("Daily challenge version unchanged", CHALLENGE_VERSION == "TDFC-DAILY-v1")
-check("v2.16.2 requires no SQL migration", not (ROOT / "RUN_THIS_ONCE_IN_SUPABASE_v2_16_2.sql").exists())
+check("v2.16.3 requires no SQL migration", not (ROOT / "RUN_THIS_ONCE_IN_SUPABASE_v2_16_2.sql").exists())
 
 # The normal classroom UI should no longer expose implementation/build language.
 normal_ui_files = [
@@ -78,7 +78,7 @@ check("clock mapping behavior preserved", all(marker in clock for marker in [
 
 # Protect non-copy behavior byte-for-byte from v2.16.0.
 protected_hashes = {
-    "daily_sprint_component/index.html": "f7abd3d565c20c89ebba833362229eeaa1a8706904d7abc7f3395acecc990fdb",
+    "daily_sprint_component/index.html": "dc8a59e1dbab86b3dd23f3eec37a4054fdc4fa9e117ffdb8b35395a4c9dcabad",
     "daily_alt_component/index.html": "59554532996c5259a1159fd6cdf7ab602b516ea25285000715eb65af52b2c816",
     "guided_practice_component/index.html": "f073b8fa704a7f52ebb45a046082d30bbad8892b8340fa2b933132bbf7c835cd",
     "answer_pad_component/index.html": "81dd828f95dcde11f20ae414bae1e16da3c9534d20400e1c3986989fdb7fe5cd",
@@ -158,4 +158,4 @@ check("Class History remains read-only over established history", all(marker in 
 ]))
 check("Class History adds no write calls", not any(marker in history for marker in ["set_app_setting(", "save_", "update_", "delete_"]))
 
-print(f"v2.16.2 UI Language Polish: {len(checks)}/{len(checks)} checks passed")
+print(f"v2.16.3 UI Language Polish: {len(checks)}/{len(checks)} checks passed")

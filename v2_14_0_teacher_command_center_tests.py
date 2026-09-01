@@ -29,7 +29,7 @@ def check(name: str, condition: bool) -> None:
     checks.append(name)
 
 
-check("v2.16.0 version", APP_VERSION == "2.16.2")
+check("v2.16.0 version", APP_VERSION == "2.16.3")
 check("multiplication challenge untouched", CHALLENGE_VERSION == "TDFC-DAILY-v1")
 check("v2.14 requires no SQL migration", not (ROOT / "RUN_THIS_ONCE_IN_SUPABASE_v2_14.sql").exists())
 
@@ -112,7 +112,7 @@ check("student support uses archive semantics", "Archive student" in APP and "Ar
 
 # The most sensitive student files remain byte-for-byte v2.13.2.
 protected_files = {
-    "daily_sprint_component/index.html": "f7abd3d565c20c89ebba833362229eeaa1a8706904d7abc7f3395acecc990fdb",
+    "daily_sprint_component/index.html": "dc8a59e1dbab86b3dd23f3eec37a4054fdc4fa9e117ffdb8b35395a4c9dcabad",
     "daily_alt_component/index.html": "59554532996c5259a1159fd6cdf7ab602b516ea25285000715eb65af52b2c816",
     "guided_practice_component/index.html": "f073b8fa704a7f52ebb45a046082d30bbad8892b8340fa2b933132bbf7c835cd",
     "answer_pad_component/index.html": "81dd828f95dcde11f20ae414bae1e16da3c9534d20400e1c3986989fdb7fe5cd",

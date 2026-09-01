@@ -151,3 +151,13 @@ Future releases should run `python release_guard.py` plus the full `*_tests.py` 
 - Alternate Daily modes qualify from the completed Daily attempt because they intentionally have no Fix/Focus routine; Multiplication qualifies only after `daily_learning_progress.completed_at` is saved.
 - Weekly Mystery reads, clue writes, guess reads/writes, and student Mystery stats use transient HTTP retry protection. Lost mutation responses must be re-read safely before reporting failure.
 - Mystery reliability repair must not change Mystery content, clue order, Thursday/Friday guess rules, raffle eligibility, `TDFC-DAILY-v1`, mastery evidence, Daily scoring, or AWTRIX behavior.
+
+
+## v2.16.3 Daily touch keypad protections
+
+- The Daily 10 number buttons must remain mounted while a student enters or deletes digits; digit entry updates only the answer display.
+- A rapid second digit must not depend on a newly recreated keypad node or newly rebound button listener.
+- The `0` button remains a normal digit key and multi-digit answers retain the existing three-digit limit and leading-zero normalization.
+- Question-to-question transitions and Back navigation may rerender the question because those are deliberate navigation events.
+- Hidden timing, first-answer evidence, official final-answer scoring, local Daily continuity, `TDFC-DAILY-v1`, and the no-feedback-during-Daily rule remain unchanged.
+- Guided Practice, PIN entry, alternate Daily, Mystery, mastery, teacher tools, requirements, and AWTRIX remain byte-for-byte unchanged from v2.16.2.

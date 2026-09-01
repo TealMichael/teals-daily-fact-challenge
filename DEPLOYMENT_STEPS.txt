@@ -1,9 +1,9 @@
-Teal's Daily Fact Challenge v2.16.2 — Mystery Clue Reliability Hotfix
-===================================================================
+Teal's Daily Fact Challenge v2.16.3 — Daily Touch Keypad Hotfix
+================================================================
 
-Install over the currently deployed v2.16.1 app.
+Install over v2.16.1 or v2.16.2. This patch is cumulative and includes the v2.16.2 Mystery clue reliability fix if it is not already installed.
 
-1. Unzip the v2.16.2 GitHub Desktop patch.
+1. Unzip the v2.16.3 GitHub Desktop patch.
 2. Open COPY_INTO_GITHUB_REPO.
 3. Copy everything inside that folder into the root of the existing GitHub repository.
 4. Allow replacements.
@@ -15,18 +15,13 @@ Do not rerun older SQL migrations.
 No Streamlit Secret changes are required.
 No AWTRIX reinstall or clock changes are required.
 
-Student recovery after deployment
----------------------------------
-If a student is missing a Mystery clue even though they completed that day's required routine, have the student reopen Today after the deployment. The app checks the current Mystery week and restores a missing prior-day clue only when saved completion records prove the student earned it. A day the student genuinely skipped remains locked.
-
 What changed
 ------------
-- Weekly Mystery reads/writes now use the same transient HTTP retry protection as other classroom-critical store operations.
-- A lost clue-write response is re-read safely so a successful insert is not mistaken for failure.
-- Prior-day clue receipts can be repaired from already-saved completion records.
-- Today's clue is saved first so the optional prior-day repair cannot block the current reward.
-- Mystery clue load failures now give students a simple retry action while confirming their finished work is saved.
+- Daily 10 digit entry now updates only the answer display instead of rebuilding the entire keypad after each digit.
+- The number buttons remain mounted between the first and second digit of an answer such as 10, 20, 30, and 100.
+- Back navigation, answer editing, hidden timing, first-answer evidence, final scoring, and local Daily continuity remain unchanged.
+- All other student and teacher components remain unchanged from v2.16.2.
 
 Rollback
 --------
-The v2.16.1 full-current-app package remains the rollback source. This release adds no schema changes, so rollback is code-only.
+The v2.16.2 full-current-app package is the immediate rollback source if you were already on v2.16.2. This release adds no schema changes, so rollback is code-only.

@@ -1,13 +1,15 @@
-# Teal's Daily Fact Challenge v2.16.2 — Mystery Clue Reliability Hotfix
+# Teal's Daily Fact Challenge v2.16.3 — Daily Touch Keypad Hotfix
 
-**Mystery clues now recover from short connection interruptions:** this release adds retry protection around Weekly Mystery reads/writes and repairs a missing prior-day clue only when saved app data proves the student actually completed that day's required routine. A genuinely skipped day still earns no clue. Students who are already one clue short can reopen Today after deployment and the app will repair any qualifying missing clue automatically.
+**Rapid two-digit answers are now safer on touch devices:** the Daily 10 keypad no longer rebuilds all of its number buttons after every digit tap. The buttons remain mounted while the answer display updates in place, removing a small touch-input race that could occasionally swallow a fast second digit such as the `0` in `10`.
 
-This is a reliability hotfix. Daily generation/scoring, mastery rules, Warm-Up, Mystery questions/answers, guessing rules, raffle rules, teacher planning/intelligence, login/PIN behavior, `TDFC-DAILY-v1`, and AWTRIX behavior are unchanged. **No SQL migration, new secret, or clock reinstall is required.**
+This is a narrowly scoped student-input reliability hotfix. Daily questions, scoring, first-answer evidence, timing, Back navigation, mastery, Warm-Up, Mystery, teacher tools, `TDFC-DAILY-v1`, login/PIN behavior, and AWTRIX are unchanged. **No SQL migration, new secret, or clock reinstall is required.** The GitHub patch is cumulative over v2.16.1/v2.16.2, so it also carries the v2.16.2 Mystery clue reliability fix when needed.
 
 ---
 
 
 # Teal's Daily Fact Challenge
+
+> **v2.16.3 — Daily Touch Keypad Hotfix:** keeps the Daily 10 number pad mounted while digits are entered so rapid two-digit taps are not exposed to a keypad DOM rebuild between digits. Scoring, timing, question navigation, first-answer evidence, challenge generation, mastery, Mystery, teacher tools, and AWTRIX are unchanged.
 
 > **v2.16.2 — Mystery Clue Reliability Hotfix:** retries short-lived Weekly Mystery connection failures and safely repairs a missing prior-day clue only when the student's already-saved Daily/learning records prove that day was fully completed. Skipped days still do not backfill. No SQL, scoring, mastery, Mystery-content/rule, student Daily, teacher-planning, or AWTRIX changes.
 
