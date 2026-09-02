@@ -1,1 +1,1 @@
-v2.16.4 - fix alternate Daily completion status on Teacher Today
+v2.17.0 - add alternate Fix Your Misses foundation

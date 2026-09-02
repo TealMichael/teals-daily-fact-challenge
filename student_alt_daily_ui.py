@@ -13,11 +13,15 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 from daily_modes import ALT_DAILY_VERSION
+from alternate_followup import missed_question_items
 from fact_store import utc_now
 from supabase_fact_store import SupabaseFactStore
 
 ALT_DAILY_COMPONENT = components.declare_component(
     "tdfc_alt_daily", path=str(Path(__file__).with_name("daily_alt_component"))
+)
+ALT_FIX_COMPONENT = components.declare_component(
+    "tdfc_alt_fix", path=str(Path(__file__).with_name("alt_fix_component"))
 )
 
 
@@ -88,11 +92,42 @@ def render_alternate_daily(store: SupabaseFactStore, day, challenge, attempt, *,
             st.error("Today's results did not finish loading. Show your teacher this screen.")
             return
         try:
+            progress = store.ensure_alternate_followup_state(attempt.attempt_id)
+            if progress.completed_at is None:
+                missed = missed_question_items(questions, answers, default_domain=None if str(attempt.daily_mode) == "Mixed" else str(attempt.daily_mode))
+                if not missed:
+                    progress = store.mark_alternate_fix_complete(
+                        attempt.student_id, attempt.challenge_id, str(attempt.daily_mode)
+                    )
+                else:
+                    st.success("✅ Daily 10 complete!")
+                    st.markdown("### Next: Fix Your Misses")
+                    st.caption(f"You have {len(missed)} question{'s' if len(missed) != 1 else ''} to fix.")
+                    result = ALT_FIX_COMPONENT(
+                        items=[{
+                            "question_number": int(item["question_number"]),
+                            "prompt": str(item["prompt"]),
+                            "original_answer": int(item["original_answer"]),
+                            "correct_answer": int(item["correct_answer"]),
+                            "domain": str(item["domain"]),
+                        } for item in missed],
+                        attempt_key=f"{attempt.attempt_id}:fix",
+                        version="TDFC-ALT-FIX-v1",
+                        default=None,
+                        key=f"alt_fix_{attempt.attempt_id}",
+                    )
+                    if isinstance(result, dict) and result.get("status") == "complete":
+                        corrections = list(result.get("corrections") or [])
+                        store.record_alternate_fix_batch(attempt.attempt_id, corrections)
+                        st.rerun()
+                    st.caption("You'll see the full Daily review after your fixes are complete.")
+                    return
+
             context = _student_top10(store, challenge)
             st.markdown(
                 "<div class='finish-banner'><div class='big'>✅ YOU'RE DONE FOR TODAY!</div>"
-                f"<div class='sub'>{html.escape(str(attempt.daily_mode))} Daily 10 ✓</div>"
-                "<div style='margin-top:.45rem'>This class is using a Daily-10-only mode today.</div></div>",
+                f"<div class='sub'>{html.escape(str(attempt.daily_mode))} Daily 10 ✓ &nbsp; · &nbsp; Fix Your Misses ✓</div>"
+                "<div style='margin-top:.45rem'>Your learning work is finished for today.</div></div>",
                 unsafe_allow_html=True,
             )
             st.caption("Today's score counts toward your class Top 10.")
@@ -102,14 +137,14 @@ def render_alternate_daily(store: SupabaseFactStore, day, challenge, attempt, *,
             st.markdown("### ✅ That's it — see you next Challenge day! 👋")
             _render_review(attempt)
         except Exception as exc:
-            st.error("Your completed Daily is saved, but the finished screen could not fully load.")
+            st.error("Your completed Daily is saved, but this next step could not fully load.")
             if st.button("Try again", type="primary", use_container_width=True, key="retry_alt_finished"):
                 st.rerun()
             if str(st.query_params.get("dbcheck", "0")) == "1":
                 st.exception(exc)
         return
 
-    st.caption("That's all for today — this mode does not include Fix Your Misses or Focus Practice.")
+    st.caption("Finish all 10. If you miss any, you'll fix those questions before you're done.")
     st.markdown(
         "<div class='private-note'><strong>Question 1 is untimed.</strong> After you submit it, the hidden timer starts. Accuracy comes first.</div>",
         unsafe_allow_html=True,

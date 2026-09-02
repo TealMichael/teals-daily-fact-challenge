@@ -169,3 +169,16 @@ Future releases should run `python release_guard.py` plus the full `*_tests.py` 
 - Multiplication keeps the established Daily → Fix Misses → Focus → Done routine unchanged.
 - Teacher Today does not query multiplication learning progress to decide follow-up stages on alternate-mode days.
 - Student Daily behavior, alternate Daily completion/Mystery reward, multiplication generation, mastery, Warm-Up, Mystery rules, AWTRIX, and database schema remain unchanged.
+
+
+## v2.17 Follow-Up Foundation protections
+
+- Multiplication keeps its established Daily → Fix Your Misses → Focus Practice → Done contract and existing mastery/adaptive engine unchanged.
+- Addition Facts, Subtraction Facts, Division Facts, Integers, and Mixed now use Daily → Fix Your Misses → Done. A perfect 10 may complete immediately; alternate Focus Practice is not introduced in v2.17.
+- An alternate-mode day is not Mystery-complete until its required Fix Your Misses work is complete. Historical pre-v2.17 completed alternate Dailies are backfilled as complete by the v2.17 migration.
+- Mixed-mode questions are recorded under their true domains. Mixed multiplication questions may create alternate-learning events but must never write into multiplication mastery evidence.
+- Alternate learning uses `alternate_learning_progress` and `alternate_learning_events`; it must remain separate from `daily_learning_progress` and the multiplication mastery map.
+- The original Daily 10 score, time, and Top 10 rank remain based only on the official ten-question attempt; Fix Your Misses speed/results do not rewrite the official Daily result.
+- Alternate Fix Your Misses requires every originally missed question to be corrected before completion; the server/store validates the submitted corrections rather than trusting the browser component.
+- The alternate Fix keypad keeps number buttons mounted during digit entry, preserving the rapid-touch reliability pattern established in v2.16.3.
+- v2.17 is the foundation only. Full domain-specific teaching models and adaptive alternate Focus Practice belong to later releases and must not be simulated by writing into multiplication systems.

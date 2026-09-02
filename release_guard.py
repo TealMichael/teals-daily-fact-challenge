@@ -35,6 +35,7 @@ CRITICAL_SUITES = [
     "v2_16_2_mystery_clue_reliability_tests.py",
     "v2_16_3_daily_touch_keypad_hotfix_tests.py",
     "v2_16_4_alternate_today_completion_hotfix_tests.py",
+    "v2_17_0_followup_foundation_tests.py",
     "runtime_name_guard_tests.py",
     "v2_11_2_final_top10_restore_tests.py",
     "v2_12_0_awtrix_top10_tests.py",

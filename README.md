@@ -1,12 +1,15 @@
-# Teal's Daily Fact Challenge v2.16.4 — Alternate Daily Today Hotfix
+# Teal's Daily Fact Challenge v2.17.0 — Follow-Up Foundation
 
-**Teacher Today is now mode-aware:** Addition, Subtraction, Division, Integers, and Mixed end after the Daily 10, so a completed alternate attempt is fully Done and never creates a false Fix Your Misses/Focus Practice warning. Multiplication keeps its established three-step routine unchanged.
+**Alternate Daily 10 modes now have Fix Your Misses.** Addition, Subtraction, Division, Integers, and Mixed use the established Daily → Fix Your Misses → Done rhythm. A perfect 10 skips the fix step. Alternate Focus Practice and full teaching models are intentionally reserved for v2.18/v2.19.
 
-This is a narrow teacher-dashboard correction. Student Daily behavior, scoring, Mystery rewards, Top 10, multiplication mastery, Warm-Up, Weekly Mystery rules, AWTRIX, and database schema are unchanged. **No SQL migration, new secret, or clock reinstall is required.** The patch is cumulative over v2.16.1/v2.16.2/v2.16.3.
+This release adds separate alternate-learning progress/event storage so Mixed can route each question to its true domain without contaminating the proven multiplication mastery system. Run `RUN_THIS_ONCE_IN_SUPABASE_v2_17.sql` once **before** deploying the v2.17 app files. No new Streamlit Secret or AWTRIX reinstall is required.
 
 ---
 
 # Teal's Daily Fact Challenge
+
+> **v2.17.0 — Follow-Up Foundation:** adds Fix Your Misses to Addition, Subtraction, Division, Integers, and Mixed while keeping alternate learning evidence separate from multiplication mastery. Perfect alternate Dailies finish immediately; missed questions must be corrected before the day is Done/Mystery-ready. Run `RUN_THIS_ONCE_IN_SUPABASE_v2_17.sql` once before deploying app files. Teaching models and alternate Focus Practice are intentionally deferred to v2.18/v2.19.
+
 
 > **v2.16.4 — Alternate Daily Today Hotfix:** Teacher → Today now treats completed alternate Daily modes as fully Done and never assigns nonexistent Fix Your Misses/Focus Practice. Multiplication follow-up behavior remains unchanged.
 

@@ -16,37 +16,39 @@ TODAY = (ROOT / "teacher_today_ui.py").read_text()
 ALT_MODES = ("Addition Facts", "Subtraction Facts", "Division Facts", "Integers", "Mixed")
 
 checks = []
-
 def check(label, value):
     if not value:
         raise AssertionError(label)
     checks.append(label)
 
-check("v2.16.4 version", APP_VERSION == "2.16.4")
+check("current version", APP_VERSION == "2.17.0")
 check("Today derives selected Daily mode", 'multiplication_routine = daily_mode == "Multiplication"' in TODAY)
-check("alternate Today skips multiplication progress query", "if multiplication_routine:" in TODAY and "store.class_learning_progress" in TODAY)
-check("follow-up names are multiplication-only", "if multiplication_routine and progress_error is None:" in TODAY)
-check("alternate Today explains no follow-up", "This mode has no follow-up practice." in TODAY)
+check("alternate Today uses alternate progress query", "store.class_alternate_learning_progress" in TODAY)
+check("alternate Today does not reuse multiplication progress", "if multiplication_routine:" in TODAY and "store.class_learning_progress" in TODAY)
+check("follow-up names work for both routine types", "if progress_error is None:" in TODAY)
+check("alternate Today explains Fix completion", "Done means Daily 10 + Fix Your Misses are complete." in TODAY)
 check("Today uses mode-aware routine helper", "summarize_routine_for_mode(status, progress_map, daily_mode)" in TODAY)
 check("Where everyone is uses mode-aware label helper", "routine_label_for_mode(row, progress, daily_mode)" in TODAY)
 
 rows = [
-    {"student_id": "a", "nickname": "Alpha", "status": "Complete", "correct_count": 10, "timed_seconds": 20.0},
+    {"student_id": "a", "nickname": "Alpha", "status": "Complete", "correct_count": 9, "timed_seconds": 20.0},
     {"student_id": "b", "nickname": "Beta", "status": "In progress", "correct_count": None, "timed_seconds": None},
     {"student_id": "c", "nickname": "Gamma", "status": "Not started", "correct_count": None, "timed_seconds": None},
 ]
 daily_summary = summarize_daily_status(rows)
+pending = SimpleNamespace(completed_at=None, fix_completed_at=None)
+done = SimpleNamespace(completed_at="done", fix_completed_at="done")
 
 for mode in ALT_MODES:
-    summary = summarize_routine_for_mode(rows, {}, mode)
-    check(f"{mode}: completed Daily is fully done", summary["done"] == 1)
+    summary = summarize_routine_for_mode(rows, {"a": pending}, mode)
+    check(f"{mode}: completed Daily waits in Fix", summary["fix"] == 1 and summary["done"] == 0)
     check(f"{mode}: in-progress stays Daily", summary["daily"] == 1)
-    check(f"{mode}: no Fix Misses invented", summary["fix"] == 0)
-    check(f"{mode}: no Focus Practice invented", summary["focus"] == 0)
+    check(f"{mode}: Focus is not invented", summary["focus"] == 0)
     check(f"{mode}: not-started remains separate", summary["not_started"] == 1)
-    check(f"{mode}: complete label is Done", routine_label_for_mode(rows[0], None, mode) == "🟢 Done")
-    check(f"{mode}: in-progress label is Daily 10", routine_label_for_mode(rows[1], None, mode) == "🟡 Daily 10")
-    check(f"{mode}: not-started label is clean", routine_label_for_mode(rows[2], None, mode) == "⚪ Not started")
+    check(f"{mode}: pending label is Fix", routine_label_for_mode(rows[0], pending, mode) == "🟡 Fix Your Misses")
+    done_summary = summarize_routine_for_mode(rows, {"a": done}, mode)
+    check(f"{mode}: follow-up complete is Done", done_summary["done"] == 1 and done_summary["fix"] == 0)
+    check(f"{mode}: done label is Done", routine_label_for_mode(rows[0], done, mode) == "🟢 Done")
     actions = build_today_action_items(
         daily_summary=daily_summary,
         routine_summary=summary,
@@ -54,30 +56,15 @@ for mode in ALT_MODES:
         warmup_finished=0,
         pending_prior_raffle=False,
         not_started_names=["Gamma"],
-        follow_up_names=[],
+        follow_up_names=["Alpha"],
         warmup_missing_names=[],
     )
-    titles = [item["title"] for item in actions]
-    check(f"{mode}: no follow-up alert", not any("Follow-up practice" in title for title in titles))
+    check(f"{mode}: follow-up alert now appears", any("Follow-up practice remaining" in item["title"] for item in actions))
 
-# Multiplication keeps the existing three-stage contract.
-check(
-    "Multiplication complete Daily without progress still needs Fix Misses",
-    routine_label_for_mode(rows[0], None, "Multiplication") == "🟡 Fix Your Misses",
-)
+# Multiplication remains the original three-stage routine.
+check("Multiplication Daily complete without progress needs Fix", routine_label_for_mode(rows[0], None, "Multiplication") == "🟡 Fix Your Misses")
 fix_progress = SimpleNamespace(completed_at=None, fix_completed_at="done")
-check(
-    "Multiplication Fix complete still needs Focus",
-    routine_label_for_mode(rows[0], fix_progress, "Multiplication") == "🟡 Focus Practice",
-)
-done_progress = SimpleNamespace(completed_at="done", fix_completed_at="done")
-check(
-    "Multiplication full routine remains Done",
-    routine_label_for_mode(rows[0], done_progress, "Multiplication") == "🟢 Done",
-)
-mult_summary = summarize_routine_for_mode(
-    [rows[0]], {"a": SimpleNamespace(completed_at=None, fix_completed_at=None)}, "Multiplication"
-)
-check("Multiplication still reports Fix stage", mult_summary["fix"] == 1 and mult_summary["done"] == 0)
+check("Multiplication Fix complete still needs Focus", routine_label_for_mode(rows[0], fix_progress, "Multiplication") == "🟡 Focus Practice")
+check("Multiplication done remains Done", routine_label_for_mode(rows[0], done, "Multiplication") == "🟢 Done")
 
-print(f"v2.16.4 alternate Today completion hotfix: PASS ({len(checks)}/{len(checks)} checks)")
+print(f"v2.16.4 alternate Today compatibility under v2.17: PASS ({len(checks)}/{len(checks)} checks)")

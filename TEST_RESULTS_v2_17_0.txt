@@ -1,0 +1,21 @@
+Teal's Daily Fact Challenge v2.17.0 — Follow-Up Foundation
+===========================================================
+
+- Full regression inventory: 77/77 test files passed.
+- Dedicated v2.17 Follow-Up Foundation regression: 106/106 checks passed.
+- Updated alternate Teacher Today compatibility regression: 51/51 checks passed.
+- All five alternate modes verified: Addition, Subtraction, Division, Integers, Mixed.
+- Perfect alternate Daily verified to auto-complete follow-up.
+- Missed alternate Daily verified to require Fix Your Misses before Done/Mystery completion.
+- Mixed all-domain routing verified: two evidence items per domain in a 2-of-each Mixed Daily.
+- Mixed multiplication questions/corrections verified to create zero multiplication mastery contamination.
+- Server-side correction validation rejects incomplete or incorrect Fix batches.
+- Historical alternate Daily backfill is present in the v2.17 SQL migration.
+- v2.17 protected multiplication/student surfaces match embedded v2.16.4 SHA-256 fingerprints.
+- Package smoke test: 105 Python files parsed; 47 required app files present.
+- Runtime-name guard: 27 production modules passed.
+- Browser component syntax validation: 7/7 components passed.
+- app.py remains below the 3,000-line architecture guard.
+- Challenge version remains TDFC-DAILY-v1.
+- New Supabase migration required: RUN_THIS_ONCE_IN_SUPABASE_v2_17.sql.
+- No new Streamlit Secret and no AWTRIX reinstall.

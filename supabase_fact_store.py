@@ -31,6 +31,7 @@ except ImportError:  # Local/offline Practice can still load before dependencies
 
 from fact_engine import Fact, canonical_pair
 from adaptive_engine import MasterySnapshot, update_snapshot, mastery_counts
+from alternate_followup import ALT_MODES, daily_evidence_rows, missed_question_items
 from fact_store import (
     AnswerRecord,
     AttemptComplete,
@@ -43,6 +44,8 @@ from fact_store import (
     NotFound,
     PracticeRecord,
     LearningProgressRecord,
+    AlternateLearningProgressRecord,
+    AlternateLearningEventRecord,
     WeeklyMysteryRecord,
     MysteryUnlockRecord,
     MysteryGuessRecord,
@@ -380,6 +383,34 @@ def _learning(row: Mapping) -> LearningProgressRecord:
     )
 
 
+def _alternate_learning(row: Mapping) -> AlternateLearningProgressRecord:
+    return AlternateLearningProgressRecord(
+        student_id=str(row["student_id"]),
+        challenge_id=str(row["challenge_id"]),
+        daily_mode=str(row.get("daily_mode") or "Mixed"),
+        focus_plan=tuple(dict(item) for item in (row.get("focus_plan") or [])),
+        fix_completed_at=_dt(row.get("fix_completed_at")),
+        focus_completed_at=_dt(row.get("focus_completed_at")),
+        completed_at=_dt(row.get("completed_at")),
+    )
+
+
+def _alternate_event(row: Mapping) -> AlternateLearningEventRecord:
+    return AlternateLearningEventRecord(
+        event_id=str(row["event_id"]), student_id=str(row["student_id"]),
+        challenge_id=str(row["challenge_id"]), attempt_id=str(row["attempt_id"]),
+        daily_mode=str(row.get("daily_mode") or "Mixed"), activity_type=str(row.get("activity_type") or "daily"),
+        activity_index=int(row.get("activity_index") or 0), domain=str(row.get("domain") or ""),
+        skill_key=str(row.get("skill_key") or ""), skill_label=str(row.get("skill_label") or ""),
+        item_key=str(row.get("item_key") or ""), prompt=str(row.get("prompt") or ""),
+        student_answer=int(row.get("student_answer") or 0), correct_answer=int(row.get("correct_answer") or 0),
+        correct=bool(row.get("correct")), is_retry=bool(row.get("is_retry")),
+        created_at=_dt(row.get("created_at")) or utc_now(),
+        response_seconds=None if row.get("response_seconds") is None else float(row["response_seconds"]),
+        client_event_id=None if row.get("client_event_id") is None else str(row.get("client_event_id")),
+    )
+
+
 class SupabaseFactStore:
     def __init__(self, supabase_url: str, supabase_secret_key: str, *, client: Client | None = None):
         url = normalize_supabase_url(supabase_url)
@@ -401,6 +432,8 @@ class SupabaseFactStore:
         self.client.table("daily_answers").select("answer_id,first_student_answer,first_correct").limit(1).execute()
         self.client.table("student_fact_mastery").select("student_id").limit(1).execute()
         self.client.table("daily_learning_progress").select("student_id").limit(1).execute()
+        self.client.table("alternate_learning_progress").select("student_id").limit(1).execute()
+        self.client.table("alternate_learning_events").select("event_id").limit(1).execute()
         self.client.table("weekly_mysteries").select("week_start").limit(1).execute()
         self.client.table("weekly_mystery_unlocks").select("student_id").limit(1).execute()
         self.client.table("weekly_mystery_guesses").select("student_id").limit(1).execute()
@@ -940,7 +973,7 @@ class SupabaseFactStore:
         if attempt.daily_mode == "Multiplication":
             raise ValueError("Multiplication Daily attempts must use complete_full_attempt().")
         if attempt.completed_at is not None:
-            return attempt
+            return self.ensure_daily_learning_evidence(attempt_id)
         questions = list(attempt.custom_questions)
         values = [int(value) for value in answers]
         if len(questions) != 10 or len(values) != 10:
@@ -960,9 +993,9 @@ class SupabaseFactStore:
             "correct_count": correct_count,
             "timed_seconds": round(seconds, 3),
             "custom_answers": values,
-            "learning_evidence_applied_at": when.isoformat(),
+            "learning_evidence_applied_at": None,
         }).eq("attempt_id", str(attempt_id)).execute())
-        return self.get_attempt(attempt_id)
+        return self.ensure_daily_learning_evidence(attempt_id)
 
     def ensure_daily_learning_evidence(self, attempt_id: str) -> AttemptRecord:
         """Apply or repair Daily mastery/progress evidence exactly once in effect.
@@ -976,6 +1009,7 @@ class SupabaseFactStore:
         if attempt.completed_at is None or attempt.learning_evidence_applied_at is not None:
             return attempt
         if attempt.daily_mode != "Multiplication":
+            self.ensure_alternate_followup_state(attempt_id)
             _retry_transient(lambda: self.client.table("daily_attempts").update({
                 "learning_evidence_applied_at": utc_now().isoformat(),
             }).eq("attempt_id", str(attempt_id)).is_("learning_evidence_applied_at", "null").execute())
@@ -1006,6 +1040,175 @@ class SupabaseFactStore:
             "learning_evidence_applied_at": utc_now().isoformat(),
         }).eq("attempt_id", str(attempt_id)).is_("learning_evidence_applied_at", "null").execute())
         return self.get_attempt(attempt_id)
+
+    # ----- Alternate Daily follow-up foundation (v2.17) -----
+    def get_or_create_alternate_learning_progress(
+        self, student_id: str, challenge_id: str, daily_mode: str
+    ) -> AlternateLearningProgressRecord:
+        mode = str(daily_mode or "")
+        if mode not in ALT_MODES:
+            raise ValueError("Alternate learning progress requires an alternate Daily 10 mode.")
+        row = _first(_retry_transient(lambda: (
+            self.client.table("alternate_learning_progress").select("*")
+            .eq("student_id", str(student_id)).eq("challenge_id", str(challenge_id)).limit(1).execute()
+        )))
+        if row is None:
+            try:
+                row = _first(_execute_returning(self.client.table("alternate_learning_progress").insert({
+                    "student_id": str(student_id), "challenge_id": str(challenge_id),
+                    "daily_mode": mode, "focus_plan": [],
+                })))
+            except Exception as exc:
+                if not (_is_unique(exc) or _is_transient_http_error(exc)):
+                    raise
+                row = _first(_retry_transient(lambda: (
+                    self.client.table("alternate_learning_progress").select("*")
+                    .eq("student_id", str(student_id)).eq("challenge_id", str(challenge_id)).limit(1).execute()
+                )))
+        if row is None:
+            raise FactStoreError("Could not create today's follow-up progress.")
+        record = _alternate_learning(row)
+        if record.daily_mode != mode:
+            raise FactStoreError("Stored follow-up mode does not match the student's Daily attempt.")
+        return record
+
+    def get_alternate_learning_progress(
+        self, student_id: str, challenge_id: str, daily_mode: str | None = None
+    ) -> AlternateLearningProgressRecord | None:
+        row = _first(_retry_transient(lambda: (
+            self.client.table("alternate_learning_progress").select("*")
+            .eq("student_id", str(student_id)).eq("challenge_id", str(challenge_id)).limit(1).execute()
+        )))
+        if row is None:
+            return None if daily_mode is None else self.get_or_create_alternate_learning_progress(
+                student_id, challenge_id, daily_mode
+            )
+        return _alternate_learning(row)
+
+    def class_alternate_learning_progress(
+        self, class_id: str, challenge_id: str, *, students: Sequence[StudentRecord] | None = None
+    ) -> dict[str, AlternateLearningProgressRecord]:
+        students = list(students) if students is not None else self.list_students(class_id)
+        ids = [student.student_id for student in students]
+        if not ids:
+            return {}
+        rows = _rows(_retry_transient(lambda: (
+            self.client.table("alternate_learning_progress").select("*")
+            .eq("challenge_id", str(challenge_id)).in_("student_id", ids).execute()
+        )))
+        return {str(row["student_id"]): _alternate_learning(row) for row in rows}
+
+    def alternate_learning_activity_rows(
+        self, student_id: str, challenge_id: str, activity_type: str | None = None
+    ) -> list[AlternateLearningEventRecord]:
+        query = (
+            self.client.table("alternate_learning_events").select("*")
+            .eq("student_id", str(student_id)).eq("challenge_id", str(challenge_id))
+        )
+        if activity_type is not None:
+            query = query.eq("activity_type", str(activity_type))
+        rows = _rows(_retry_transient(lambda: query.order("created_at").order("activity_index").execute()))
+        return [_alternate_event(row) for row in rows]
+
+    def _upsert_alternate_events(self, payloads: Sequence[Mapping]) -> list[AlternateLearningEventRecord]:
+        if not payloads:
+            return []
+        rows = _rows(_retry_transient(lambda: _execute_returning(
+            self.client.table("alternate_learning_events")
+            .upsert([dict(item) for item in payloads], on_conflict="client_event_id")
+        )))
+        return [_alternate_event(row) for row in rows]
+
+    def mark_alternate_fix_complete(
+        self, student_id: str, challenge_id: str, daily_mode: str
+    ) -> AlternateLearningProgressRecord:
+        progress = self.get_or_create_alternate_learning_progress(student_id, challenge_id, daily_mode)
+        if progress.completed_at is None:
+            now = utc_now().isoformat()
+            _retry_transient(lambda: (
+                self.client.table("alternate_learning_progress")
+                .update({"fix_completed_at": now, "completed_at": now, "updated_at": now})
+                .eq("student_id", str(student_id)).eq("challenge_id", str(challenge_id)).execute()
+            ))
+        return self.get_or_create_alternate_learning_progress(student_id, challenge_id, daily_mode)
+
+    def ensure_alternate_followup_state(self, attempt_id: str) -> AlternateLearningProgressRecord:
+        attempt = self.get_attempt(attempt_id)
+        if attempt.daily_mode == "Multiplication" or attempt.daily_mode not in ALT_MODES:
+            raise ValueError("Alternate follow-up is only available for alternate Daily 10 modes.")
+        if attempt.completed_at is None:
+            raise AttemptNotStarted("Complete the Daily 10 before follow-up practice.")
+        questions = list(attempt.custom_questions or ())
+        answers = list(attempt.custom_answers or ())
+        if len(questions) != 10 or len(answers) != 10:
+            raise FactStoreError("Alternate follow-up requires all 10 saved Daily questions and answers.")
+
+        payloads = []
+        for row in daily_evidence_rows(questions, answers, default_domain=None if attempt.daily_mode == "Mixed" else attempt.daily_mode):
+            index = int(row["question_number"])
+            payloads.append({
+                "student_id": attempt.student_id, "challenge_id": attempt.challenge_id,
+                "attempt_id": attempt.attempt_id, "daily_mode": attempt.daily_mode,
+                "activity_type": "daily", "activity_index": index, "domain": row["domain"],
+                "skill_key": row["skill_key"], "skill_label": row["skill_label"],
+                "item_key": row["item_key"], "prompt": row["prompt"],
+                "student_answer": int(row["student_answer"]), "correct_answer": int(row["correct_answer"]),
+                "correct": bool(row["correct"]), "is_retry": False, "response_seconds": None,
+                "created_at": attempt.completed_at.isoformat(),
+                "client_event_id": f"alt-daily:{attempt.attempt_id}:{index}",
+            })
+        self._upsert_alternate_events(payloads)
+        progress = self.get_or_create_alternate_learning_progress(
+            attempt.student_id, attempt.challenge_id, attempt.daily_mode
+        )
+        missed = missed_question_items(questions, answers, default_domain=None if attempt.daily_mode == "Mixed" else attempt.daily_mode)
+        if not missed:
+            return self.mark_alternate_fix_complete(attempt.student_id, attempt.challenge_id, attempt.daily_mode)
+        fixed_rows = self.alternate_learning_activity_rows(attempt.student_id, attempt.challenge_id, "fix_miss")
+        corrected = {int(row.activity_index) for row in fixed_rows if row.correct}
+        if {int(item["question_number"]) for item in missed}.issubset(corrected):
+            return self.mark_alternate_fix_complete(attempt.student_id, attempt.challenge_id, attempt.daily_mode)
+        return progress
+
+    def record_alternate_fix_batch(
+        self, attempt_id: str, corrections: Sequence[Mapping]
+    ) -> AlternateLearningProgressRecord:
+        attempt = self.get_attempt(attempt_id)
+        if attempt.daily_mode == "Multiplication" or attempt.daily_mode not in ALT_MODES:
+            raise ValueError("Alternate Fix Your Misses cannot write to a Multiplication Daily.")
+        if attempt.completed_at is None:
+            raise AttemptNotStarted("Complete the Daily 10 before Fix Your Misses.")
+        questions = list(attempt.custom_questions or ())
+        answers = list(attempt.custom_answers or ())
+        missed = {int(item["question_number"]): item for item in missed_question_items(
+            questions, answers, default_domain=None if attempt.daily_mode == "Mixed" else attempt.daily_mode
+        )}
+        submitted: dict[int, int] = {}
+        for item in corrections:
+            index = int(item.get("question_number"))
+            if index in submitted:
+                raise ValueError("Each missed question may be corrected once in a saved Fix batch.")
+            submitted[index] = int(item.get("student_answer"))
+        if set(submitted) != set(missed):
+            raise ValueError("Fix Your Misses must correct every missed Daily question.")
+        payloads = []
+        for index, value in submitted.items():
+            item = missed[index]
+            expected = int(item["correct_answer"])
+            if value != expected:
+                raise ValueError("Fix Your Misses can only complete after every missed question is corrected.")
+            payloads.append({
+                "student_id": attempt.student_id, "challenge_id": attempt.challenge_id,
+                "attempt_id": attempt.attempt_id, "daily_mode": attempt.daily_mode,
+                "activity_type": "fix_miss", "activity_index": index, "domain": item["domain"],
+                "skill_key": item["skill_key"], "skill_label": item["skill_label"],
+                "item_key": item["item_key"], "prompt": item["prompt"],
+                "student_answer": value, "correct_answer": expected, "correct": True,
+                "is_retry": True, "response_seconds": None, "created_at": utc_now().isoformat(),
+                "client_event_id": f"alt-fix:{attempt.attempt_id}:{index}",
+            })
+        self._upsert_alternate_events(payloads)
+        return self.ensure_alternate_followup_state(attempt_id)
 
     def rebuild_mastery(self, student_id: str) -> list[MasterySnapshot]:
         attempt_rows = _rows(
@@ -1074,6 +1277,14 @@ class SupabaseFactStore:
             self.client.table("daily_learning_progress").delete()
             .eq("student_id", str(student_id)).eq("challenge_id", str(challenge_id)).execute()
         )
+        _retry_transient(lambda: (
+            self.client.table("alternate_learning_events").delete()
+            .eq("student_id", str(student_id)).eq("challenge_id", str(challenge_id)).execute()
+        ))
+        _retry_transient(lambda: (
+            self.client.table("alternate_learning_progress").delete()
+            .eq("student_id", str(student_id)).eq("challenge_id", str(challenge_id)).execute()
+        ))
         self.client.table("daily_attempts").delete().eq("attempt_id", attempt.attempt_id).execute()
         self.rebuild_mastery(student_id)
         return True
@@ -1955,6 +2166,10 @@ class SupabaseFactStore:
             str(row["challenge_id"]) for row in attempt_rows
             if str(row.get("daily_mode") or "Multiplication") == "Multiplication"
         ]
+        alternate_ids = [
+            str(row["challenge_id"]) for row in attempt_rows
+            if str(row.get("daily_mode") or "Multiplication") != "Multiplication"
+        ]
         completed_learning: set[str] = set()
         if multiplication_ids:
             progress_rows = _rows(_retry_transient(lambda: (
@@ -1966,12 +2181,25 @@ class SupabaseFactStore:
                 .execute()
             )))
             completed_learning = {str(row["challenge_id"]) for row in progress_rows}
+        completed_alternate: set[str] = set()
+        if alternate_ids:
+            progress_rows = _rows(_retry_transient(lambda: (
+                self.client.table("alternate_learning_progress")
+                .select("challenge_id,completed_at")
+                .eq("student_id", str(student_id))
+                .in_("challenge_id", alternate_ids)
+                .not_.is_("completed_at", "null")
+                .execute()
+            )))
+            completed_alternate = {str(row["challenge_id"]) for row in progress_rows}
 
         qualified: list[tuple[int, str]] = []
         for row in attempt_rows:
             challenge_id = str(row["challenge_id"])
             mode = str(row.get("daily_mode") or "Multiplication")
             if mode == "Multiplication" and challenge_id not in completed_learning:
+                continue
+            if mode != "Multiplication" and challenge_id not in completed_alternate:
                 continue
             challenge_date = date.fromisoformat(challenge_by_id[challenge_id])
             day_number = (challenge_date - monday).days + 1

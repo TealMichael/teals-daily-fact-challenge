@@ -29,7 +29,7 @@ def check(name: str, condition: bool) -> None:
     checks.append(name)
 
 
-check("v2.16.0 version", APP_VERSION == "2.16.4")
+check("v2.16.0 version", APP_VERSION == "2.17.0")
 check("multiplication challenge untouched", CHALLENGE_VERSION == "TDFC-DAILY-v1")
 check("v2.14 requires no SQL migration", not (ROOT / "RUN_THIS_ONCE_IN_SUPABASE_v2_14.sql").exists())
 

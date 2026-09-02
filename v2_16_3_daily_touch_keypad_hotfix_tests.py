@@ -24,7 +24,7 @@ def function_body(name: str) -> str:
 def run() -> None:
     checks: dict[str, bool] = {}
 
-    checks["version bumped"] = APP_VERSION == "2.16.4"
+    checks["version bumped"] = APP_VERSION == "2.17.0"
     checks["challenge version untouched"] = CHALLENGE_VERSION == "TDFC-DAILY-v1"
 
     # Freeze the intentionally changed Daily component after the touch-input repair.
@@ -74,7 +74,7 @@ def run() -> None:
         print(f"{'PASS' if ok else 'FAIL'}: {name}")
     if failed:
         raise AssertionError("Failed: " + ", ".join(failed))
-    print(f"v2.16.4 Daily touch keypad hotfix: PASS ({len(checks)}/{len(checks)} checks)")
+    print(f"v2.17.0 Daily touch keypad hotfix: PASS ({len(checks)}/{len(checks)} checks)")
 
 
 if __name__ == "__main__":

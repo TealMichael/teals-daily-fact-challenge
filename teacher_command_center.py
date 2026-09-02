@@ -105,10 +105,10 @@ def summarize_learning_routine(status_rows: Iterable[Mapping], progress_map: Map
 def summarize_routine_for_mode(
     status_rows: Iterable[Mapping], progress_map: Mapping, daily_mode: str, absent_ids: Iterable[str] = ()
 ) -> dict[str, int]:
-    """Use follow-up stages only for Multiplication Daily 10.
+    """Summarize the required routine for the configured Daily mode.
 
-    Alternate Daily modes intentionally end after the Daily 10, so a completed
-    alternate attempt is fully done even though it has no learning-progress row.
+    Multiplication keeps Daily → Fix → Focus. Alternate modes use
+    Daily → Fix in v2.17, with perfect Daily attempts auto-completing Fix.
     """
     if str(daily_mode or "Multiplication") == "Multiplication":
         return summarize_learning_routine(status_rows, progress_map, absent_ids)
@@ -120,30 +120,29 @@ def summarize_routine_for_mode(
         if sid in absent:
             continue
         state = str(row.get("status") or "")
-        if state == "Complete":
+        progress = progress_map.get(sid)
+        if progress is not None and getattr(progress, "completed_at", None):
             result["done"] += 1
         elif state == "Not started":
             result["not_started"] += 1
-        else:
+        elif state != "Complete":
             result["daily"] += 1
+        else:
+            result["fix"] += 1
     return result
 
 
 def routine_label_for_mode(row: Mapping, progress, daily_mode: str) -> str:
-    """Return the teacher-facing Today status without inventing alternate follow-up work."""
+    """Return the teacher-facing Today stage for the selected Daily mode."""
     state = str(row.get("status") or "")
-    if str(daily_mode or "Multiplication") != "Multiplication":
-        if state == "Complete":
-            return "🟢 Done"
-        if state == "Not started":
-            return "⚪ Not started"
-        return "🟡 Daily 10"
     if progress is not None and getattr(progress, "completed_at", None):
         return "🟢 Done"
     if state == "Not started":
         return "⚪ Not started"
     if state != "Complete":
         return "🟡 Daily 10"
+    if str(daily_mode or "Multiplication") != "Multiplication":
+        return "🟡 Fix Your Misses"
     if progress is not None and getattr(progress, "fix_completed_at", None):
         return "🟡 Focus Practice"
     return "🟡 Fix Your Misses"

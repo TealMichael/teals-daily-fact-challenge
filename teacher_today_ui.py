@@ -105,19 +105,21 @@ def render_teacher_today_command_center(
     if multiplication_routine:
         st.caption("Done means Daily 10 + Fix Your Misses + Focus Practice are complete. The Mystery guess is optional.")
     else:
-        st.caption("Done means the Daily 10 is complete. This mode has no follow-up practice.")
+        st.caption("Done means Daily 10 + Fix Your Misses are complete. The Mystery guess is optional.")
 
     progress_error = None
     learning_stats_error = None
     if daily_status_error is None:
-        if multiplication_routine:
-            try:
+        try:
+            if multiplication_routine:
                 progress_map = store.class_learning_progress(selected.class_id, challenge.challenge_id, students=students)
-            except Exception as exc:
-                progress_map = {}
-                progress_error = exc
-        else:
+            else:
+                progress_map = store.class_alternate_learning_progress(
+                    selected.class_id, challenge.challenge_id, students=students
+                )
+        except Exception as exc:
             progress_map = {}
+            progress_error = exc
         try:
             learning_stats = store.class_learning_stats(selected.class_id, day, students=students)
         except Exception as exc:
@@ -207,7 +209,7 @@ def render_teacher_today_command_center(
         if str(row.get("status") or "") == "Not started" and str(row.get("nickname") or "").strip()
     ]
     follow_up_names = []
-    if multiplication_routine and progress_error is None:
+    if progress_error is None:
         for row in status:
             if str(row.get("status") or "") != "Complete":
                 continue

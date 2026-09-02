@@ -19,6 +19,7 @@ from typing import Iterable, Mapping, Sequence
 
 from fact_engine import Fact, canonical_pair
 from adaptive_engine import MasterySnapshot, update_snapshot, mastery_counts, complete_mastery_map
+from alternate_followup import ALT_MODES, daily_evidence_rows, missed_question_items
 
 
 class FactStoreError(RuntimeError):
@@ -157,6 +158,40 @@ class LearningProgressRecord:
 
 
 @dataclass(frozen=True)
+class AlternateLearningProgressRecord:
+    student_id: str
+    challenge_id: str
+    daily_mode: str
+    focus_plan: tuple[dict, ...] = ()
+    fix_completed_at: datetime | None = None
+    focus_completed_at: datetime | None = None
+    completed_at: datetime | None = None
+
+
+@dataclass(frozen=True)
+class AlternateLearningEventRecord:
+    event_id: str
+    student_id: str
+    challenge_id: str
+    attempt_id: str
+    daily_mode: str
+    activity_type: str
+    activity_index: int
+    domain: str
+    skill_key: str
+    skill_label: str
+    item_key: str
+    prompt: str
+    student_answer: int
+    correct_answer: int
+    correct: bool
+    is_retry: bool
+    created_at: datetime
+    response_seconds: float | None = None
+    client_event_id: str | None = None
+
+
+@dataclass(frozen=True)
 class WarmupSetRecord:
     warmup_set_id: str
     class_id: str
@@ -257,6 +292,9 @@ class InMemoryFactStore:
         self.practice_event_ids: set[str] = set()
         self.mastery: dict[tuple[str, int, int], MasterySnapshot] = {}
         self.learning_progress: dict[tuple[str, str], LearningProgressRecord] = {}
+        self.alternate_learning_progress: dict[tuple[str, str], AlternateLearningProgressRecord] = {}
+        self.alternate_learning_events: list[AlternateLearningEventRecord] = []
+        self.alternate_event_ids: set[str] = set()
         self.class_focus_overrides: dict[str, int | None] = {}
         self.student_focus_overrides: dict[str, int | None] = {}
         self.global_focus_override: int | None = None
@@ -427,6 +465,9 @@ class InMemoryFactStore:
         self.practice = [row for row in self.practice if row.student_id not in id_set]
         self.mastery = {key: row for key, row in self.mastery.items() if key[0] not in id_set}
         self.learning_progress = {key: row for key, row in self.learning_progress.items() if key[0] not in id_set}
+        self.alternate_learning_progress = {key: row for key, row in self.alternate_learning_progress.items() if key[0] not in id_set}
+        self.alternate_learning_events = [row for row in self.alternate_learning_events if row.student_id not in id_set]
+        self.alternate_event_ids = {str(row.client_event_id) for row in self.alternate_learning_events if row.client_event_id}
         for student_id in id_set:
             self.student_focus_overrides.pop(student_id, None)
         self.mystery_unlocks = {key: row for key, row in self.mystery_unlocks.items() if key[0] not in id_set}
@@ -635,7 +676,7 @@ class InMemoryFactStore:
         if attempt.daily_mode == "Multiplication":
             raise ValueError("Multiplication Daily attempts must use complete_full_attempt().")
         if attempt.completed_at is not None:
-            return attempt
+            return self.ensure_daily_learning_evidence(attempt_id)
         questions = list(attempt.custom_questions)
         values = [int(value) for value in answers]
         if len(questions) != 10 or len(values) != 10:
@@ -652,10 +693,10 @@ class InMemoryFactStore:
         updated = replace(
             attempt, timed_started_at=started, completed_at=when,
             correct_count=correct_count, timed_seconds=seconds,
-            learning_evidence_applied_at=when, custom_answers=tuple(values),
+            learning_evidence_applied_at=None, custom_answers=tuple(values),
         )
         self.attempts[attempt_id] = updated
-        return updated
+        return self.ensure_daily_learning_evidence(attempt_id)
 
     def ensure_daily_learning_evidence(self, attempt_id: str) -> AttemptRecord:
         """Repair-safe application of Daily evidence after the official score is saved.
@@ -669,6 +710,7 @@ class InMemoryFactStore:
         if attempt.completed_at is None or attempt.learning_evidence_applied_at is not None:
             return attempt
         if attempt.daily_mode != "Multiplication":
+            self.ensure_alternate_followup_state(attempt_id)
             updated = replace(attempt, learning_evidence_applied_at=utc_now())
             self.attempts[attempt_id] = updated
             return updated
@@ -693,6 +735,164 @@ class InMemoryFactStore:
         updated = replace(attempt, learning_evidence_applied_at=utc_now())
         self.attempts[attempt_id] = updated
         return updated
+
+    # ----- Alternate Daily follow-up foundation (v2.17) -----
+    def get_or_create_alternate_learning_progress(
+        self, student_id: str, challenge_id: str, daily_mode: str
+    ) -> AlternateLearningProgressRecord:
+        self.get_student(student_id)
+        mode = str(daily_mode or "")
+        if mode not in ALT_MODES:
+            raise ValueError("Alternate learning progress requires an alternate Daily 10 mode.")
+        key = (str(student_id), str(challenge_id))
+        existing = self.alternate_learning_progress.get(key)
+        if existing is not None:
+            return existing
+        record = AlternateLearningProgressRecord(
+            student_id=str(student_id), challenge_id=str(challenge_id), daily_mode=mode
+        )
+        self.alternate_learning_progress[key] = record
+        return record
+
+    def get_alternate_learning_progress(
+        self, student_id: str, challenge_id: str, daily_mode: str | None = None
+    ) -> AlternateLearningProgressRecord | None:
+        record = self.alternate_learning_progress.get((str(student_id), str(challenge_id)))
+        if record is None and daily_mode is not None:
+            return self.get_or_create_alternate_learning_progress(student_id, challenge_id, daily_mode)
+        return record
+
+    def class_alternate_learning_progress(
+        self, class_id: str, challenge_id: str, *, students: Sequence[StudentRecord] | None = None
+    ) -> dict[str, AlternateLearningProgressRecord]:
+        students = list(students) if students is not None else self.list_students(class_id)
+        ids = {student.student_id for student in students}
+        return {
+            sid: row for (sid, cid), row in self.alternate_learning_progress.items()
+            if cid == str(challenge_id) and sid in ids
+        }
+
+    def alternate_learning_activity_rows(
+        self, student_id: str, challenge_id: str, activity_type: str | None = None
+    ) -> list[AlternateLearningEventRecord]:
+        rows = [
+            row for row in self.alternate_learning_events
+            if row.student_id == str(student_id) and row.challenge_id == str(challenge_id)
+            and (activity_type is None or row.activity_type == str(activity_type))
+        ]
+        return sorted(rows, key=lambda row: (row.created_at, row.activity_index, row.event_id))
+
+    def _append_alternate_learning_event(
+        self, *, student_id: str, challenge_id: str, attempt_id: str, daily_mode: str,
+        activity_type: str, activity_index: int, domain: str, skill_key: str,
+        skill_label: str, item_key: str, prompt: str, student_answer: int,
+        correct_answer: int, correct: bool, is_retry: bool, client_event_id: str,
+        response_seconds: float | None = None, created_at: datetime | None = None,
+    ) -> AlternateLearningEventRecord:
+        if client_event_id in self.alternate_event_ids:
+            return next(row for row in self.alternate_learning_events if row.client_event_id == client_event_id)
+        record = AlternateLearningEventRecord(
+            event_id=_uuid(), student_id=str(student_id), challenge_id=str(challenge_id),
+            attempt_id=str(attempt_id), daily_mode=str(daily_mode), activity_type=str(activity_type),
+            activity_index=int(activity_index), domain=str(domain), skill_key=str(skill_key),
+            skill_label=str(skill_label), item_key=str(item_key), prompt=str(prompt),
+            student_answer=int(student_answer), correct_answer=int(correct_answer),
+            correct=bool(correct), is_retry=bool(is_retry), created_at=created_at or utc_now(),
+            response_seconds=None if response_seconds is None else float(response_seconds),
+            client_event_id=str(client_event_id),
+        )
+        self.alternate_learning_events.append(record)
+        self.alternate_event_ids.add(str(client_event_id))
+        return record
+
+    def mark_alternate_fix_complete(
+        self, student_id: str, challenge_id: str, daily_mode: str
+    ) -> AlternateLearningProgressRecord:
+        progress = self.get_or_create_alternate_learning_progress(student_id, challenge_id, daily_mode)
+        now = utc_now()
+        updated = replace(
+            progress,
+            fix_completed_at=progress.fix_completed_at or now,
+            completed_at=progress.completed_at or now,
+        )
+        self.alternate_learning_progress[(str(student_id), str(challenge_id))] = updated
+        return updated
+
+    def ensure_alternate_followup_state(self, attempt_id: str) -> AlternateLearningProgressRecord:
+        attempt = self.get_attempt(attempt_id)
+        if attempt.daily_mode == "Multiplication" or attempt.daily_mode not in ALT_MODES:
+            raise ValueError("Alternate follow-up is only available for alternate Daily 10 modes.")
+        if attempt.completed_at is None:
+            raise AttemptNotStarted("Complete the Daily 10 before follow-up practice.")
+        questions = list(attempt.custom_questions or ())
+        answers = list(attempt.custom_answers or ())
+        if len(questions) != 10 or len(answers) != 10:
+            raise FactStoreError("Alternate follow-up requires all 10 saved Daily questions and answers.")
+
+        daily_rows = daily_evidence_rows(questions, answers, default_domain=None if attempt.daily_mode == "Mixed" else attempt.daily_mode)
+        for row in daily_rows:
+            index = int(row["question_number"])
+            self._append_alternate_learning_event(
+                student_id=attempt.student_id, challenge_id=attempt.challenge_id, attempt_id=attempt.attempt_id,
+                daily_mode=attempt.daily_mode, activity_type="daily", activity_index=index,
+                domain=row["domain"], skill_key=row["skill_key"], skill_label=row["skill_label"],
+                item_key=row["item_key"], prompt=row["prompt"], student_answer=row["student_answer"],
+                correct_answer=row["correct_answer"], correct=row["correct"], is_retry=False,
+                client_event_id=f"alt-daily:{attempt.attempt_id}:{index}", created_at=attempt.completed_at,
+            )
+
+        progress = self.get_or_create_alternate_learning_progress(
+            attempt.student_id, attempt.challenge_id, attempt.daily_mode
+        )
+        missed = missed_question_items(questions, answers, default_domain=None if attempt.daily_mode == "Mixed" else attempt.daily_mode)
+        if not missed:
+            return self.mark_alternate_fix_complete(attempt.student_id, attempt.challenge_id, attempt.daily_mode)
+        corrected = {
+            int(row.activity_index) for row in self.alternate_learning_activity_rows(
+                attempt.student_id, attempt.challenge_id, "fix_miss"
+            ) if row.correct
+        }
+        if {int(item["question_number"]) for item in missed}.issubset(corrected):
+            return self.mark_alternate_fix_complete(attempt.student_id, attempt.challenge_id, attempt.daily_mode)
+        return progress
+
+    def record_alternate_fix_batch(
+        self, attempt_id: str, corrections: Sequence[Mapping]
+    ) -> AlternateLearningProgressRecord:
+        attempt = self.get_attempt(attempt_id)
+        if attempt.daily_mode == "Multiplication" or attempt.daily_mode not in ALT_MODES:
+            raise ValueError("Alternate Fix Your Misses cannot write to a Multiplication Daily.")
+        if attempt.completed_at is None:
+            raise AttemptNotStarted("Complete the Daily 10 before Fix Your Misses.")
+        questions = list(attempt.custom_questions or ())
+        answers = list(attempt.custom_answers or ())
+        missed = {
+            int(item["question_number"]): item for item in missed_question_items(
+                questions, answers, default_domain=None if attempt.daily_mode == "Mixed" else attempt.daily_mode
+            )
+        }
+        submitted: dict[int, int] = {}
+        for item in corrections:
+            index = int(item.get("question_number"))
+            if index in submitted:
+                raise ValueError("Each missed question may be corrected once in a saved Fix batch.")
+            submitted[index] = int(item.get("student_answer"))
+        if set(submitted) != set(missed):
+            raise ValueError("Fix Your Misses must correct every missed Daily question.")
+        for index, value in submitted.items():
+            expected = int(missed[index]["correct_answer"])
+            if value != expected:
+                raise ValueError("Fix Your Misses can only complete after every missed question is corrected.")
+            item = missed[index]
+            self._append_alternate_learning_event(
+                student_id=attempt.student_id, challenge_id=attempt.challenge_id, attempt_id=attempt.attempt_id,
+                daily_mode=attempt.daily_mode, activity_type="fix_miss", activity_index=index,
+                domain=item["domain"], skill_key=item["skill_key"], skill_label=item["skill_label"],
+                item_key=item["item_key"], prompt=item["prompt"], student_answer=value,
+                correct_answer=expected, correct=True, is_retry=True,
+                client_event_id=f"alt-fix:{attempt.attempt_id}:{index}",
+            )
+        return self.ensure_alternate_followup_state(attempt_id)
 
     def rebuild_mastery(self, student_id: str) -> list[MasterySnapshot]:
         self.get_student(student_id)
@@ -730,6 +930,12 @@ class InMemoryFactStore:
             if not (row.student_id == student_id and row.challenge_id == challenge_id and row.activity_type in {"fix_miss", "focus"})
         ]
         self.learning_progress.pop((student_id, challenge_id), None)
+        self.alternate_learning_progress.pop((str(student_id), str(challenge_id)), None)
+        self.alternate_learning_events = [
+            row for row in self.alternate_learning_events
+            if not (row.student_id == str(student_id) and row.challenge_id == str(challenge_id))
+        ]
+        self.alternate_event_ids = {str(row.client_event_id) for row in self.alternate_learning_events if row.client_event_id}
         self.answers.pop(target.attempt_id, None)
         self.attempts.pop(target.attempt_id, None)
         self.rebuild_mastery(student_id)
@@ -1198,6 +1404,10 @@ class InMemoryFactStore:
                 continue
             if str(attempt.daily_mode or "Multiplication") == "Multiplication":
                 progress = self.learning_progress.get((str(student_id), str(challenge.challenge_id)))
+                if progress is None or progress.completed_at is None:
+                    continue
+            else:
+                progress = self.alternate_learning_progress.get((str(student_id), str(challenge.challenge_id)))
                 if progress is None or progress.completed_at is None:
                     continue
             qualified.append((day_number, challenge.challenge_id))

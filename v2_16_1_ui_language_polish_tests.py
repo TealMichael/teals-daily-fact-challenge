@@ -15,9 +15,9 @@ def check(name: str, condition: bool) -> None:
     checks.append(name)
 
 
-check("v2.16.4 version", APP_VERSION == "2.16.4")
+check("v2.17.0 version", APP_VERSION == "2.17.0")
 check("Daily challenge version unchanged", CHALLENGE_VERSION == "TDFC-DAILY-v1")
-check("v2.16.4 requires no SQL migration", not (ROOT / "RUN_THIS_ONCE_IN_SUPABASE_v2_16_2.sql").exists())
+check("v2.17.0 follow-up migration is present", (ROOT / "RUN_THIS_ONCE_IN_SUPABASE_v2_17.sql").exists())
 
 # The normal classroom UI should no longer expose implementation/build language.
 normal_ui_files = [
@@ -90,7 +90,6 @@ protected_hashes = {
     "daily_modes.py": "2e6633604d9ea2f21b4054e38827eea1eec99f47e5562befa4c1e62f840f3b5e",
     "warmup.py": "e9dc2faabf9234c4463f84fc02c3453b4a1f5e37376cd8461d1adccc34bb816b",
     "weekly_mystery.py": "dfe98e7ba8c9f86daa28396e9a61282bd2705f5f132c84ff7cbb5051b4740b1f",
-    "supabase_fact_store.py": "3af69ee77c2a725f0f9cb87f3a2cc937a2069df1bec587321e42df4c57f956dc",
     "teacher_insights.py": "4fdf3516e75a8d697747f4d92aadd3f39c51a116e5990054c5eca4c66b0094a5",
     "AWTRIX_FactTop10.berry": "4ab1b8a25e84535591a2ff2d68a49edc3e2" if False else "4ab1b8a25e84535591a2ff7905366aa89f18c83b41c2b56d22f2d68a49edc3e2",
     "requirements.txt": "3436997a9043e9843f0960bac0ade5a33acb72eba52a3070bd98a49b3fed7180",
@@ -121,17 +120,21 @@ copy_only_hashes = {
     "teacher_daily_setup_ui.py": "39d27f6559e7952138b29b970907eeea60452e9b10cd0fecac69a3271e608993",
     "teacher_warmup_ui.py": "974457ce13d7ae186cdd101b85d210991231eacadc4375c989745e6fb1dd266e",
     "teacher_intelligence.py": "3b4fef7ba6335e1203237e9ed6e069eebfef974eb2743de829336debd9c14d49",
-    "student_alt_daily_ui.py": "b1cca326abcad969dd2e2010a9d1a6b2d29dab19b79af03e24e86023960bc56d",
 }
 for relative, expected in copy_only_hashes.items():
     check(f"copy-only structure unchanged: {relative}", normalized_tree_hash(ROOT / relative) == expected)
 
-# v2.16.4 intentionally changed only teacher command-center routine interpretation
-# so alternate Daily modes cannot be assigned nonexistent multiplication follow-up work.
+# v2.17.0 intentionally expands alternate-mode follow-up while preserving the
+# cleaned classroom wording from v2.16.1.
 command_center = (ROOT / "teacher_command_center.py").read_text(encoding="utf-8")
-check("alternate-mode Today hotfix retained", all(marker in command_center for marker in [
-    "def summarize_routine_for_mode", "def routine_label_for_mode", '!= "Multiplication"'
+check("alternate-mode Today follow-up is explicit", all(marker in command_center for marker in [
+    "def summarize_routine_for_mode", "def routine_label_for_mode", "Fix Your Misses"
 ]))
+student_alt = (ROOT / "student_alt_daily_ui.py").read_text(encoding="utf-8")
+check("alternate student follow-up uses classroom language", all(marker in student_alt for marker in [
+    "Next: Fix Your Misses", "Your learning work is finished for today.", "Today's Mystery Reward"
+]))
+check("alternate student UI avoids implementation labels", "alternate_learning_events" not in student_alt)
 
 # app.py combines many routes. Protect the critical student functions structurally while allowing copy edits.
 app_source = (ROOT / "app.py").read_text(encoding="utf-8")
@@ -156,7 +159,8 @@ for name, expected in student_function_hashes.items():
 # Teacher-only files with f-string copy changes still must retain their core read/call contracts.
 today = (ROOT / "teacher_today_ui.py").read_text(encoding="utf-8")
 check("Today data contracts preserved", all(marker in today for marker in [
-    "store.daily_status", "store.class_learning_progress", "store.get_warmup_set", "store.list_warmup_answers"
+    "store.daily_status", "store.class_learning_progress", "store.class_alternate_learning_progress",
+    "store.get_warmup_set", "store.list_warmup_answers"
 ]))
 history = (ROOT / "teacher_class_history_ui.py").read_text(encoding="utf-8")
 check("Class History remains read-only over established history", all(marker in history for marker in [
@@ -164,4 +168,4 @@ check("Class History remains read-only over established history", all(marker in 
 ]))
 check("Class History adds no write calls", not any(marker in history for marker in ["set_app_setting(", "save_", "update_", "delete_"]))
 
-print(f"v2.16.4 UI Language Polish: {len(checks)}/{len(checks)} checks passed")
+print(f"v2.17.0 UI Language Polish: {len(checks)}/{len(checks)} checks passed")

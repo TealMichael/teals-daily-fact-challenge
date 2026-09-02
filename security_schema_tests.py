@@ -9,7 +9,8 @@ def run():
     backend = Path("supabase_fact_store.py").read_text(encoding="utf-8")
     tables = [
         "classes", "students", "daily_challenges", "daily_attempts", "daily_answers", "practice_answers",
-        "student_fact_mastery", "daily_learning_progress", "app_settings",
+        "student_fact_mastery", "daily_learning_progress", "alternate_learning_progress",
+        "alternate_learning_events", "app_settings",
         "weekly_mysteries", "weekly_mystery_unlocks", "weekly_mystery_guesses",
         "warmup_sets", "warmup_answers",
         "awtrix_clock_config", "awtrix_clock_commands",
@@ -42,6 +43,12 @@ def run():
     assert "alter table public.warmup_sets enable row level security" in warmup_migration
     assert "alter table public.warmup_answers enable row level security" in warmup_migration
 
+
+    alternate_migration = Path("RUN_THIS_ONCE_IN_SUPABASE_v2_17.sql").read_text(encoding="utf-8").lower()
+    assert "alternate_learning_progress" in alternate_migration
+    assert "alternate_learning_events" in alternate_migration
+    assert "enable row level security" in alternate_migration
+    assert "on conflict (student_id, challenge_id) do nothing" in alternate_migration
 
     awtrix_migration = Path("RUN_THIS_ONCE_IN_SUPABASE_v2_12.sql").read_text(encoding="utf-8").lower()
     assert "alter table public.awtrix_clock_config enable row level security" in awtrix_migration
