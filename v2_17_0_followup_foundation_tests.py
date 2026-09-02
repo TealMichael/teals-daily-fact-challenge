@@ -33,7 +33,7 @@ def setup(mode: str, day: date = date(2026, 9, 2)):
     return store, klass, student, challenge, questions, attempt
 
 
-check("v2.17 version", APP_VERSION == "2.17.0")
+check("v2.17 version", APP_VERSION == "2.18.0")
 check("multiplication challenge stays v1", CHALLENGE_VERSION == "TDFC-DAILY-v1")
 
 # Skill identities are stable and useful for later teaching/focus layers.
@@ -167,7 +167,7 @@ store_source = (ROOT / "supabase_fact_store.py").read_text(encoding="utf-8")
 check("alternate student UI declares Fix component", '"tdfc_alt_fix"' in student_ui and "ALT_FIX_COMPONENT" in student_ui)
 check("alternate student UI waits for follow-up completion", "progress.completed_at is None" in student_ui and "record_alternate_fix_batch" in student_ui)
 check("alternate student UI gives Mystery only after Fix branch", student_ui.index('progress.completed_at is None') < student_ui.index("Today's Mystery Reward"))
-check("Fix component uses stable digit update", "function addDigit" in component and "entry();message()" in component)
+check("Fix component uses stable digit update", "function addDigit" in component and "updateEntry()" in component)
 check("Fix component requires correction before advancing", "value!==Number(item.correct_answer)" in component)
 check("Fix component does not render correct answer text", "${item.correct_answer}" not in component)
 check("Supabase health checks alternate tables", 'table("alternate_learning_progress")' in store_source and 'table("alternate_learning_events")' in store_source)

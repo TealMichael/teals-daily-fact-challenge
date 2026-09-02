@@ -1,12 +1,14 @@
-# Teal's Daily Fact Challenge v2.17.0 — Follow-Up Foundation
+# Teal's Daily Fact Challenge v2.18.0 — Teaching Models
 
-**Alternate Daily 10 modes now have Fix Your Misses.** Addition, Subtraction, Division, Integers, and Mixed use the established Daily → Fix Your Misses → Done rhythm. A perfect 10 skips the fix step. Alternate Focus Practice and full teaching models are intentionally reserved for v2.18/v2.19.
+**Alternate Fix Your Misses now teaches before the retry.** Addition, Subtraction, Division, Integers, and Mixed use deterministic domain-specific visual models with the same model → retry rhythm students already know from multiplication. Mixed multiplication reads the existing Fact Coach strategy plan without writing into multiplication mastery.
 
-This release adds separate alternate-learning progress/event storage so Mixed can route each question to its true domain without contaminating the proven multiplication mastery system. Run `RUN_THIS_ONCE_IN_SUPABASE_v2_17.sql` once **before** deploying the v2.17 app files. No new Streamlit Secret or AWTRIX reinstall is required.
+This release is presentation/teaching logic on top of the v2.17 alternate-learning foundation. There is **no new Supabase migration**, no new Streamlit Secret, and no AWTRIX reinstall.
 
 ---
 
 # Teal's Daily Fact Challenge
+
+> **v2.18.0 — Teaching Models:** alternate-mode Fix Your Misses now opens with high-quality domain-specific coaching before the retry. Addition uses make-10/doubles/count-on models; Subtraction uses related-addition/part-whole thinking; Division uses equal groups tied to multiplication; Integers use signed number lines; Mixed routes to the correct model and uses the existing Fact Coach strategy plan for its multiplication items. Multiplication files and mastery remain protected and unchanged. No new SQL.
 
 > **v2.17.0 — Follow-Up Foundation:** adds Fix Your Misses to Addition, Subtraction, Division, Integers, and Mixed while keeping alternate learning evidence separate from multiplication mastery. Perfect alternate Dailies finish immediately; missed questions must be corrected before the day is Done/Mystery-ready. Run `RUN_THIS_ONCE_IN_SUPABASE_v2_17.sql` once before deploying app files. Teaching models and alternate Focus Practice are intentionally deferred to v2.18/v2.19.
 

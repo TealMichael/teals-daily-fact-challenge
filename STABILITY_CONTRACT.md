@@ -182,3 +182,17 @@ Future releases should run `python release_guard.py` plus the full `*_tests.py` 
 - Alternate Fix Your Misses requires every originally missed question to be corrected before completion; the server/store validates the submitted corrections rather than trusting the browser component.
 - The alternate Fix keypad keeps number buttons mounted during digit entry, preserving the rapid-touch reliability pattern established in v2.16.3.
 - v2.17 is the foundation only. Full domain-specific teaching models and adaptive alternate Focus Practice belong to later releases and must not be simulated by writing into multiplication systems.
+
+## v2.18 Teaching Models protections
+
+- Multiplication is the gold-standard source of truth and remains frozen: the multiplication Daily component, Guided Practice component, answer pad, Fact Coach, adaptive/mastery engine, `TDFC-DAILY-v1`, requirements, and AWTRIX must remain byte-identical to v2.17.0.
+- v2.18 changes the teaching presentation of alternate Fix Your Misses only. It does not change official Daily score/time, Top 10 ranking, alternate follow-up storage, Mystery completion rules, or multiplication mastery evidence.
+- Every alternate miss starts in a coaching/model stage before the retry, mirroring the established multiplication Fix Your Misses rhythm.
+- Teaching plans are deterministic. The same question must select the same strategy/model every time.
+- Addition models use mathematically valid make-10, doubles/near-doubles, count-on, or zero relationships.
+- Subtraction models use a valid part-whole / related-addition relationship.
+- Division models use valid equal groups and explicitly connect to the inverse multiplication fact.
+- Integer models use signed number-line movement; subtracting a negative must reverse direction correctly.
+- Mixed routes each item by its true domain. Mixed multiplication may read `fact_coach.coach_plan()` for the established strategy, but its events remain in alternate-learning storage and never enter multiplication mastery.
+- The alternate teaching keypad keeps its buttons mounted during digit entry and supports negative integer answers.
+- v2.18 introduces no new Supabase migration. Adaptive alternate Focus Practice remains reserved for v2.19.

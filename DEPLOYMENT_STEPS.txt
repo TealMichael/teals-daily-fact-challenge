@@ -1,45 +1,20 @@
-Teal's Daily Fact Challenge v2.17.0 — INSTALLATION
-==================================================
+Teal's Daily Fact Challenge v2.18.0 — Teaching Models
 
-IMPORTANT: v2.17.0 has a new Supabase migration. Install in this order.
+UPGRADE FROM v2.17.0
 
-1) RUN THE SQL FIRST
---------------------
-Open your existing Supabase project → SQL Editor.
-Open RUN_THIS_ONCE_IN_SUPABASE_v2_17.sql from this package.
-Run the entire file once.
+1. Confirm v2.17.0 is already installed. Its one-time Supabase migration must already have been run.
+2. Copy everything from the v2.18 GitHub Desktop patch's COPY_INTO_GITHUB_REPO folder into the root of your existing GitHub repository.
+3. Allow replacements.
+4. In GitHub Desktop, review the changes, commit, and push.
+5. Let Streamlit Cloud redeploy.
+6. Test one alternate Daily with a deliberate miss and confirm Fix Your Misses opens the teaching model before TRY AGAIN.
 
-The migration is backward-compatible with v2.16.4. It creates separate alternate-mode follow-up progress/event tables and marks already-completed historical alternate Dailies as complete so students are never asked to redo past work.
-
-2) COPY THE GITHUB PATCH
-------------------------
-Open COPY_INTO_GITHUB_REPO.
-Copy everything inside that folder into the ROOT of your existing GitHub repository.
-Allow files/folders with the same names to be replaced.
-
-3) COMMIT AND PUSH
-------------------
-Open GitHub Desktop, review the changes, commit, and push.
-Suggested commit message:
-
-v2.17.0 - add alternate Fix Your Misses foundation
-
-4) LET STREAMLIT REDEPLOY
--------------------------
-After deployment, test one alternate Daily with a missed answer. The expected flow is:
-
-Daily 10 → Fix Your Misses → Done → Mystery reward
-
-A perfect alternate Daily should go directly to Done/Mystery.
-Multiplication should remain Daily 10 → Fix Your Misses → Focus Practice → Done.
-
-NO OTHER SETUP
---------------
-- No new Streamlit Secret.
-- No AWTRIX script reinstall.
-- No clock changes.
-- Do not rerun older SQL migrations.
+NO DATABASE STEP FOR v2.18.0
+- Do NOT rerun the v2.17 SQL.
+- There is no RUN_THIS_ONCE_IN_SUPABASE_v2_18.sql file.
+- No new Streamlit Secret is required.
+- No AWTRIX script reinstall or clock change is required.
 
 ROLLBACK
---------
-If you need to roll the app code back, restore your v2.16.4 repository files. The two new v2.17 tables can safely remain in Supabase; v2.16.4 does not use them.
+- The v2.17 Supabase tables are backward-compatible and can remain in place.
+- To roll back app code, restore the v2.17.0 repository files. No database rollback is required.

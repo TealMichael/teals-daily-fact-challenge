@@ -8,7 +8,7 @@ GUIDED = (ROOT / "guided_practice_component" / "index.html").read_text(encoding=
 
 def run():
     checks = {}
-    checks["version 2.8.3"] = APP_VERSION == "2.17.0"
+    checks["version 2.8.3"] = APP_VERSION == "2.18.0"
     checks["short visual stages"] = all(text in GUIDED for text in ["SEE IT", "BREAK IT", "YOUR TURN", "PUT IT TOGETHER", "TRY AGAIN"])
     checks["whole array transforms after appearing"] = "seq-see" in GUIDED and "seq-break" in GUIDED and "background:var(--orange)" in GUIDED and "background:var(--purple)" in GUIDED
     checks["subtraction visibly fades removed groups"] = ".coach-cell.removed" in GUIDED and "opacity:.22" in GUIDED

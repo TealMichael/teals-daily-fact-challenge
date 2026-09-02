@@ -1,1 +1,1 @@
-v2.17.0 - add alternate Fix Your Misses foundation
+v2.18.0 - add high-quality teaching models to alternate Fix Your Misses

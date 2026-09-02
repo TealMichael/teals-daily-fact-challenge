@@ -35,6 +35,7 @@ def run():
         "RUN_THIS_ONCE_IN_SUPABASE_v2_17.sql",
         "daily_modes.py",
         "alternate_followup.py",
+        "alternate_teaching.py",
         "alt_fix_component/index.html",
         "daily_alt_component/index.html",
         "student_alt_daily_ui.py",

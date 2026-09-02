@@ -14,6 +14,7 @@ import streamlit.components.v1 as components
 
 from daily_modes import ALT_DAILY_VERSION
 from alternate_followup import missed_question_items
+from alternate_teaching import teaching_plan_for_question
 from fact_store import utc_now
 from supabase_fact_store import SupabaseFactStore
 
@@ -103,16 +104,24 @@ def render_alternate_daily(store: SupabaseFactStore, day, challenge, attempt, *,
                     st.success("✅ Daily 10 complete!")
                     st.markdown("### Next: Fix Your Misses")
                     st.caption(f"You have {len(missed)} question{'s' if len(missed) != 1 else ''} to fix.")
-                    result = ALT_FIX_COMPONENT(
-                        items=[{
+                    model_items = []
+                    for item in missed:
+                        question = questions[int(item["question_number"]) - 1]
+                        plan = teaching_plan_for_question(
+                            question, None if str(attempt.daily_mode) == "Mixed" else str(attempt.daily_mode)
+                        )
+                        model_items.append({
                             "question_number": int(item["question_number"]),
                             "prompt": str(item["prompt"]),
                             "original_answer": int(item["original_answer"]),
                             "correct_answer": int(item["correct_answer"]),
                             "domain": str(item["domain"]),
-                        } for item in missed],
+                            "model": plan.as_dict(),
+                        })
+                    result = ALT_FIX_COMPONENT(
+                        items=model_items,
                         attempt_key=f"{attempt.attempt_id}:fix",
-                        version="TDFC-ALT-FIX-v1",
+                        version="TDFC-ALT-FIX-v2",
                         default=None,
                         key=f"alt_fix_{attempt.attempt_id}",
                     )
