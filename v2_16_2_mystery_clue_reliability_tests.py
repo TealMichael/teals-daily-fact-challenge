@@ -41,6 +41,8 @@ def _complete_alternate_day(store, student, day):
         custom_questions=questions,
     )
     store.complete_custom_attempt(attempt.attempt_id, [i + 1 for i in range(10)], 20.0)
+    # v2.19 alternate routines qualify for Mystery only after Focus Practice.
+    store.mark_alternate_focus_complete(student.student_id, challenge.challenge_id, "Addition Facts")
     return challenge
 
 
@@ -206,7 +208,7 @@ def main():
     test_lost_unlock_response_is_recovered_without_losing_clue()
 
     checks = {
-        "version bumped": 'APP_VERSION = "2.18.0"' in ENGINE,
+        "version bumped": 'APP_VERSION = "2.19.0"' in ENGINE,
         "challenge version untouched": 'CHALLENGE_VERSION = "TDFC-DAILY-v1"' in ENGINE,
         "repair helper exists in production store": "def completed_mystery_days(" in STORE,
         "repair helper exists in reference store": "def completed_mystery_days(" in (ROOT / "fact_store.py").read_text(encoding="utf-8"),

@@ -31,7 +31,8 @@ except ImportError:  # Local/offline Practice can still load before dependencies
 
 from fact_engine import Fact, canonical_pair
 from adaptive_engine import MasterySnapshot, update_snapshot, mastery_counts
-from alternate_followup import ALT_MODES, daily_evidence_rows, missed_question_items
+from alternate_followup import ALT_MODES, daily_evidence_rows, missed_question_items, skill_identity_for_question
+from alternate_focus import ALT_FOCUS_SESSION_LENGTH
 from fact_store import (
     AnswerRecord,
     AttemptComplete,
@@ -1123,11 +1124,58 @@ class SupabaseFactStore:
         self, student_id: str, challenge_id: str, daily_mode: str
     ) -> AlternateLearningProgressRecord:
         progress = self.get_or_create_alternate_learning_progress(student_id, challenge_id, daily_mode)
+        if progress.fix_completed_at is None:
+            now = utc_now().isoformat()
+            _retry_transient(lambda: (
+                self.client.table("alternate_learning_progress")
+                .update({"fix_completed_at": now, "updated_at": now})
+                .eq("student_id", str(student_id)).eq("challenge_id", str(challenge_id)).execute()
+            ))
+        return self.get_or_create_alternate_learning_progress(student_id, challenge_id, daily_mode)
+
+    def set_alternate_focus_plan(
+        self, student_id: str, challenge_id: str, daily_mode: str, plan: Sequence[Mapping]
+    ) -> AlternateLearningProgressRecord:
+        progress = self.get_or_create_alternate_learning_progress(student_id, challenge_id, daily_mode)
+        if progress.focus_plan:
+            return progress
+        items = [dict(item) for item in plan]
+        if len(items) != ALT_FOCUS_SESSION_LENGTH:
+            raise ValueError("Alternate Focus Practice needs exactly 8 questions.")
+        for item in items:
+            identity = skill_identity_for_question(item, None if daily_mode == "Mixed" else daily_mode)
+            if daily_mode != "Mixed" and identity.domain != daily_mode:
+                raise ValueError("Alternate Focus plan contains a question from the wrong domain.")
+            int(item.get("correct_answer"))
+        now = utc_now().isoformat()
+        _retry_transient(lambda: (
+            self.client.table("alternate_learning_progress")
+            .update({"focus_plan": items, "updated_at": now})
+            .eq("student_id", str(student_id)).eq("challenge_id", str(challenge_id)).execute()
+        ))
+        return self.get_or_create_alternate_learning_progress(student_id, challenge_id, daily_mode)
+
+    def recent_alternate_learning_events(
+        self, student_id: str, *, limit: int = 500
+    ) -> list[AlternateLearningEventRecord]:
+        count = max(1, min(2000, int(limit)))
+        rows = _rows(_retry_transient(lambda: (
+            self.client.table("alternate_learning_events").select("*")
+            .eq("student_id", str(student_id)).order("created_at", desc=True).range(0, count - 1).execute()
+        )))
+        return [_alternate_event(row) for row in rows]
+
+    def mark_alternate_focus_complete(
+        self, student_id: str, challenge_id: str, daily_mode: str
+    ) -> AlternateLearningProgressRecord:
+        progress = self.get_or_create_alternate_learning_progress(student_id, challenge_id, daily_mode)
+        if progress.fix_completed_at is None:
+            raise ValueError("Finish Fix Your Misses before Focus Practice.")
         if progress.completed_at is None:
             now = utc_now().isoformat()
             _retry_transient(lambda: (
                 self.client.table("alternate_learning_progress")
-                .update({"fix_completed_at": now, "completed_at": now, "updated_at": now})
+                .update({"focus_completed_at": now, "completed_at": now, "updated_at": now})
                 .eq("student_id", str(student_id)).eq("challenge_id", str(challenge_id)).execute()
             ))
         return self.get_or_create_alternate_learning_progress(student_id, challenge_id, daily_mode)
@@ -1209,6 +1257,77 @@ class SupabaseFactStore:
             })
         self._upsert_alternate_events(payloads)
         return self.ensure_alternate_followup_state(attempt_id)
+
+    def record_alternate_focus_batch(
+        self, attempt_id: str, events: Sequence[Mapping]
+    ) -> AlternateLearningProgressRecord:
+        attempt = self.get_attempt(attempt_id)
+        if attempt.daily_mode == "Multiplication" or attempt.daily_mode not in ALT_MODES:
+            raise ValueError("Alternate Focus Practice cannot write to a Multiplication Daily.")
+        progress = self.get_or_create_alternate_learning_progress(
+            attempt.student_id, attempt.challenge_id, attempt.daily_mode
+        )
+        if progress.fix_completed_at is None:
+            raise AttemptNotStarted("Finish Fix Your Misses before Focus Practice.")
+        plan = list(progress.focus_plan or ())
+        if len(plan) != ALT_FOCUS_SESSION_LENGTH:
+            raise FactStoreError("Alternate Focus Practice plan is missing or incomplete.")
+
+        existing = self.alternate_learning_activity_rows(attempt.student_id, attempt.challenge_id, "focus")
+        existing_ids = {str(row.client_event_id) for row in existing if row.client_event_id}
+        has_first = {int(row.activity_index) for row in existing if not row.is_retry}
+        submitted_by_index: dict[int, list[Mapping]] = {}
+        for raw in events:
+            client_id = str(raw.get("client_event_id") or "").strip()
+            if not client_id:
+                raise ValueError("Focus Practice event is missing its save id.")
+            if client_id in existing_ids:
+                continue
+            index = int(raw.get("activity_index"))
+            if not 1 <= index <= ALT_FOCUS_SESSION_LENGTH:
+                raise ValueError("Focus Practice question number is outside the plan.")
+            submitted_by_index.setdefault(index, []).append(raw)
+
+        payloads = []
+        for index, batch in submitted_by_index.items():
+            item = plan[index - 1]
+            identity = skill_identity_for_question(item, None if attempt.daily_mode == "Mixed" else attempt.daily_mode)
+            expected = int(item.get("correct_answer"))
+            first_exists = index in has_first
+            for position, raw in enumerate(batch):
+                is_retry = bool(raw.get("is_retry"))
+                if not first_exists and position == 0 and is_retry:
+                    raise ValueError("Focus Practice must save the first try before a retry.")
+                if first_exists and not is_retry:
+                    raise ValueError("Focus Practice cannot save a second first try for one question.")
+                if position > 0 and not is_retry:
+                    raise ValueError("Only the first Focus attempt may be a first try.")
+                value = int(raw.get("student_answer"))
+                seconds = raw.get("response_seconds")
+                seconds = None if seconds is None else max(0.0, float(seconds))
+                payloads.append({
+                    "student_id": attempt.student_id, "challenge_id": attempt.challenge_id,
+                    "attempt_id": attempt.attempt_id, "daily_mode": attempt.daily_mode,
+                    "activity_type": "focus", "activity_index": index, "domain": identity.domain,
+                    "skill_key": identity.skill_key, "skill_label": identity.skill_label,
+                    "item_key": identity.item_key, "prompt": str(item.get("prompt") or ""),
+                    "student_answer": value, "correct_answer": expected, "correct": value == expected,
+                    "is_retry": is_retry, "response_seconds": seconds, "created_at": utc_now().isoformat(),
+                    "client_event_id": str(raw.get("client_event_id")),
+                })
+        self._upsert_alternate_events(payloads)
+
+        rows = self.alternate_learning_activity_rows(attempt.student_id, attempt.challenge_id, "focus")
+        complete = True
+        for index in range(1, ALT_FOCUS_SESSION_LENGTH + 1):
+            slot = [row for row in rows if int(row.activity_index) == index]
+            first = next((row for row in slot if not row.is_retry), None)
+            if first is None or (not first.correct and not any(row.is_retry and row.correct for row in slot)):
+                complete = False
+                break
+        if complete:
+            return self.mark_alternate_focus_complete(attempt.student_id, attempt.challenge_id, attempt.daily_mode)
+        return self.get_or_create_alternate_learning_progress(attempt.student_id, attempt.challenge_id, attempt.daily_mode)
 
     def rebuild_mastery(self, student_id: str) -> list[MasterySnapshot]:
         attempt_rows = _rows(

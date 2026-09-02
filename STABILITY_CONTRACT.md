@@ -143,12 +143,12 @@ Future releases should run `python release_guard.py` plus the full `*_tests.py` 
 - Copy-polished student functions are protected structurally in `v2_16_1_ui_language_polish_tests.py`; changing visible strings must not silently change their control flow.
 
 
-## v2.16.2 Weekly Mystery clue reliability protections
+## v2.16.2 Weekly Mystery clue reliability protections (historical; alternate completion rule superseded by v2.17/v2.19)
 
 - A Mystery clue is earned only for a school day whose required routine was actually completed. A genuinely skipped day must never be backfilled.
 - The current day's clue is saved first when the student reaches the completed-routine Mystery reward. Optional prior-day repair work must not block today's reward.
 - A missing prior-day clue receipt may be restored only when already-saved Daily/learning records prove that day was completed.
-- Alternate Daily modes qualify from the completed Daily attempt because they intentionally have no Fix/Focus routine; Multiplication qualifies only after `daily_learning_progress.completed_at` is saved.
+- At v2.16.2, alternate Daily modes qualified from the completed Daily because they had no follow-up routine. Current v2.19 alternate routines qualify only after their full Fix + Focus progress is complete; Multiplication continues to use its established learning progress.
 - Weekly Mystery reads, clue writes, guess reads/writes, and student Mystery stats use transient HTTP retry protection. Lost mutation responses must be re-read safely before reporting failure.
 - Mystery reliability repair must not change Mystery content, clue order, Thursday/Friday guess rules, raffle eligibility, `TDFC-DAILY-v1`, mastery evidence, Daily scoring, or AWTRIX behavior.
 
@@ -162,19 +162,19 @@ Future releases should run `python release_guard.py` plus the full `*_tests.py` 
 - Hidden timing, first-answer evidence, official final-answer scoring, local Daily continuity, `TDFC-DAILY-v1`, and the no-feedback-during-Daily rule remain unchanged.
 - Guided Practice, PIN entry, alternate Daily, Mystery, mastery, teacher tools, requirements, and AWTRIX remain byte-for-byte unchanged from v2.16.2.
 
-## v2.16.4 Alternate Daily teacher-dashboard protections
+## v2.16.4 Alternate Daily teacher-dashboard protections (historical; superseded by v2.17/v2.19)
 
-- Alternate Daily modes (Addition Facts, Subtraction Facts, Division Facts, Integers, Mixed) end after the Daily 10 and must never be assigned Fix Your Misses or Focus Practice on Teacher → Today.
+- At v2.16.4, alternate modes ended after Daily 10. That historical behavior was intentionally superseded: v2.17 added Fix Your Misses and v2.19 adds Focus Practice.
 - A completed alternate Daily counts as `Done` in Today metrics and in `Where everyone is` even though no multiplication learning-progress row exists.
 - Multiplication keeps the established Daily → Fix Misses → Focus → Done routine unchanged.
 - Teacher Today does not query multiplication learning progress to decide follow-up stages on alternate-mode days.
 - Student Daily behavior, alternate Daily completion/Mystery reward, multiplication generation, mastery, Warm-Up, Mystery rules, AWTRIX, and database schema remain unchanged.
 
 
-## v2.17 Follow-Up Foundation protections
+## v2.17 Follow-Up Foundation protections (foundation; completion contract extended by v2.19)
 
 - Multiplication keeps its established Daily → Fix Your Misses → Focus Practice → Done contract and existing mastery/adaptive engine unchanged.
-- Addition Facts, Subtraction Facts, Division Facts, Integers, and Mixed now use Daily → Fix Your Misses → Done. A perfect 10 may complete immediately; alternate Focus Practice is not introduced in v2.17.
+- v2.17 introduced Daily → Fix Your Misses for Addition, Subtraction, Division, Integers, and Mixed. v2.19 extends that foundation with Focus Practice before Done/Mystery.
 - An alternate-mode day is not Mystery-complete until its required Fix Your Misses work is complete. Historical pre-v2.17 completed alternate Dailies are backfilled as complete by the v2.17 migration.
 - Mixed-mode questions are recorded under their true domains. Mixed multiplication questions may create alternate-learning events but must never write into multiplication mastery evidence.
 - Alternate learning uses `alternate_learning_progress` and `alternate_learning_events`; it must remain separate from `daily_learning_progress` and the multiplication mastery map.
@@ -183,7 +183,7 @@ Future releases should run `python release_guard.py` plus the full `*_tests.py` 
 - The alternate Fix keypad keeps number buttons mounted during digit entry, preserving the rapid-touch reliability pattern established in v2.16.3.
 - v2.17 is the foundation only. Full domain-specific teaching models and adaptive alternate Focus Practice belong to later releases and must not be simulated by writing into multiplication systems.
 
-## v2.18 Teaching Models protections
+## v2.18 Teaching Models protections (teaching layer; Focus layer added by v2.19)
 
 - Multiplication is the gold-standard source of truth and remains frozen: the multiplication Daily component, Guided Practice component, answer pad, Fact Coach, adaptive/mastery engine, `TDFC-DAILY-v1`, requirements, and AWTRIX must remain byte-identical to v2.17.0.
 - v2.18 changes the teaching presentation of alternate Fix Your Misses only. It does not change official Daily score/time, Top 10 ranking, alternate follow-up storage, Mystery completion rules, or multiplication mastery evidence.
@@ -196,3 +196,17 @@ Future releases should run `python release_guard.py` plus the full `*_tests.py` 
 - Mixed routes each item by its true domain. Mixed multiplication may read `fact_coach.coach_plan()` for the established strategy, but its events remain in alternate-learning storage and never enter multiplication mastery.
 - The alternate teaching keypad keeps its buttons mounted during digit entry and supports negative integer answers.
 - v2.18 introduces no new Supabase migration. Adaptive alternate Focus Practice remains reserved for v2.19.
+
+## v2.19 Adaptive Focus Practice protections
+
+- Multiplication remains the frozen gold-standard implementation. The multiplication Daily component, Guided Practice, answer pad, Fact Coach, adaptive/mastery engine, `TDFC-DAILY-v1`, requirements, Weekly Mystery engine, and AWTRIX script remain byte-identical to the v2.18/v2.17 protected baseline.
+- Addition Facts, Subtraction Facts, Division Facts, Integers, and Mixed now use the full Daily 10 → Fix Your Misses → Focus Practice → Done/Mystery routine.
+- Alternate Focus Practice contains exactly eight planned questions. A perfect Daily may skip an empty Fix step, but it does not skip Focus Practice.
+- Adaptive priority uses independent retrieval evidence only. Original Daily answers and first Focus attempts may influence future plans; Fix Your Misses corrections and coached Focus retries must not inflate mastery/need signals.
+- Current Daily misses are the strongest same-day Focus signal. Older independent evidence is recency-weighted so old struggles do not follow a student indefinitely.
+- Mixed Focus routing uses each item's true domain. Mixed multiplication may use the established multiplication teaching strategy, but all of its Focus evidence remains in `alternate_learning_events` and never enters multiplication mastery.
+- The browser cannot decide whether Focus is complete. The store validates the saved eight-question plan, first-attempt-before-retry ordering, server-computed correctness, and required corrected retries before setting `focus_completed_at` / `completed_at`.
+- Official Daily score, elapsed time, and Top 10 rank remain based on the original ten-question Daily attempt. Focus Practice does not rewrite the official Daily result.
+- Teacher Today shows the same stage vocabulary for every mode: Daily 10 → Fix Your Misses → Focus Practice → Done.
+- Student Support may show alternate Focus progress/targets, but multiplication mastery and alternate-learning evidence remain separate systems.
+- v2.19 uses the Focus fields and event activity slot already created by the v2.17 migration. There is no v2.19 Supabase migration and no retroactive reopening of already-completed alternate routines.

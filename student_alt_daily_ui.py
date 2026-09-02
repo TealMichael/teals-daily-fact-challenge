@@ -15,6 +15,7 @@ import streamlit.components.v1 as components
 from daily_modes import ALT_DAILY_VERSION
 from alternate_followup import missed_question_items
 from alternate_teaching import teaching_plan_for_question
+from alternate_focus import ALT_FOCUS_SESSION_LENGTH, build_alternate_focus_plan
 from fact_store import utc_now
 from supabase_fact_store import SupabaseFactStore
 
@@ -23,6 +24,9 @@ ALT_DAILY_COMPONENT = components.declare_component(
 )
 ALT_FIX_COMPONENT = components.declare_component(
     "tdfc_alt_fix", path=str(Path(__file__).with_name("alt_fix_component"))
+)
+ALT_FOCUS_COMPONENT = components.declare_component(
+    "tdfc_alt_focus", path=str(Path(__file__).with_name("alt_focus_component"))
 )
 
 
@@ -94,8 +98,11 @@ def render_alternate_daily(store: SupabaseFactStore, day, challenge, attempt, *,
             return
         try:
             progress = store.ensure_alternate_followup_state(attempt.attempt_id)
-            if progress.completed_at is None:
-                missed = missed_question_items(questions, answers, default_domain=None if str(attempt.daily_mode) == "Mixed" else str(attempt.daily_mode))
+            if progress.completed_at is None and progress.fix_completed_at is None:
+                missed = missed_question_items(
+                    questions, answers,
+                    default_domain=None if str(attempt.daily_mode) == "Mixed" else str(attempt.daily_mode),
+                )
                 if not missed:
                     progress = store.mark_alternate_fix_complete(
                         attempt.student_id, attempt.challenge_id, str(attempt.daily_mode)
@@ -129,13 +136,75 @@ def render_alternate_daily(store: SupabaseFactStore, day, challenge, attempt, *,
                         corrections = list(result.get("corrections") or [])
                         store.record_alternate_fix_batch(attempt.attempt_id, corrections)
                         st.rerun()
-                    st.caption("You'll see the full Daily review after your fixes are complete.")
+                    st.caption("After your fixes, you'll finish 8 personalized Focus questions.")
                     return
+
+            # v2.19: alternate modes now match multiplication's Step 3 rhythm.
+            if progress.completed_at is None and progress.focus_completed_at is None:
+                if not progress.focus_plan:
+                    history = store.recent_alternate_learning_events(attempt.student_id, limit=500)
+                    focus_plan = build_alternate_focus_plan(
+                        str(attempt.daily_mode), questions, answers, history,
+                        student_id=str(attempt.student_id), date_key=day.isoformat(),
+                    )
+                    progress = store.set_alternate_focus_plan(
+                        attempt.student_id, attempt.challenge_id, str(attempt.daily_mode), focus_plan
+                    )
+
+                plan_items = list(progress.focus_plan or ())
+                if len(plan_items) != ALT_FOCUS_SESSION_LENGTH:
+                    st.error("Your Focus Practice isn't ready yet. Show your teacher and they can refresh it.")
+                    return
+                focus_rows = store.alternate_learning_activity_rows(
+                    attempt.student_id, attempt.challenge_id, "focus"
+                )
+                remaining_items = []
+                for index, question in enumerate(plan_items, start=1):
+                    slot = [row for row in focus_rows if int(row.activity_index) == index]
+                    first = next((row for row in slot if not row.is_retry), None)
+                    corrected = first is not None and (first.correct or any(row.is_retry and row.correct for row in slot))
+                    if corrected:
+                        continue
+                    teach = teaching_plan_for_question(
+                        question, None if str(attempt.daily_mode) == "Mixed" else str(attempt.daily_mode)
+                    )
+                    remaining_items.append({
+                        "activity_index": index,
+                        "prompt": str(question.get("prompt") or ""),
+                        "correct_answer": int(question.get("correct_answer")),
+                        "domain": str(question.get("domain") or question.get("category") or attempt.daily_mode),
+                        "focus_reason": str(question.get("focus_reason") or "Build fluency"),
+                        "model": teach.as_dict(),
+                        "start_phase": "coach" if first is not None and not first.correct else "question",
+                        "attempt_offset": len(slot),
+                    })
+                if not remaining_items:
+                    progress = store.mark_alternate_focus_complete(
+                        attempt.student_id, attempt.challenge_id, str(attempt.daily_mode)
+                    )
+                    st.rerun()
+
+                st.success("✅ Fix Your Misses complete!")
+                st.markdown("### Next: Focus Practice")
+                st.caption("8 personalized questions. If one is tricky, you'll see the same kind of teaching model before you try again.")
+                result = ALT_FOCUS_COMPONENT(
+                    items=remaining_items,
+                    session_key=f"{attempt.attempt_id}:focus",
+                    version="TDFC-ALT-FOCUS-v1",
+                    default=None,
+                    key=f"alt_focus_{attempt.attempt_id}",
+                )
+                if isinstance(result, dict) and result.get("status") == "complete":
+                    events = list(result.get("events") or [])
+                    store.record_alternate_focus_batch(attempt.attempt_id, events)
+                    st.rerun()
+                st.caption("Your Mystery reward unlocks after Focus Practice.")
+                return
 
             context = _student_top10(store, challenge)
             st.markdown(
                 "<div class='finish-banner'><div class='big'>✅ YOU'RE DONE FOR TODAY!</div>"
-                f"<div class='sub'>{html.escape(str(attempt.daily_mode))} Daily 10 ✓ &nbsp; · &nbsp; Fix Your Misses ✓</div>"
+                f"<div class='sub'>{html.escape(str(attempt.daily_mode))} Daily 10 ✓ &nbsp; · &nbsp; Fix Your Misses ✓ &nbsp; · &nbsp; Focus Practice ✓</div>"
                 "<div style='margin-top:.45rem'>Your learning work is finished for today.</div></div>",
                 unsafe_allow_html=True,
             )
@@ -153,7 +222,7 @@ def render_alternate_daily(store: SupabaseFactStore, day, challenge, attempt, *,
                 st.exception(exc)
         return
 
-    st.caption("Finish all 10. If you miss any, you'll fix those questions before you're done.")
+    st.caption("Finish all 10, fix any misses, then complete 8 personalized Focus questions.")
     st.markdown(
         "<div class='private-note'><strong>Question 1 is untimed.</strong> After you submit it, the hidden timer starts. Accuracy comes first.</div>",
         unsafe_allow_html=True,

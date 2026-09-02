@@ -1,12 +1,14 @@
-# Teal's Daily Fact Challenge v2.18.0 — Teaching Models
+# Teal's Daily Fact Challenge v2.19.0 — Adaptive Focus Practice
 
-**Alternate Fix Your Misses now teaches before the retry.** Addition, Subtraction, Division, Integers, and Mixed use deterministic domain-specific visual models with the same model → retry rhythm students already know from multiplication. Mixed multiplication reads the existing Fact Coach strategy plan without writing into multiplication mastery.
+**Alternate modes now complete the full learning routine.** Addition, Subtraction, Division, Integers, and Mixed use Daily 10 → modeled Fix Your Misses → eight-question adaptive Focus Practice → Done/Mystery. Focus planning uses only independent retrieval evidence; coached corrections never inflate the adaptive signal.
 
-This release is presentation/teaching logic on top of the v2.17 alternate-learning foundation. There is **no new Supabase migration**, no new Streamlit Secret, and no AWTRIX reinstall.
+Multiplication remains the frozen gold-standard system. Mixed multiplication may receive alternate Focus questions and the established Fact Coach teaching model, but its evidence stays in the separate alternate-learning stream and never enters multiplication mastery. There is **no new Supabase migration**, no new Streamlit Secret, and no AWTRIX reinstall.
 
 ---
 
 # Teal's Daily Fact Challenge
+
+> **v2.19.0 — Adaptive Focus Practice:** completes parity for Addition, Subtraction, Division, Integers, and Mixed with an eight-question personalized Focus Practice after Fix Your Misses. First independent Focus attempts become adaptive evidence; coached retries are correction evidence only. Mixed routes every Focus item to its true domain and remains isolated from multiplication mastery. Existing v2.17 storage already reserved Focus fields/events, so no new SQL is required.
 
 > **v2.18.0 — Teaching Models:** alternate-mode Fix Your Misses now opens with high-quality domain-specific coaching before the retry. Addition uses make-10/doubles/count-on models; Subtraction uses related-addition/part-whole thinking; Division uses equal groups tied to multiplication; Integers use signed number lines; Mixed routes to the correct model and uses the existing Fact Coach strategy plan for its multiplication items. Multiplication files and mastery remain protected and unchanged. No new SQL.
 

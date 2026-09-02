@@ -105,31 +105,8 @@ def summarize_learning_routine(status_rows: Iterable[Mapping], progress_map: Map
 def summarize_routine_for_mode(
     status_rows: Iterable[Mapping], progress_map: Mapping, daily_mode: str, absent_ids: Iterable[str] = ()
 ) -> dict[str, int]:
-    """Summarize the required routine for the configured Daily mode.
-
-    Multiplication keeps Daily → Fix → Focus. Alternate modes use
-    Daily → Fix in v2.17, with perfect Daily attempts auto-completing Fix.
-    """
-    if str(daily_mode or "Multiplication") == "Multiplication":
-        return summarize_learning_routine(status_rows, progress_map, absent_ids)
-
-    absent = {str(item) for item in absent_ids}
-    result = {"done": 0, "daily": 0, "fix": 0, "focus": 0, "not_started": 0}
-    for row in status_rows:
-        sid = str(row.get("student_id") or "")
-        if sid in absent:
-            continue
-        state = str(row.get("status") or "")
-        progress = progress_map.get(sid)
-        if progress is not None and getattr(progress, "completed_at", None):
-            result["done"] += 1
-        elif state == "Not started":
-            result["not_started"] += 1
-        elif state != "Complete":
-            result["daily"] += 1
-        else:
-            result["fix"] += 1
-    return result
+    """Summarize the required Daily → Fix → Focus routine for every mode."""
+    return summarize_learning_routine(status_rows, progress_map, absent_ids)
 
 
 def routine_label_for_mode(row: Mapping, progress, daily_mode: str) -> str:
@@ -141,8 +118,6 @@ def routine_label_for_mode(row: Mapping, progress, daily_mode: str) -> str:
         return "⚪ Not started"
     if state != "Complete":
         return "🟡 Daily 10"
-    if str(daily_mode or "Multiplication") != "Multiplication":
-        return "🟡 Fix Your Misses"
     if progress is not None and getattr(progress, "fix_completed_at", None):
         return "🟡 Focus Practice"
     return "🟡 Fix Your Misses"

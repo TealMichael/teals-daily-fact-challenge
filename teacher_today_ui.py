@@ -102,10 +102,7 @@ def render_teacher_today_command_center(
     daily_status_error = selected_snapshot.get("error")
     daily_mode = str(selected_snapshot.get("mode") or configured_daily_mode(store, selected.class_id, day))
     multiplication_routine = daily_mode == "Multiplication"
-    if multiplication_routine:
-        st.caption("Done means Daily 10 + Fix Your Misses + Focus Practice are complete. The Mystery guess is optional.")
-    else:
-        st.caption("Done means Daily 10 + Fix Your Misses are complete. The Mystery guess is optional.")
+    st.caption("Done means Daily 10 + Fix Your Misses + Focus Practice are complete. The Mystery guess is optional.")
 
     progress_error = None
     learning_stats_error = None

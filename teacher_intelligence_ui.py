@@ -258,3 +258,33 @@ def render_student_learning_snapshot(store: SupabaseFactStore, class_record, stu
             }
             for row in recent
         ]), hide_index=True, use_container_width=True)
+
+    # v2.19: show today's alternate Focus targets without mixing them into
+    # the multiplication mastery snapshot above.
+    try:
+        challenge = store.get_challenge(today)
+        attempt = None if challenge is None else store.get_attempt_for_student(student.student_id, challenge.challenge_id)
+        mode = str(getattr(attempt, "daily_mode", "Multiplication") or "Multiplication") if attempt is not None else "Multiplication"
+        if attempt is not None and mode != "Multiplication":
+            progress = store.get_alternate_learning_progress(student.student_id, challenge.challenge_id)
+            if progress is not None and progress.focus_plan:
+                rows = store.alternate_learning_activity_rows(student.student_id, challenge.challenge_id, "focus")
+                completed_slots = 0
+                for index in range(1, len(progress.focus_plan) + 1):
+                    slot = [row for row in rows if int(row.activity_index) == index]
+                    first = next((row for row in slot if not row.is_retry), None)
+                    if first is not None and (first.correct or any(row.is_retry and row.correct for row in slot)):
+                        completed_slots += 1
+                st.markdown("**Today's Focus Practice**")
+                st.caption(f"{mode} · {completed_slots}/{len(progress.focus_plan)} Focus questions complete")
+                targets = []
+                for item in progress.focus_plan:
+                    label = str(item.get("skill_label") or item.get("prompt") or "").strip()
+                    domain = str(item.get("domain") or item.get("category") or "").strip()
+                    text = f"{domain}: {label}" if mode == "Mixed" and domain else label
+                    if text and text not in targets:
+                        targets.append(text)
+                if targets:
+                    st.caption("Targets: " + " · ".join(targets[:5]))
+    except Exception:
+        pass

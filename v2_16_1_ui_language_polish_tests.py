@@ -15,7 +15,7 @@ def check(name: str, condition: bool) -> None:
     checks.append(name)
 
 
-check("v2.17.0 version", APP_VERSION == "2.18.0")
+check("v2.17.0 version", APP_VERSION == "2.19.0")
 check("Daily challenge version unchanged", CHALLENGE_VERSION == "TDFC-DAILY-v1")
 check("v2.17.0 follow-up migration is present", (ROOT / "RUN_THIS_ONCE_IN_SUPABASE_v2_17.sql").exists())
 
@@ -98,7 +98,8 @@ for relative, expected in protected_hashes.items():
     actual = hashlib.sha256((ROOT / relative).read_bytes()).hexdigest()
     check(f"behavior file unchanged: {relative}", actual == expected)
 
-# For files where only copy changed, normalize all string constants and require the v2.16.0 AST.
+# For files that remain copy-only, normalize string constants and require the v2.16.0 AST.
+# teacher_intelligence_ui.py intentionally gained alternate Focus visibility in v2.19.
 class NormalizeStrings(ast.NodeTransformer):
     def visit_Constant(self, node: ast.Constant):  # noqa: N802
         if isinstance(node.value, str):
@@ -116,7 +117,6 @@ def normalized_tree_hash(path: Path) -> str:
 
 copy_only_hashes = {
     "teacher_learning_ui.py": "5c16f18787ede1feb0a46d333a0a18239047503ccfcf03000be67d77b0116085",
-    "teacher_intelligence_ui.py": "d400e401f73c71914dc5c211016930d414961e2e1f29e4d0b1591a1b84890586",
     "teacher_daily_setup_ui.py": "39d27f6559e7952138b29b970907eeea60452e9b10cd0fecac69a3271e608993",
     "teacher_warmup_ui.py": "974457ce13d7ae186cdd101b85d210991231eacadc4375c989745e6fb1dd266e",
     "teacher_intelligence.py": "3b4fef7ba6335e1203237e9ed6e069eebfef974eb2743de829336debd9c14d49",
@@ -134,7 +134,11 @@ student_alt = (ROOT / "student_alt_daily_ui.py").read_text(encoding="utf-8")
 check("alternate student follow-up uses classroom language", all(marker in student_alt for marker in [
     "Next: Fix Your Misses", "Your learning work is finished for today.", "Today's Mystery Reward"
 ]))
-check("alternate student UI avoids implementation labels", "alternate_learning_events" not in student_alt)
+student_alt_visible_strings = "\n".join(
+    node.value for node in ast.walk(ast.parse(student_alt))
+    if isinstance(node, ast.Constant) and isinstance(node.value, str)
+)
+check("alternate student UI avoids implementation labels", "alternate_learning_events" not in student_alt_visible_strings)
 
 # app.py combines many routes. Protect the critical student functions structurally while allowing copy edits.
 app_source = (ROOT / "app.py").read_text(encoding="utf-8")

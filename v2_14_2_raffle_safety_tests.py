@@ -15,7 +15,7 @@ def check(name, condition):
     assert condition, name
     checks.append(name)
 
-check("v2.16.0 version", APP_VERSION == "2.18.0")
+check("v2.16.0 version", APP_VERSION == "2.19.0")
 check("Daily challenge contract unchanged", CHALLENGE_VERSION == "TDFC-DAILY-v1")
 
 # Execute real pure raffle-state helpers from app.py without importing Streamlit.
