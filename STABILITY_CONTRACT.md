@@ -161,3 +161,11 @@ Future releases should run `python release_guard.py` plus the full `*_tests.py` 
 - Question-to-question transitions and Back navigation may rerender the question because those are deliberate navigation events.
 - Hidden timing, first-answer evidence, official final-answer scoring, local Daily continuity, `TDFC-DAILY-v1`, and the no-feedback-during-Daily rule remain unchanged.
 - Guided Practice, PIN entry, alternate Daily, Mystery, mastery, teacher tools, requirements, and AWTRIX remain byte-for-byte unchanged from v2.16.2.
+
+## v2.16.4 Alternate Daily teacher-dashboard protections
+
+- Alternate Daily modes (Addition Facts, Subtraction Facts, Division Facts, Integers, Mixed) end after the Daily 10 and must never be assigned Fix Your Misses or Focus Practice on Teacher → Today.
+- A completed alternate Daily counts as `Done` in Today metrics and in `Where everyone is` even though no multiplication learning-progress row exists.
+- Multiplication keeps the established Daily → Fix Misses → Focus → Done routine unchanged.
+- Teacher Today does not query multiplication learning progress to decide follow-up stages on alternate-mode days.
+- Student Daily behavior, alternate Daily completion/Mystery reward, multiplication generation, mastery, Warm-Up, Mystery rules, AWTRIX, and database schema remain unchanged.

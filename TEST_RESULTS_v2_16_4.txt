@@ -1,0 +1,12 @@
+Teal's Daily Fact Challenge v2.16.4 — Alternate Daily Today Hotfix
+=================================================================
+
+- Full regression inventory: 76/76 test files passed.
+- Dedicated alternate-mode Today regression: 56/56 checks passed.
+- Verified all five alternate modes: Addition, Subtraction, Division, Integers, Mixed.
+- Completed alternate Daily attempts count as Done and never create Fix/Focus follow-up alerts.
+- Multiplication three-step routine remains unchanged.
+- Runtime-name guard: 26 production modules passed.
+- Existing AWTRIX, Mystery, touch-keypad, student privacy, and Daily-mode protections passed.
+- No Supabase SQL migration.
+- TDFC-DAILY-v1 unchanged.

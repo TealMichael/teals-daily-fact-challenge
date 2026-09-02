@@ -101,6 +101,53 @@ def summarize_learning_routine(status_rows: Iterable[Mapping], progress_map: Map
     return result
 
 
+
+def summarize_routine_for_mode(
+    status_rows: Iterable[Mapping], progress_map: Mapping, daily_mode: str, absent_ids: Iterable[str] = ()
+) -> dict[str, int]:
+    """Use follow-up stages only for Multiplication Daily 10.
+
+    Alternate Daily modes intentionally end after the Daily 10, so a completed
+    alternate attempt is fully done even though it has no learning-progress row.
+    """
+    if str(daily_mode or "Multiplication") == "Multiplication":
+        return summarize_learning_routine(status_rows, progress_map, absent_ids)
+
+    absent = {str(item) for item in absent_ids}
+    result = {"done": 0, "daily": 0, "fix": 0, "focus": 0, "not_started": 0}
+    for row in status_rows:
+        sid = str(row.get("student_id") or "")
+        if sid in absent:
+            continue
+        state = str(row.get("status") or "")
+        if state == "Complete":
+            result["done"] += 1
+        elif state == "Not started":
+            result["not_started"] += 1
+        else:
+            result["daily"] += 1
+    return result
+
+
+def routine_label_for_mode(row: Mapping, progress, daily_mode: str) -> str:
+    """Return the teacher-facing Today status without inventing alternate follow-up work."""
+    state = str(row.get("status") or "")
+    if str(daily_mode or "Multiplication") != "Multiplication":
+        if state == "Complete":
+            return "🟢 Done"
+        if state == "Not started":
+            return "⚪ Not started"
+        return "🟡 Daily 10"
+    if progress is not None and getattr(progress, "completed_at", None):
+        return "🟢 Done"
+    if state == "Not started":
+        return "⚪ Not started"
+    if state != "Complete":
+        return "🟡 Daily 10"
+    if progress is not None and getattr(progress, "fix_completed_at", None):
+        return "🟡 Focus Practice"
+    return "🟡 Fix Your Misses"
+
 def _action_name_line(names: Iterable[str], fallback: str) -> str:
     cleaned = [str(name).strip() for name in names if str(name).strip()]
     return ", ".join(cleaned) if cleaned else fallback

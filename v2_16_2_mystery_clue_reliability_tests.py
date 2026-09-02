@@ -206,7 +206,7 @@ def main():
     test_lost_unlock_response_is_recovered_without_losing_clue()
 
     checks = {
-        "version bumped": 'APP_VERSION = "2.16.3"' in ENGINE,
+        "version bumped": 'APP_VERSION = "2.16.4"' in ENGINE,
         "challenge version untouched": 'CHALLENGE_VERSION = "TDFC-DAILY-v1"' in ENGINE,
         "repair helper exists in production store": "def completed_mystery_days(" in STORE,
         "repair helper exists in reference store": "def completed_mystery_days(" in (ROOT / "fact_store.py").read_text(encoding="utf-8"),
@@ -225,7 +225,7 @@ def main():
     if failed:
         raise AssertionError("Failed: " + ", ".join(failed))
     total = len(checks) + 5  # three tests; retry test contains two independent method checks
-    print(f"v2.16.3 Mystery clue reliability: PASS ({total}/{total} checks)")
+    print(f"v2.16.4 Mystery clue reliability: PASS ({total}/{total} checks)")
 
 
 if __name__ == "__main__":

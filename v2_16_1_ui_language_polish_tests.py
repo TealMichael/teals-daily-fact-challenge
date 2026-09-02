@@ -15,9 +15,9 @@ def check(name: str, condition: bool) -> None:
     checks.append(name)
 
 
-check("v2.16.3 version", APP_VERSION == "2.16.3")
+check("v2.16.4 version", APP_VERSION == "2.16.4")
 check("Daily challenge version unchanged", CHALLENGE_VERSION == "TDFC-DAILY-v1")
-check("v2.16.3 requires no SQL migration", not (ROOT / "RUN_THIS_ONCE_IN_SUPABASE_v2_16_2.sql").exists())
+check("v2.16.4 requires no SQL migration", not (ROOT / "RUN_THIS_ONCE_IN_SUPABASE_v2_16_2.sql").exists())
 
 # The normal classroom UI should no longer expose implementation/build language.
 normal_ui_files = [
@@ -116,7 +116,6 @@ def normalized_tree_hash(path: Path) -> str:
 
 
 copy_only_hashes = {
-    "teacher_command_center.py": "af7d57c6edaafb35e52768006c03f6610ef531c4f1eb4909dd47d83dc3513315",
     "teacher_learning_ui.py": "5c16f18787ede1feb0a46d333a0a18239047503ccfcf03000be67d77b0116085",
     "teacher_intelligence_ui.py": "d400e401f73c71914dc5c211016930d414961e2e1f29e4d0b1591a1b84890586",
     "teacher_daily_setup_ui.py": "39d27f6559e7952138b29b970907eeea60452e9b10cd0fecac69a3271e608993",
@@ -126,6 +125,13 @@ copy_only_hashes = {
 }
 for relative, expected in copy_only_hashes.items():
     check(f"copy-only structure unchanged: {relative}", normalized_tree_hash(ROOT / relative) == expected)
+
+# v2.16.4 intentionally changed only teacher command-center routine interpretation
+# so alternate Daily modes cannot be assigned nonexistent multiplication follow-up work.
+command_center = (ROOT / "teacher_command_center.py").read_text(encoding="utf-8")
+check("alternate-mode Today hotfix retained", all(marker in command_center for marker in [
+    "def summarize_routine_for_mode", "def routine_label_for_mode", '!= "Multiplication"'
+]))
 
 # app.py combines many routes. Protect the critical student functions structurally while allowing copy edits.
 app_source = (ROOT / "app.py").read_text(encoding="utf-8")
@@ -158,4 +164,4 @@ check("Class History remains read-only over established history", all(marker in 
 ]))
 check("Class History adds no write calls", not any(marker in history for marker in ["set_app_setting(", "save_", "update_", "delete_"]))
 
-print(f"v2.16.3 UI Language Polish: {len(checks)}/{len(checks)} checks passed")
+print(f"v2.16.4 UI Language Polish: {len(checks)}/{len(checks)} checks passed")

@@ -63,7 +63,7 @@ def test_list_classes_recovers_from_readerror_and_rebuilds_query():
 def main():
     test_list_classes_recovers_from_readerror_and_rebuilds_query()
     checks = {
-        "version bumped": 'APP_VERSION = "2.16.3"' in ENGINE,
+        "version bumped": 'APP_VERSION = "2.16.4"' in ENGINE,
         "list_classes uses retry wrapper": "_retry_transient(fetch_classes, attempts=4)" in STORE,
         "list_classes rebuilds query": 'def fetch_classes()' in STORE,
         "production comment documents teacher crash protection": "should not crash the entire dashboard" in STORE,

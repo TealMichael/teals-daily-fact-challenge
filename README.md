@@ -1,13 +1,14 @@
-# Teal's Daily Fact Challenge v2.16.3 — Daily Touch Keypad Hotfix
+# Teal's Daily Fact Challenge v2.16.4 — Alternate Daily Today Hotfix
 
-**Rapid two-digit answers are now safer on touch devices:** the Daily 10 keypad no longer rebuilds all of its number buttons after every digit tap. The buttons remain mounted while the answer display updates in place, removing a small touch-input race that could occasionally swallow a fast second digit such as the `0` in `10`.
+**Teacher Today is now mode-aware:** Addition, Subtraction, Division, Integers, and Mixed end after the Daily 10, so a completed alternate attempt is fully Done and never creates a false Fix Your Misses/Focus Practice warning. Multiplication keeps its established three-step routine unchanged.
 
-This is a narrowly scoped student-input reliability hotfix. Daily questions, scoring, first-answer evidence, timing, Back navigation, mastery, Warm-Up, Mystery, teacher tools, `TDFC-DAILY-v1`, login/PIN behavior, and AWTRIX are unchanged. **No SQL migration, new secret, or clock reinstall is required.** The GitHub patch is cumulative over v2.16.1/v2.16.2, so it also carries the v2.16.2 Mystery clue reliability fix when needed.
+This is a narrow teacher-dashboard correction. Student Daily behavior, scoring, Mystery rewards, Top 10, multiplication mastery, Warm-Up, Weekly Mystery rules, AWTRIX, and database schema are unchanged. **No SQL migration, new secret, or clock reinstall is required.** The patch is cumulative over v2.16.1/v2.16.2/v2.16.3.
 
 ---
 
-
 # Teal's Daily Fact Challenge
+
+> **v2.16.4 — Alternate Daily Today Hotfix:** Teacher → Today now treats completed alternate Daily modes as fully Done and never assigns nonexistent Fix Your Misses/Focus Practice. Multiplication follow-up behavior remains unchanged.
 
 > **v2.16.3 — Daily Touch Keypad Hotfix:** keeps the Daily 10 number pad mounted while digits are entered so rapid two-digit taps are not exposed to a keypad DOM rebuild between digits. Scoring, timing, question navigation, first-answer evidence, challenge generation, mastery, Mystery, teacher tools, and AWTRIX are unchanged.
 

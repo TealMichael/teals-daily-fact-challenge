@@ -1,9 +1,9 @@
-Teal's Daily Fact Challenge v2.16.3 — Daily Touch Keypad Hotfix
-================================================================
+Teal's Daily Fact Challenge v2.16.4 — Alternate Daily Today Hotfix
+=================================================================
 
-Install over v2.16.1 or v2.16.2. This patch is cumulative and includes the v2.16.2 Mystery clue reliability fix if it is not already installed.
+Install over v2.16.3. The patch is also cumulative over v2.16.1/v2.16.2 because it carries the v2.16.3 touch-keypad and v2.16.2 Mystery-clue fixes.
 
-1. Unzip the v2.16.3 GitHub Desktop patch.
+1. Unzip the v2.16.4 GitHub Desktop patch.
 2. Open COPY_INTO_GITHUB_REPO.
 3. Copy everything inside that folder into the root of the existing GitHub repository.
 4. Allow replacements.
@@ -17,11 +17,12 @@ No AWTRIX reinstall or clock changes are required.
 
 What changed
 ------------
-- Daily 10 digit entry now updates only the answer display instead of rebuilding the entire keypad after each digit.
-- The number buttons remain mounted between the first and second digit of an answer such as 10, 20, 30, and 100.
-- Back navigation, answer editing, hidden timing, first-answer evidence, final scoring, and local Daily continuity remain unchanged.
-- All other student and teacher components remain unchanged from v2.16.2.
+- Teacher → Today now understands that alternate Daily modes end after question 10.
+- Completed Addition, Subtraction, Division, Integers, and Mixed attempts count as Done.
+- Alternate-mode students no longer appear under Follow-up practice remaining or as Fix Your Misses / Focus Practice.
+- Multiplication keeps the existing Daily → Fix Misses → Focus → Done routine unchanged.
+- Student-side Daily behavior is unchanged.
 
 Rollback
 --------
-The v2.16.2 full-current-app package is the immediate rollback source if you were already on v2.16.2. This release adds no schema changes, so rollback is code-only.
+The v2.16.3 full-current-app package is the immediate rollback source. This release adds no schema changes, so rollback is code-only.

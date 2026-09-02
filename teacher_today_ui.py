@@ -15,7 +15,8 @@ from teacher_clock_ui import queue_clock_top10_for_class
 from teacher_command_center import (
     build_today_action_items,
     summarize_daily_status,
-    summarize_learning_routine,
+    summarize_routine_for_mode,
+    routine_label_for_mode,
 )
 from teacher_warmup_ui import _render_warmup_groups_and_email
 from ui_helpers import format_seconds
@@ -94,22 +95,29 @@ def render_teacher_today_command_center(
     class_by_name = {item.class_name: item for item in classes}
     selected_name = st.selectbox("Open class", list(class_by_name), key="teacher_today_class")
     selected = class_by_name[selected_name]
-    st.caption("Done means Daily 10 + Fix Your Misses + Focus Practice are complete. The Mystery guess is optional.")
     selected_snapshot = class_snapshot.get(selected.class_id, {})
     students = list(selected_snapshot.get("students") or [])
     status = list(selected_snapshot.get("status") or [])
     absent_ids: set[str] = set()
     daily_status_error = selected_snapshot.get("error")
     daily_mode = str(selected_snapshot.get("mode") or configured_daily_mode(store, selected.class_id, day))
+    multiplication_routine = daily_mode == "Multiplication"
+    if multiplication_routine:
+        st.caption("Done means Daily 10 + Fix Your Misses + Focus Practice are complete. The Mystery guess is optional.")
+    else:
+        st.caption("Done means the Daily 10 is complete. This mode has no follow-up practice.")
 
     progress_error = None
     learning_stats_error = None
     if daily_status_error is None:
-        try:
-            progress_map = store.class_learning_progress(selected.class_id, challenge.challenge_id, students=students)
-        except Exception as exc:
+        if multiplication_routine:
+            try:
+                progress_map = store.class_learning_progress(selected.class_id, challenge.challenge_id, students=students)
+            except Exception as exc:
+                progress_map = {}
+                progress_error = exc
+        else:
             progress_map = {}
-            progress_error = exc
         try:
             learning_stats = store.class_learning_stats(selected.class_id, day, students=students)
         except Exception as exc:
@@ -151,7 +159,7 @@ def render_teacher_today_command_center(
         not_started = daily_summary["not_started"]
         daily_complete = daily_summary["complete"]
         if progress_error is None:
-            routine_summary = summarize_learning_routine(status, progress_map)
+            routine_summary = summarize_routine_for_mode(status, progress_map, daily_mode)
             full_complete = routine_summary["done"]
             working = routine_summary["daily"] + routine_summary["fix"] + routine_summary["focus"]
         else:
@@ -199,7 +207,7 @@ def render_teacher_today_command_center(
         if str(row.get("status") or "") == "Not started" and str(row.get("nickname") or "").strip()
     ]
     follow_up_names = []
-    if progress_error is None:
+    if multiplication_routine and progress_error is None:
         for row in status:
             if str(row.get("status") or "") != "Complete":
                 continue
@@ -333,16 +341,7 @@ def render_teacher_today_command_center(
     for row in status:
         sid = row["student_id"]
         progress = progress_map.get(sid)
-        if progress and progress.completed_at:
-            routine = "🟢 Done"
-        elif row["status"] == "Not started":
-            routine = "⚪ Not started"
-        elif row["status"] != "Complete":
-            routine = "🟡 Daily 10"
-        elif progress and progress.fix_completed_at:
-            routine = "🟡 Focus Practice"
-        else:
-            routine = "🟡 Fix Your Misses"
+        routine = routine_label_for_mode(row, progress, daily_mode)
         stats = learning_stats.get(sid, {"current_streak": 0, "stars": 0})
         student_record = teacher_students.get(sid)
         pin = student_record.pin_code if student_record and student_record.pin_code else "Reset once"
