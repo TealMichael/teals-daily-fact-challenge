@@ -210,3 +210,12 @@ Future releases should run `python release_guard.py` plus the full `*_tests.py` 
 - Teacher Today shows the same stage vocabulary for every mode: Daily 10 → Fix Your Misses → Focus Practice → Done.
 - Student Support may show alternate Focus progress/targets, but multiplication mastery and alternate-learning evidence remain separate systems.
 - v2.19 uses the Focus fields and event activity slot already created by the v2.17 migration. There is no v2.19 Supabase migration and no retroactive reopening of already-completed alternate routines.
+
+
+## v2.19.1 Student Morning Reliability protections
+
+- A completed alternate Daily must not re-upsert the same ten Daily evidence rows on every finished-page rerun; use the same evidence-verification guard pattern as the proven multiplication completed flow.
+- First-time alternate progress creation must recover both when a transient insert never reaches Supabase and when Supabase commits but the response is lost. Duplicate-safe rereads remain authoritative.
+- Transient alternate activity reads rebuild a fresh PostgREST query on retry rather than reusing a failed builder.
+- A perfect alternate Daily transitions directly from “Daily 10 complete” to Focus Practice; it must not tell the student they completed Fix Your Misses when there were no misses.
+- Adaptive Focus selection, teaching models, official Daily score/time, Top 10, Mystery gating, multiplication mastery, `TDFC-DAILY-v1`, and AWTRIX remain unchanged from v2.19.0.

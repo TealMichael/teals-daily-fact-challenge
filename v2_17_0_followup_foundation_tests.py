@@ -33,7 +33,7 @@ def setup(mode: str, day: date = date(2026, 9, 2)):
     return store, klass, student, challenge, questions, attempt
 
 
-check("current version", APP_VERSION == "2.19.0")
+check("current version", APP_VERSION == "2.19.1")
 check("multiplication challenge stays v1", CHALLENGE_VERSION == "TDFC-DAILY-v1")
 
 # Skill identities are stable and useful for later teaching/focus layers.

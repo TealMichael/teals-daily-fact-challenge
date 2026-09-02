@@ -21,7 +21,7 @@ def check(label: str, value) -> None:
     checks.append(label)
 
 
-check("v2.18 version", APP_VERSION == "2.19.0")
+check("v2.18 version", APP_VERSION == "2.19.1")
 check("multiplication challenge unchanged", CHALLENGE_VERSION == "TDFC-DAILY-v1")
 
 # Canonical high-quality model choices.
@@ -174,4 +174,4 @@ expected_hashes = {
 for rel, expected in expected_hashes.items():
     check(f"multiplication gold-standard unchanged {rel}", sha256((ROOT / rel).read_bytes()).hexdigest() == expected)
 
-print(f"v2.19.0 Teaching Models: PASS ({len(checks)}/{len(checks)} checks)")
+print(f"v2.19.1 Teaching Models: PASS ({len(checks)}/{len(checks)} checks)")

@@ -1,4 +1,6 @@
-# Teal's Daily Fact Challenge v2.19.0 — Adaptive Focus Practice
+# Teal's Daily Fact Challenge v2.19.1 — Student Morning Reliability
+
+**v2.19.1 is a narrow reliability/performance polish over v2.19.0.** It removes redundant alternate-Daily evidence initialization from the completed student page, hardens first-time alternate progress creation against dropped Supabase responses, rebuilds alternate activity queries on retry, and fixes the perfect-10 transition wording. The adaptive Focus model, student scoring, Mystery rules, and multiplication system are unchanged.
 
 **Alternate modes now complete the full learning routine.** Addition, Subtraction, Division, Integers, and Mixed use Daily 10 → modeled Fix Your Misses → eight-question adaptive Focus Practice → Done/Mystery. Focus planning uses only independent retrieval evidence; coached corrections never inflate the adaptive signal.
 
@@ -7,6 +9,8 @@ Multiplication remains the frozen gold-standard system. Mixed multiplication may
 ---
 
 # Teal's Daily Fact Challenge
+
+> **v2.19.1 — Student Morning Reliability:** removes an unnecessary second alternate-evidence initialization after a completed Daily, hardens first-time alternate progress creation for transient dropped responses, rebuilds alternate activity queries on retry, and gives perfect 10s the cleaner Daily-complete → Focus wording. No SQL, scoring, adaptive-plan, teaching-model, Mystery, multiplication, or AWTRIX changes.
 
 > **v2.19.0 — Adaptive Focus Practice:** completes parity for Addition, Subtraction, Division, Integers, and Mixed with an eight-question personalized Focus Practice after Fix Your Misses. First independent Focus attempts become adaptive evidence; coached retries are correction evidence only. Mixed routes every Focus item to its true domain and remains isolated from multiplication mastery. Existing v2.17 storage already reserved Focus fields/events, so no new SQL is required.
 

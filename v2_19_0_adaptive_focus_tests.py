@@ -22,7 +22,7 @@ def check(label: str, value) -> None:
     checks.append(label)
 
 
-check("v2.19 version", APP_VERSION == "2.19.0")
+check("v2.19 version", APP_VERSION == "2.19.1")
 check("multiplication challenge unchanged", CHALLENGE_VERSION == "TDFC-DAILY-v1")
 check("alternate Focus matches multiplication length", ALT_FOCUS_SESSION_LENGTH == 8)
 
@@ -200,7 +200,7 @@ check("v2.19 needs no SQL migration", not (ROOT / "RUN_THIS_ONCE_IN_SUPABASE_v2_
 teacher_ui = (ROOT / "teacher_intelligence_ui.py").read_text(encoding="utf-8")
 check("Student Support shows alternate Focus progress", "Today's Focus Practice" in teacher_ui and "Focus questions complete" in teacher_ui)
 
-# Protected multiplication surfaces remain byte-identical to v2.19.0.
+# Protected multiplication surfaces remain byte-identical to v2.19.1.
 expected_hashes = {
     "daily_sprint_component/index.html": "dc8a59e1dbab86b3dd23f3eec37a4054fdc4fa9e117ffdb8b35395a4c9dcabad",
     "guided_practice_component/index.html": "f073b8fa704a7f52ebb45a046082d30bbad8892b8340fa2b933132bbf7c835cd",
@@ -216,4 +216,4 @@ expected_hashes = {
 for rel, expected in expected_hashes.items():
     check(f"protected unchanged {rel}", sha256((ROOT / rel).read_bytes()).hexdigest() == expected)
 
-print(f"v2.19.0 Adaptive Focus Practice: PASS ({len(checks)}/{len(checks)} checks)")
+print(f"v2.19.1 Adaptive Focus Practice: PASS ({len(checks)}/{len(checks)} checks)")

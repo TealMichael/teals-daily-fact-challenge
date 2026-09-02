@@ -1049,23 +1049,38 @@ class SupabaseFactStore:
         mode = str(daily_mode or "")
         if mode not in ALT_MODES:
             raise ValueError("Alternate learning progress requires an alternate Daily 10 mode.")
-        row = _first(_retry_transient(lambda: (
-            self.client.table("alternate_learning_progress").select("*")
-            .eq("student_id", str(student_id)).eq("challenge_id", str(challenge_id)).limit(1).execute()
-        )))
+        def _load_progress_row():
+            return self.client.table("alternate_learning_progress").select("*") \
+                .eq("student_id", str(student_id)).eq("challenge_id", str(challenge_id)).limit(1).execute()
+
+        row = _first(_retry_transient(_load_progress_row))
         if row is None:
-            try:
-                row = _first(_execute_returning(self.client.table("alternate_learning_progress").insert({
-                    "student_id": str(student_id), "challenge_id": str(challenge_id),
-                    "daily_mode": mode, "focus_plan": [],
-                })))
-            except Exception as exc:
-                if not (_is_unique(exc) or _is_transient_http_error(exc)):
-                    raise
-                row = _first(_retry_transient(lambda: (
-                    self.client.table("alternate_learning_progress").select("*")
-                    .eq("student_id", str(student_id)).eq("challenge_id", str(challenge_id)).limit(1).execute()
-                )))
+            payload = {
+                "student_id": str(student_id), "challenge_id": str(challenge_id),
+                "daily_mode": mode, "focus_plan": [],
+            }
+            # Inserts need special retry handling: if the response is lost after
+            # Supabase commits, a blind retry can hit the primary-key constraint.
+            # Re-read after either a transient or duplicate response, and retry the
+            # insert once only when the row genuinely never arrived.
+            for create_try in range(2):
+                try:
+                    row = _first(_execute_returning(
+                        self.client.table("alternate_learning_progress").insert(payload)
+                    ))
+                except Exception as exc:
+                    if not (_is_unique(exc) or _is_transient_http_error(exc)):
+                        raise
+                    row = _first(_retry_transient(_load_progress_row))
+                    if row is not None:
+                        break
+                    if _is_unique(exc) or create_try >= 1:
+                        break
+                    continue
+                if row is None:
+                    row = _first(_retry_transient(_load_progress_row))
+                if row is not None:
+                    break
         if row is None:
             raise FactStoreError("Could not create today's follow-up progress.")
         record = _alternate_learning(row)
@@ -1102,13 +1117,16 @@ class SupabaseFactStore:
     def alternate_learning_activity_rows(
         self, student_id: str, challenge_id: str, activity_type: str | None = None
     ) -> list[AlternateLearningEventRecord]:
-        query = (
-            self.client.table("alternate_learning_events").select("*")
-            .eq("student_id", str(student_id)).eq("challenge_id", str(challenge_id))
-        )
-        if activity_type is not None:
-            query = query.eq("activity_type", str(activity_type))
-        rows = _rows(_retry_transient(lambda: query.order("created_at").order("activity_index").execute()))
+        def _load_activity_rows():
+            query = (
+                self.client.table("alternate_learning_events").select("*")
+                .eq("student_id", str(student_id)).eq("challenge_id", str(challenge_id))
+            )
+            if activity_type is not None:
+                query = query.eq("activity_type", str(activity_type))
+            return query.order("created_at").order("activity_index").execute()
+
+        rows = _rows(_retry_transient(_load_activity_rows))
         return [_alternate_event(row) for row in rows]
 
     def _upsert_alternate_events(self, payloads: Sequence[Mapping]) -> list[AlternateLearningEventRecord]:

@@ -97,12 +97,26 @@ def render_alternate_daily(store: SupabaseFactStore, day, challenge, attempt, *,
             st.error("Today's results did not finish loading. Show your teacher this screen.")
             return
         try:
-            progress = store.ensure_alternate_followup_state(attempt.attempt_id)
+            # Mirror the proven multiplication completed-Daily guard: the official
+            # completion path already applies/repairs learning evidence, so do not
+            # re-upsert the same ten Daily evidence rows on every finished-page rerun.
+            evidence_key = f"daily_evidence_verified::{attempt.attempt_id}"
+            if not st.session_state.get(evidence_key, False):
+                store.ensure_daily_learning_evidence(attempt.attempt_id)
+                st.session_state[evidence_key] = True
+            progress = store.get_alternate_learning_progress(
+                attempt.student_id, attempt.challenge_id, str(attempt.daily_mode)
+            )
+            if progress is None:
+                # Defensive repair for an unexpectedly missing progress row.
+                progress = store.ensure_alternate_followup_state(attempt.attempt_id)
+
+            missed = missed_question_items(
+                questions, answers,
+                default_domain=None if str(attempt.daily_mode) == "Mixed" else str(attempt.daily_mode),
+            )
+            had_daily_misses = bool(missed)
             if progress.completed_at is None and progress.fix_completed_at is None:
-                missed = missed_question_items(
-                    questions, answers,
-                    default_domain=None if str(attempt.daily_mode) == "Mixed" else str(attempt.daily_mode),
-                )
                 if not missed:
                     progress = store.mark_alternate_fix_complete(
                         attempt.student_id, attempt.challenge_id, str(attempt.daily_mode)
@@ -184,7 +198,7 @@ def render_alternate_daily(store: SupabaseFactStore, day, challenge, attempt, *,
                     )
                     st.rerun()
 
-                st.success("✅ Fix Your Misses complete!")
+                st.success("✅ Fix Your Misses complete!" if had_daily_misses else "✅ Daily 10 complete!")
                 st.markdown("### Next: Focus Practice")
                 st.caption("8 personalized questions. If one is tricky, you'll see the same kind of teaching model before you try again.")
                 result = ALT_FOCUS_COMPONENT(

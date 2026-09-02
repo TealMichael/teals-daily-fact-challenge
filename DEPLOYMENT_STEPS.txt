@@ -1,25 +1,26 @@
-Teal's Daily Fact Challenge v2.19.0 — Adaptive Focus Practice
+Teal's Daily Fact Challenge v2.19.1 — Student Morning Reliability
 
-UPGRADE FROM v2.18.0
+UPGRADE FROM v2.19.0
 
-1. Confirm v2.18.0 is currently installed. The one-time v2.17 Supabase migration must already have been run as part of the v2.17 upgrade.
-2. Copy everything from the v2.19 GitHub Desktop patch's COPY_INTO_GITHUB_REPO folder into the root of your existing GitHub repository.
+1. Confirm v2.19.0 is currently installed.
+2. Copy everything from the v2.19.1 GitHub Desktop patch's COPY_INTO_GITHUB_REPO folder into the root of your existing GitHub repository.
 3. Allow replacements.
 4. In GitHub Desktop, review the changes, commit, and push.
 5. Let Streamlit Cloud redeploy.
-6. Test one alternate Daily. After Daily 10 and any required Fix Your Misses, confirm the student receives an 8-question Focus Practice before Done/Mystery.
+6. Test one alternate Daily through the transition into Focus Practice.
 
-NO DATABASE STEP FOR v2.19.0
+NO DATABASE STEP FOR v2.19.1
 - Do NOT rerun the v2.17 SQL.
-- There is no RUN_THIS_ONCE_IN_SUPABASE_v2_19.sql file.
-- The v2.17 alternate-learning tables already contain the Focus plan, Focus completion, and Focus event fields used by v2.19.
+- There is no RUN_THIS_ONCE_IN_SUPABASE_v2_19_1.sql file.
 - No new Streamlit Secret is required.
 - No AWTRIX script reinstall or clock change is required.
 
-BACKWARD COMPATIBILITY
-- Alternate routines already completed before v2.19 remain completed; the release does not retroactively reopen old student work.
-- New alternate Daily routines use Daily 10 → Fix Your Misses → Focus Practice → Done.
+WHAT THIS PATCH CHANGES
+- Avoids re-upserting the same ten alternate Daily evidence rows on the completed-page rerun.
+- Recovers first-time alternate progress creation when a transient connection drop happens before or after the insert reaches Supabase.
+- Rebuilds alternate activity read queries on retry instead of reusing a failed query object.
+- Shows “Daily 10 complete” for a perfect alternate Daily instead of claiming Fix Your Misses was completed.
 
 ROLLBACK
-- The v2.17 Supabase tables are backward-compatible and can remain in place.
-- To roll back app code, restore the v2.18.0 repository files. No database rollback is required.
+- v2.17 storage remains backward-compatible.
+- To roll back app code, restore the v2.19.0 repository files. No database rollback is required.

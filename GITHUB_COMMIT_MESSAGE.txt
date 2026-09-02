@@ -1,1 +1,1 @@
-v2.19.0 - add adaptive Focus Practice to alternate modes
+v2.19.1 - reduce alternate follow-up load and harden first save
