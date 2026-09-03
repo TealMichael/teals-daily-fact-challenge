@@ -1,6 +1,8 @@
-# Teal's Daily Fact Challenge v2.19.1 — Student Morning Reliability
+# Teal's Daily Fact Challenge v2.19.2 — Model Rerender Reliability Hotfix
 
-**v2.19.1 is a narrow reliability/performance polish over v2.19.0.** It removes redundant alternate-Daily evidence initialization from the completed student page, hardens first-time alternate progress creation against dropped Supabase responses, rebuilds alternate activity queries on retry, and fixes the perfect-10 transition wording. The adaptive Focus model, student scoring, Mystery rules, and multiplication system are unchanged.
+**v2.19.2 fixes a classroom-blocking WATCH IT rerender race in alternate Fix Your Misses and Focus Practice.** The teaching sequence now remembers when it started and resumes correctly if Streamlit rerenders the component mid-model. The multiplication system, model math, scoring, adaptive evidence, Mystery rules, and database schema are unchanged.
+
+**v2.19.1 remains the student-morning reliability foundation underneath this hotfix.** It removed redundant alternate-Daily evidence initialization, hardened first-time alternate progress creation, rebuilt alternate activity queries on retry, and cleaned the perfect-10 transition wording.
 
 **Alternate modes now complete the full learning routine.** Addition, Subtraction, Division, Integers, and Mixed use Daily 10 → modeled Fix Your Misses → eight-question adaptive Focus Practice → Done/Mystery. Focus planning uses only independent retrieval evidence; coached corrections never inflate the adaptive signal.
 
@@ -9,6 +11,8 @@ Multiplication remains the frozen gold-standard system. Mixed multiplication may
 ---
 
 # Teal's Daily Fact Challenge
+
+> **v2.19.2 — Model Rerender Reliability Hotfix:** fixes a classroom-blocking issue where Streamlit could rerender an alternate teaching component while WATCH IT was playing, clear its timers, and leave the student stuck on the model start screen. Fix Your Misses and Focus Practice now persist/resume the sequence across rerenders. No SQL, scoring, model-math, multiplication, Mystery, or AWTRIX changes.
 
 > **v2.19.1 — Student Morning Reliability:** removes an unnecessary second alternate-evidence initialization after a completed Daily, hardens first-time alternate progress creation for transient dropped responses, rebuilds alternate activity queries on retry, and gives perfect 10s the cleaner Daily-complete → Focus wording. No SQL, scoring, adaptive-plan, teaching-model, Mystery, multiplication, or AWTRIX changes.
 

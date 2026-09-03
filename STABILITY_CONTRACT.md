@@ -219,3 +219,12 @@ Future releases should run `python release_guard.py` plus the full `*_tests.py` 
 - Transient alternate activity reads rebuild a fresh PostgREST query on retry rather than reusing a failed builder.
 - A perfect alternate Daily transitions directly from “Daily 10 complete” to Focus Practice; it must not tell the student they completed Fix Your Misses when there were no misses.
 - Adaptive Focus selection, teaching models, official Daily score/time, Top 10, Mystery gating, multiplication mastery, `TDFC-DAILY-v1`, and AWTRIX remain unchanged from v2.19.0.
+
+
+## v2.19.2 alternate teaching-model rerender protection
+
+- WATCH IT progress in alternate Fix Your Misses and alternate Focus Practice must survive same-attempt/session Streamlit rerenders.
+- A component rerender must not clear the student's teaching sequence and return them to the initial WATCH IT state.
+- The sequence start time is persisted and the component reconstructs SEE IT / CONNECT IT / YOUR TURN from elapsed time.
+- Same-attempt Fix rerenders preserve live in-memory component state instead of reloading browser storage unnecessarily.
+- This protection is alternate-mode only; the proven multiplication Daily, Guided Practice, Fact Coach, mastery engine, and challenge version remain untouched.

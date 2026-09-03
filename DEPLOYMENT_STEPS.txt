@@ -1,26 +1,26 @@
-Teal's Daily Fact Challenge v2.19.1 — Student Morning Reliability
+Teal's Daily Fact Challenge v2.19.2 — Model Rerender Reliability Hotfix
 
-UPGRADE FROM v2.19.0
+UPGRADE FROM v2.19.1
 
-1. Confirm v2.19.0 is currently installed.
-2. Copy everything from the v2.19.1 GitHub Desktop patch's COPY_INTO_GITHUB_REPO folder into the root of your existing GitHub repository.
+1. Confirm v2.19.1 is currently installed.
+2. Copy everything from the v2.19.2 GitHub Desktop patch's COPY_INTO_GITHUB_REPO folder into the root of your existing GitHub repository.
 3. Allow replacements.
 4. In GitHub Desktop, review the changes, commit, and push.
 5. Let Streamlit Cloud redeploy.
-6. Test one alternate Daily through the transition into Focus Practice.
+6. Test one Mixed Daily miss through WATCH IT → TRY AGAIN, then one Focus miss through the same model flow.
 
-NO DATABASE STEP FOR v2.19.1
+NO DATABASE STEP FOR v2.19.2
 - Do NOT rerun the v2.17 SQL.
-- There is no RUN_THIS_ONCE_IN_SUPABASE_v2_19_1.sql file.
+- There is no RUN_THIS_ONCE_IN_SUPABASE_v2_19_2.sql file.
 - No new Streamlit Secret is required.
 - No AWTRIX script reinstall or clock change is required.
 
 WHAT THIS PATCH CHANGES
-- Avoids re-upserting the same ten alternate Daily evidence rows on the completed-page rerun.
-- Recovers first-time alternate progress creation when a transient connection drop happens before or after the insert reaches Supabase.
-- Rebuilds alternate activity read queries on retry instead of reusing a failed query object.
-- Shows “Daily 10 complete” for a perfect alternate Daily instead of claiming Fix Your Misses was completed.
+- Fix Your Misses teaching-model sequence persists/resumes across Streamlit rerenders.
+- Focus Practice teaching-model sequence persists/resumes across Streamlit rerenders.
+- Same-attempt Fix renders preserve live in-memory component state.
+- No model math, scoring, adaptive evidence, Mystery, teacher workflow, or multiplication behavior changes.
 
 ROLLBACK
 - v2.17 storage remains backward-compatible.
-- To roll back app code, restore the v2.19.0 repository files. No database rollback is required.
+- To roll back app code, restore the v2.19.1 repository files. No database rollback is required.

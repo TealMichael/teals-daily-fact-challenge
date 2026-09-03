@@ -24,7 +24,7 @@ def function_body(name: str) -> str:
 def run() -> None:
     checks: dict[str, bool] = {}
 
-    checks["version bumped"] = APP_VERSION == "2.19.1"
+    checks["version bumped"] = APP_VERSION == "2.19.2"
     checks["challenge version untouched"] = CHALLENGE_VERSION == "TDFC-DAILY-v1"
 
     # Freeze the intentionally changed Daily component after the touch-input repair.
