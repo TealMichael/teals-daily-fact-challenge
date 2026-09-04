@@ -15,7 +15,7 @@ SCHEMA = (ROOT / "SUPABASE_SCHEMA.sql").read_text(encoding="utf-8").lower()
 
 def run():
     checks = {}
-    checks["version 2.6"] = APP_VERSION == "2.19.2"
+    checks["version 2.6"] = APP_VERSION == "2.19.3"
 
     # Touch keypad: digit taps are local browser state; Streamlit receives one
     # component value only when ✓ is submitted.

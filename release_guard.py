@@ -40,6 +40,7 @@ CRITICAL_SUITES = [
     "v2_19_0_adaptive_focus_tests.py",
     "v2_19_1_student_morning_reliability_tests.py",
     "v2_19_2_model_rerender_hotfix_tests.py",
+    "v2_19_3_component_cache_touch_hotfix_tests.py",
     "runtime_name_guard_tests.py",
     "v2_11_2_final_top10_restore_tests.py",
     "v2_12_0_awtrix_top10_tests.py",

@@ -22,7 +22,7 @@ def check(label: str, value) -> None:
     checks.append(label)
 
 
-check("v2.19 version", APP_VERSION == "2.19.2")
+check("v2.19 version", APP_VERSION == "2.19.3")
 check("multiplication challenge unchanged", CHALLENGE_VERSION == "TDFC-DAILY-v1")
 check("alternate Focus matches multiplication length", ALT_FOCUS_SESSION_LENGTH == 8)
 
@@ -169,7 +169,7 @@ student_ui = (ROOT / "student_alt_daily_ui.py").read_text(encoding="utf-8")
 component = (ROOT / "alt_focus_component" / "index.html").read_text(encoding="utf-8")
 focus_source = (ROOT / "alternate_focus.py").read_text(encoding="utf-8")
 store_source = (ROOT / "supabase_fact_store.py").read_text(encoding="utf-8")
-check("student UI declares alternate Focus component", '"tdfc_alt_focus"' in student_ui and "ALT_FOCUS_COMPONENT" in student_ui)
+check("student UI declares alternate Focus component", '"tdfc_alt_focus_v2193"' in student_ui and "ALT_FOCUS_COMPONENT" in student_ui)
 check("student UI builds adaptive plan", "build_alternate_focus_plan" in student_ui and "recent_alternate_learning_events" in student_ui)
 check("student UI saves Focus evidence", "record_alternate_focus_batch" in student_ui)
 check("student UI unlocks Mystery after Focus branch", student_ui.index("Next: Focus Practice") < student_ui.index("Today's Mystery Reward"))

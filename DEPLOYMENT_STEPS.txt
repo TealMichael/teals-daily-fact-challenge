@@ -1,26 +1,12 @@
-Teal's Daily Fact Challenge v2.19.2 — Model Rerender Reliability Hotfix
+Teal's Daily Fact Challenge v2.19.3 — WATCH IT Cache/Touch Hotfix
 
-UPGRADE FROM v2.19.1
-
-1. Confirm v2.19.1 is currently installed.
-2. Copy everything from the v2.19.2 GitHub Desktop patch's COPY_INTO_GITHUB_REPO folder into the root of your existing GitHub repository.
+1. Unzip the GitHub Desktop patch.
+2. Copy everything inside COPY_INTO_GITHUB_REPO into the root of the current v2.19.2 repository.
 3. Allow replacements.
-4. In GitHub Desktop, review the changes, commit, and push.
-5. Let Streamlit Cloud redeploy.
-6. Test one Mixed Daily miss through WATCH IT → TRY AGAIN, then one Focus miss through the same model flow.
+4. Commit and push in GitHub Desktop.
+5. Wait for Streamlit to redeploy.
+6. Have any currently stuck student refresh/reopen Today; the new component identity forces the updated Fix/Focus frontend to load.
 
-NO DATABASE STEP FOR v2.19.2
-- Do NOT rerun the v2.17 SQL.
-- There is no RUN_THIS_ONCE_IN_SUPABASE_v2_19_2.sql file.
-- No new Streamlit Secret is required.
-- No AWTRIX script reinstall or clock change is required.
-
-WHAT THIS PATCH CHANGES
-- Fix Your Misses teaching-model sequence persists/resumes across Streamlit rerenders.
-- Focus Practice teaching-model sequence persists/resumes across Streamlit rerenders.
-- Same-attempt Fix renders preserve live in-memory component state.
-- No model math, scoring, adaptive evidence, Mystery, teacher workflow, or multiplication behavior changes.
-
-ROLLBACK
-- v2.17 storage remains backward-compatible.
-- To roll back app code, restore the v2.19.1 repository files. No database rollback is required.
+NO DATABASE STEP FOR v2.19.3.
+No Streamlit Secret changes.
+No AWTRIX changes.

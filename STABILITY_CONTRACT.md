@@ -228,3 +228,9 @@ Future releases should run `python release_guard.py` plus the full `*_tests.py` 
 - The sequence start time is persisted and the component reconstructs SEE IT / CONNECT IT / YOUR TURN from elapsed time.
 - Same-attempt Fix rerenders preserve live in-memory component state instead of reloading browser storage unnecessarily.
 - This protection is alternate-mode only; the proven multiplication Daily, Guided Practice, Fact Coach, mastery engine, and challenge version remain untouched.
+
+
+## v2.19.3 component-cache and touch protection
+- Alternate Fix Your Misses and Focus Practice use versioned Streamlit component identities so frontend fixes cannot be hidden by an older cached iframe.
+- WATCH IT must respond to pointer, touch, and click activation without restarting the same in-progress teaching sequence.
+- The v2.19.2 rerender-resume behavior remains required.
