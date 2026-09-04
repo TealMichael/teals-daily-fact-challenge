@@ -33,7 +33,7 @@ def setup(mode: str, day: date = date(2026, 9, 2)):
     return store, klass, student, challenge, questions, attempt
 
 
-check("current version", APP_VERSION == "2.19.3")
+check("current version", APP_VERSION == "2.19.4")
 check("multiplication challenge stays v1", CHALLENGE_VERSION == "TDFC-DAILY-v1")
 
 # Skill identities are stable and useful for later teaching/focus layers.
@@ -168,7 +168,7 @@ check("event storage separates domain and skill", "domain text not null" in migr
 student_ui = (ROOT / "student_alt_daily_ui.py").read_text(encoding="utf-8")
 component = (ROOT / "alt_fix_component" / "index.html").read_text(encoding="utf-8")
 store_source = (ROOT / "supabase_fact_store.py").read_text(encoding="utf-8")
-check("alternate student UI declares Fix component", '"tdfc_alt_fix_v2193"' in student_ui and "ALT_FIX_COMPONENT" in student_ui)
+check("alternate student UI declares Fix component", '"tdfc_alt_fix_v2194"' in student_ui and "ALT_FIX_COMPONENT" in student_ui)
 check("alternate student UI waits for follow-up completion", "progress.completed_at is None" in student_ui and "record_alternate_fix_batch" in student_ui)
 check("alternate student UI gives Mystery only after Focus branch", student_ui.index("Next: Focus Practice") < student_ui.index("Today's Mystery Reward"))
 check("Fix component uses stable digit update", "function addDigit" in component and "updateEntry()" in component)
@@ -186,7 +186,7 @@ expected_hashes = {
     "adaptive_engine.py": "b828414cd7207a04c10feb71a797ee8650d09fba81017a503a4eacf274a1e6e9",
     "fact_coach.py": "dcbaf3aa62774a4627724d6de65fab31fb87254a25e601c16201980f806af9fb",
     "weekly_mystery.py": "dfe98e7ba8c9f86daa28396e9a61282bd2705f5f132c84ff7cbb5051b4740b1f",
-    "daily_modes.py": "2e6633604d9ea2f21b4054e38827eea1eec99f47e5562befa4c1e62f840f3b5e",
+    "daily_modes.py": "f37b151fc44514f761f66f616434d26764df9719b0ab64d1865c9ee0d1881561",
     "student_igniter_ui.py": "043f3905b3e37a926cbae66d40de5e9ff963b2af3676f6bc4678336ca08e39ed",
     "AWTRIX_FactTop10.berry": "4ab1b8a25e84535591a2ff7905366aa89f18c83b41c2b56d22f2d68a49edc3e2",
     "requirements.txt": "3436997a9043e9843f0960bac0ade5a33acb72eba52a3070bd98a49b3fed7180",

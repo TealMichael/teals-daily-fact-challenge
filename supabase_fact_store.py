@@ -553,12 +553,14 @@ class SupabaseFactStore:
         return _student(row)
 
     def list_students(self, class_id: str, *, include_inactive: bool = False, include_test: bool = False) -> list[StudentRecord]:
-        query = self.client.table("students").select("student_id,class_id,nickname,pin_code,active,created_at,is_test").eq("class_id", str(class_id))
-        if not include_inactive:
-            query = query.eq("active", True)
-        if not include_test:
-            query = query.eq("is_test", False)
-        return [_student(row) for row in _rows(_retry_transient(lambda: query.order("nickname").execute()))]
+        def fetch_students():
+            query = self.client.table("students").select("student_id,class_id,nickname,pin_code,active,created_at,is_test").eq("class_id", str(class_id))
+            if not include_inactive:
+                query = query.eq("active", True)
+            if not include_test:
+                query = query.eq("is_test", False)
+            return query.order("nickname").execute()
+        return [_student(row) for row in _rows(_retry_transient(fetch_students))]
 
     def get_student(self, student_id: str) -> StudentRecord:
         row = _first(_retry_transient(lambda: (
@@ -608,10 +610,12 @@ class SupabaseFactStore:
         return student, self.get_class(student.class_id)
 
     def get_test_student(self, class_id: str | None = None) -> StudentRecord | None:
-        query = self.client.table("students").select("student_id,class_id,nickname,pin_code,active,created_at,is_test").eq("is_test", True)
-        if class_id is not None:
-            query = query.eq("class_id", str(class_id))
-        row = _first(_retry_transient(lambda: query.order("created_at").limit(1).execute()))
+        def fetch_test_student():
+            query = self.client.table("students").select("student_id,class_id,nickname,pin_code,active,created_at,is_test").eq("is_test", True)
+            if class_id is not None:
+                query = query.eq("class_id", str(class_id))
+            return query.order("created_at").limit(1).execute()
+        row = _first(_retry_transient(fetch_test_student))
         return None if row is None else _student(row)
 
     def reset_test_student(self, class_id: str) -> StudentRecord:

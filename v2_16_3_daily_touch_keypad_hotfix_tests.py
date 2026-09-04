@@ -24,7 +24,7 @@ def function_body(name: str) -> str:
 def run() -> None:
     checks: dict[str, bool] = {}
 
-    checks["version bumped"] = APP_VERSION == "2.19.3"
+    checks["version bumped"] = APP_VERSION == "2.19.4"
     checks["challenge version untouched"] = CHALLENGE_VERSION == "TDFC-DAILY-v1"
 
     # Freeze the intentionally changed Daily component after the touch-input repair.
@@ -59,7 +59,7 @@ def run() -> None:
         "guided_practice_component/index.html": "f073b8fa704a7f52ebb45a046082d30bbad8892b8340fa2b933132bbf7c835cd",
         "pin_entry_component/index.html": "18a89b45481f83f33fd93746bdf854ba0e4b216c0c1f0904e035f871d5d8c2b7",
         "persistent_login_component/index.html": "fae94c44f25512d2c017b24e17e3be2d987f21604072ed4c061fbae1cc9f9585",
-        "daily_alt_component/index.html": "59554532996c5259a1159fd6cdf7ab602b516ea25285000715eb65af52b2c816",
+        "daily_alt_component/index.html": "2d1f9aa8cdf3726e0a27172ad991792b468315d1485d4e7043b0d9d347737700",
         "weekly_mystery.py": "dfe98e7ba8c9f86daa28396e9a61282bd2705f5f132c84ff7cbb5051b4740b1f",
         "adaptive_engine.py": "b828414cd7207a04c10feb71a797ee8650d09fba81017a503a4eacf274a1e6e9",
         "fact_coach.py": "dcbaf3aa62774a4627724d6de65fab31fb87254a25e601c16201980f806af9fb",

@@ -11,7 +11,7 @@ STORE = (ROOT / "supabase_fact_store.py").read_text()
 ENGINE = (ROOT / "fact_engine.py").read_text()
 
 checks = {
-    "version bumped": 'APP_VERSION = "2.19.3"' in ENGINE,
+    "version bumped": 'APP_VERSION = "2.19.4"' in ENGINE,
     "leaderboard session cache": "def get_cached_leaderboard_context(" in APP,
     "leaderboard not reloaded every Focus rerun": "context=leaderboard_context" in APP and "def get_cached_leaderboard_context(" in APP,
     "focus rows session cache": "def get_cached_focus_rows(" in APP,

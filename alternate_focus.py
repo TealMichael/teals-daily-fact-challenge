@@ -77,7 +77,7 @@ def _division_pool() -> list[dict]:
 
 def _multiplication_pool() -> list[dict]:
     # Mixed-only pool.  This never enters multiplication mastery.
-    return [_question(f"{a} × {b}", a * b, "Multiplication") for a in range(2, 11) for b in range(a, 11)]
+    return [_question(f"{a} × {b}", a * b, "Multiplication") for a in range(2, 13) for b in range(a, 13)]
 
 
 def _integer_pool() -> list[dict]:
@@ -85,9 +85,8 @@ def _integer_pool() -> list[dict]:
     for operation in ("+", "−"):
         for a in range(-9, 10):
             for b in range(-9, 10):
-                # Keep a useful spread but avoid a pool dominated by trivial 0/0 repeats.
-                if a == 0 and b == 0:
-                    continue
+                # Include the two 0-with-0 items because the Daily generator can
+                # produce them and every Daily miss must be eligible for Focus.
                 answer = a + b if operation == "+" else a - b
                 prompt = f"{a} {operation} ({b})" if b < 0 else f"{a} {operation} {b}"
                 result.append(_question(prompt, answer, "Integers"))

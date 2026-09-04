@@ -34,11 +34,18 @@ def normalize_daily_mode(value: object) -> str:
     return text if text in DAILY_MODES else "Multiplication"
 
 
-def configured_daily_mode(store, class_id: str, day: date | str) -> str:
+def configured_daily_mode(store, class_id: str, day: date | str, *, strict: bool = False) -> str:
     try:
         value = store.get_app_setting(daily_mode_setting_key(day, class_id))
         return normalize_daily_mode("Multiplication" if value is None else value)
     except Exception:
+        # Teacher/reporting surfaces may prefer a safe display fallback, but a
+        # student must never be permanently started in the wrong mode because a
+        # temporary settings read failed. Student Today uses strict=True so the
+        # existing load-retry screen appears instead of silently creating a
+        # Multiplication attempt.
+        if strict:
+            raise
         return "Multiplication"
 
 

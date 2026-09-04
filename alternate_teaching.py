@@ -143,7 +143,14 @@ def _integer_plan(a: int, operation: str, b: int) -> TeachingPlan:
     end = a + delta
     direction = "right" if delta > 0 else ("left" if delta < 0 else "stay")
     amount = abs(delta)
-    if operation == "−" and b < 0:
+    if b == 0:
+        if operation == "−":
+            relationship = "Subtracting 0 does not change your position on the number line."
+            title = "Subtract zero: stay put"
+        else:
+            relationship = "Adding 0 does not change your position on the number line."
+            title = "Add zero: stay put"
+    elif operation == "−" and b < 0:
         relationship = f"Subtracting {b} means move the opposite direction: {amount} spaces right."
         title = "Subtract a negative: move right"
     elif operation == "−":

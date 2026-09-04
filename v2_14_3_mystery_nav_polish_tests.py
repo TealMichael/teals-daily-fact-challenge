@@ -13,7 +13,7 @@ def check(name, condition):
     assert condition, name
     checks.append(name)
 
-check("v2.16.0 version", APP_VERSION == "2.19.3")
+check("v2.16.0 version", APP_VERSION == "2.19.4")
 check("Daily challenge contract unchanged", CHALLENGE_VERSION == "TDFC-DAILY-v1")
 
 # Isolate the Weekly Mystery teacher renderer so ordering assertions do not

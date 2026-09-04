@@ -21,7 +21,7 @@ def check(label, value):
         raise AssertionError(label)
     checks.append(label)
 
-check("current version", APP_VERSION == "2.19.3")
+check("current version", APP_VERSION == "2.19.4")
 check("Today derives selected Daily mode", 'multiplication_routine = daily_mode == "Multiplication"' in TODAY)
 check("alternate Today uses alternate progress query", "store.class_alternate_learning_progress" in TODAY)
 check("alternate Today does not reuse multiplication progress", "if multiplication_routine:" in TODAY and "store.class_learning_progress" in TODAY)

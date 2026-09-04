@@ -1,12 +1,15 @@
-Teal's Daily Fact Challenge v2.19.3 — WATCH IT Cache/Touch Hotfix
+Teal's Daily Fact Challenge v2.19.4 — Classroom Hardening
 
-1. Unzip the GitHub Desktop patch.
-2. Copy everything inside COPY_INTO_GITHUB_REPO into the root of the current v2.19.2 repository.
-3. Allow replacements.
-4. Commit and push in GitHub Desktop.
-5. Wait for Streamlit to redeploy.
-6. Have any currently stuck student refresh/reopen Today; the new component identity forces the updated Fix/Focus frontend to load.
+1. Do NOT run any Supabase SQL for v2.19.4.
+2. Open COPY_INTO_GITHUB_REPO from the patch package.
+3. Copy everything inside it into the root of the existing v2.19.3 GitHub repository.
+4. Allow replacements.
+5. Review, commit, and push with GitHub Desktop.
+6. Let Streamlit Cloud redeploy, then refresh/reopen the app on student devices.
 
-NO DATABASE STEP FOR v2.19.3.
 No Streamlit Secret changes.
 No AWTRIX changes.
+Do not rerun the v2.17 migration.
+
+Suggested commit:
+v2.19.4 - harden alternate student flow for classroom use

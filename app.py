@@ -744,8 +744,12 @@ def render_student_sign_in(store: SupabaseFactStore | None) -> bool:
             st.rerun()
         try:
             student = store.authenticate_student(selected.class_id, nickname, pin)
-        except Exception:
-            student = None
+        except Exception as exc:
+            st.session_state.student_login_error = "The app could not check your sign-in just now. Try again."
+            st.session_state.student_pin_reset_counter = pin_reset + 1
+            if str(st.query_params.get("dbcheck", "0")) == "1":
+                st.exception(exc)
+            st.rerun()
         if student is None:
             st.session_state.student_login_error = "That nickname/PIN combination did not match this class. Try again."
             st.session_state.student_pin_reset_counter = pin_reset + 1
@@ -1584,7 +1588,7 @@ def render_daily(store: SupabaseFactStore | None) -> None:
 
     try:
         day, facts, challenge = ensure_today(store)
-        configured_mode = configured_daily_mode(store, st.session_state.student_class_id, day)
+        configured_mode = configured_daily_mode(store, st.session_state.student_class_id, day, strict=True)
         custom_questions = questions_for_mode(day, configured_mode) if configured_mode != "Multiplication" else None
         attempt = store.get_or_create_attempt(
             st.session_state.student_id, challenge.challenge_id,

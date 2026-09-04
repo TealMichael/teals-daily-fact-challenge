@@ -1,0 +1,22 @@
+Teal's Daily Fact Challenge v2.19.4 — Final Verification
+
+Full historical/current regression inventory: 83/83 test files passed.
+Dedicated v2.19.4 classroom-hardening regression: 48/48 checks passed.
+Package smoke: 113 Python files parsed; 50 required app files present.
+Runtime-name guard: 29 production modules passed.
+Component contract: 26/26 keypad/hidden-timer checks passed.
+Python compile: 113 files passed.
+Browser component JavaScript syntax: 8/8 passed node --check.
+
+Key verified repairs:
+- strict student Daily-mode reads: no silent Multiplication fallback after a failed settings read
+- stable alternate Daily keypad between digit taps
+- complete alternate Focus coverage across every 2026 generated Daily question
+- Mixed Focus includes ×11 and ×12 items
+- integer Focus includes 0 + 0 and 0 − 0
+- zero integer/subtraction teaching models remain mathematically accurate
+- alternate Fix/Focus coaching auto-starts and remains rerender-safe
+- student roster/test-student retries rebuild fresh Supabase queries
+- protected multiplication surfaces retain known-good hashes
+
+No v2.19.4 Supabase migration, Secret change, or AWTRIX change.

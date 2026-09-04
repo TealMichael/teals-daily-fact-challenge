@@ -234,3 +234,18 @@ Future releases should run `python release_guard.py` plus the full `*_tests.py` 
 - Alternate Fix Your Misses and Focus Practice use versioned Streamlit component identities so frontend fixes cannot be hidden by an older cached iframe.
 - WATCH IT must respond to pointer, touch, and click activation without restarting the same in-progress teaching sequence.
 - The v2.19.2 rerender-resume behavior remains required.
+
+## v2.19.4 classroom-hardening protection
+
+v2.19.4 is a narrow reliability/correctness pass over the alternate student path after full-class use. It must preserve the established multiplication system byte-for-byte while enforcing these contracts:
+
+- A transient Daily-mode setting failure must never silently create a Multiplication attempt on an alternate-mode day. Student Today uses a strict mode read and shows the existing retry path instead.
+- The alternate Daily keypad keeps its digit buttons mounted between digit taps; digit/minus/delete edits update only the answer display.
+- Every question the 2026 alternate Daily generators can produce is eligible for alternate Focus Practice, including Mixed ×11/×12 and integer 0 + 0 / 0 − 0.
+- Integer zero models say to stay put, and subtraction 0 − 0 must render Whole = 0 rather than coercing the visual to 1.
+- Alternate Fix and Focus teaching sequences auto-start on the coaching screen; WATCH IT/Replay may remain available but must not be a required gate that can strand a student.
+- Student-list/test-student Supabase retries rebuild a fresh PostgREST query after a transient read failure.
+- Student sign-in must distinguish a temporary service failure from an incorrect nickname/PIN.
+- The multiplication Daily component, Guided Practice, answer pad, adaptive/mastery engine, Fact Coach, Weekly Mystery engine, requirements, and AWTRIX script retain the embedded known-good SHA-256 fingerprints.
+
+The dedicated regression is `v2_19_4_classroom_hardening_tests.py`.

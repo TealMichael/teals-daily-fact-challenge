@@ -1,1 +1,1 @@
-v2.19.3 - force fresh WATCH IT components and harden touch activation
+v2.19.4 - harden alternate student flow for classroom use

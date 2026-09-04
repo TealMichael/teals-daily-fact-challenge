@@ -29,7 +29,7 @@ def check(name: str, condition: bool) -> None:
     checks.append(name)
 
 
-check("v2.16.0 version", APP_VERSION == "2.19.3")
+check("v2.16.0 version", APP_VERSION == "2.19.4")
 check("multiplication challenge untouched", CHALLENGE_VERSION == "TDFC-DAILY-v1")
 check("v2.14 requires no SQL migration", not (ROOT / "RUN_THIS_ONCE_IN_SUPABASE_v2_14.sql").exists())
 
@@ -113,7 +113,7 @@ check("student support uses archive semantics", "Archive student" in APP and "Ar
 # The most sensitive student files remain byte-for-byte v2.13.2.
 protected_files = {
     "daily_sprint_component/index.html": "dc8a59e1dbab86b3dd23f3eec37a4054fdc4fa9e117ffdb8b35395a4c9dcabad",
-    "daily_alt_component/index.html": "59554532996c5259a1159fd6cdf7ab602b516ea25285000715eb65af52b2c816",
+    "daily_alt_component/index.html": "2d1f9aa8cdf3726e0a27172ad991792b468315d1485d4e7043b0d9d347737700",
     "guided_practice_component/index.html": "f073b8fa704a7f52ebb45a046082d30bbad8892b8340fa2b933132bbf7c835cd",
     "answer_pad_component/index.html": "81dd828f95dcde11f20ae414bae1e16da3c9534d20400e1c3986989fdb7fe5cd",
     "persistent_login_component/index.html": "fae94c44f25512d2c017b24e17e3be2d987f21604072ed4c061fbae1cc9f9585",
@@ -121,7 +121,7 @@ protected_files = {
     "student_igniter_ui.py": "043f3905b3e37a926cbae66d40de5e9ff963b2af3676f6bc4678336ca08e39ed",
     "fact_coach.py": "dcbaf3aa62774a4627724d6de65fab31fb87254a25e601c16201980f806af9fb",
     "adaptive_engine.py": "b828414cd7207a04c10feb71a797ee8650d09fba81017a503a4eacf274a1e6e9",
-    "daily_modes.py": "2e6633604d9ea2f21b4054e38827eea1eec99f47e5562befa4c1e62f840f3b5e",
+    "daily_modes.py": "f37b151fc44514f761f66f616434d26764df9719b0ab64d1865c9ee0d1881561",
     "warmup.py": "e9dc2faabf9234c4463f84fc02c3453b4a1f5e37376cd8461d1adccc34bb816b",
     "persistent_login.py": "bace7a3ae337c5cb651afe16face0262ebae482d56e1b435de1e997293a289f2",
 }
@@ -131,7 +131,7 @@ for relative, expected in protected_files.items():
 
 # app.py mixes teacher and student routing, so protect the critical student functions independently.
 student_function_hashes = {
-    "render_daily": "ed784a9f63014a658ae82ffded297209daa252aecd581e8ee37edc3723cea712",
+    "render_daily": "7b4173eb5b7c047cf6d3541f650bf53c3d8c345f9b71d42e1d1288d78c017f65",
     "handle_persistent_student_login": "2a71443811fa5ca321b1da2c573f8d7c489b136d8ce786164988ef0b5d5ce00d",
     "render_header": "209effe42c82db72f5593b1037669399f853c4e96dc47fc0eac0ed1a70d2d8a3",
 }
