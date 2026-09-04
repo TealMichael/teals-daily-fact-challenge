@@ -29,7 +29,7 @@ def check(name, condition):
     assert condition, name
     checks.append(name)
 
-check("v2.15 version", APP_VERSION == "2.19.4")
+check("v2.15 version", APP_VERSION == "2.19.5")
 check("student Daily contract unchanged", CHALLENGE_VERSION == "TDFC-DAILY-v1")
 
 # Phase 2 navigation + teacher UI contract.
@@ -152,7 +152,7 @@ check("4x30 instructional-intelligence simulation passes", scale_ok)
 # Protect student-facing and previously stable teacher modules byte-for-byte from v2.14.3.
 protected = {
     "daily_sprint_component/index.html": "dc8a59e1dbab86b3dd23f3eec37a4054fdc4fa9e117ffdb8b35395a4c9dcabad",
-    "daily_alt_component/index.html": "2d1f9aa8cdf3726e0a27172ad991792b468315d1485d4e7043b0d9d347737700",
+    "daily_alt_component/index.html": "332ee7265c450b00d4848a059f000439dba2089c4ec765bf18f41e2bed734c4d",
     "guided_practice_component/index.html": "f073b8fa704a7f52ebb45a046082d30bbad8892b8340fa2b933132bbf7c835cd",
     "answer_pad_component/index.html": "81dd828f95dcde11f20ae414bae1e16da3c9534d20400e1c3986989fdb7fe5cd",
     "persistent_login_component/index.html": "fae94c44f25512d2c017b24e17e3be2d987f21604072ed4c061fbae1cc9f9585",

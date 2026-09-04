@@ -21,7 +21,7 @@ def check(label: str, value) -> None:
     checks.append(label)
 
 
-check("v2.18 version", APP_VERSION == "2.19.4")
+check("v2.18 version", APP_VERSION == "2.19.5")
 check("multiplication challenge unchanged", CHALLENGE_VERSION == "TDFC-DAILY-v1")
 
 # Canonical high-quality model choices.

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-"""v2.19.4 model-rerender reliability regression.
+"""v2.19.5 model-rerender reliability regression.
 
 The classroom failure was caused by WATCH IT animation timers being cleared when
 Streamlit re-rendered the custom component mid-sequence. The fix persists the
@@ -19,7 +19,7 @@ def check(name: str, condition: bool):
     assert condition, name
     checks.append(name)
 
-check("v2.19.4 version", APP_VERSION == "2.19.4")
+check("v2.19.5 version", APP_VERSION == "2.19.5")
 
 for label, src in (("Fix", FIX), ("Focus", FOCUS)):
     check(f"{label} stores coach sequence timestamp", "coachStartedAt" in src)
@@ -53,4 +53,4 @@ check(
 check("Fix still uses WATCH IT coaching", "▶ WATCH IT" in FIX and "TRY AGAIN →" in FIX)
 check("Focus still uses WATCH IT coaching", "▶ WATCH IT" in FOCUS and "TRY AGAIN →" in FOCUS)
 
-print(f"v2.19.4 Model Rerender Hotfix: PASS ({len(checks)}/{len(checks)} checks)")
+print(f"v2.19.5 Model Rerender Hotfix: PASS ({len(checks)}/{len(checks)} checks)")

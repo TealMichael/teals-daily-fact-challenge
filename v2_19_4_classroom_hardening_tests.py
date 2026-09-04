@@ -22,7 +22,7 @@ def check(label: str, condition: bool) -> None:
         raise AssertionError(label)
     CHECKS += 1
 
-check("v2.19.4 version", APP_VERSION == "2.19.4")
+check("v2.19.5 version", APP_VERSION == "2.19.5")
 check("multiplication challenge version frozen", CHALLENGE_VERSION == "TDFC-DAILY-v1")
 
 # Student-mode reads must never silently fall back to Multiplication after a DB failure.
@@ -46,7 +46,7 @@ check("student Daily uses strict configured-mode read", "configured_daily_mode(s
 check("student login has transient-service message", "The app could not check your sign-in just now. Try again." in APP)
 
 UI = (ROOT / "student_alt_daily_ui.py").read_text(encoding="utf-8")
-check("alternate Daily cache-busted", '"tdfc_alt_daily_v2194"' in UI)
+check("alternate Daily cache-busted", '"tdfc_alt_daily_v2195"' in UI)
 check("alternate Fix cache-busted", '"tdfc_alt_fix_v2194"' in UI)
 check("alternate Focus cache-busted", '"tdfc_alt_focus_v2194"' in UI)
 
@@ -128,7 +128,7 @@ store2 = SupabaseFactStore("https://example.supabase.co", "fake-key", client=cli
 student = store2.get_test_student()
 check("get_test_student retries with fresh query", student is not None and client2.calls >= 2)
 
-# Gold-standard multiplication surfaces remain exact v2.19.4 bytes.
+# Gold-standard multiplication surfaces remain exact v2.19.5 bytes.
 EXPECTED = {
     "daily_sprint_component/index.html": "dc8a59e1dbab86b3dd23f3eec37a4054fdc4fa9e117ffdb8b35395a4c9dcabad",
     "guided_practice_component/index.html": "f073b8fa704a7f52ebb45a046082d30bbad8892b8340fa2b933132bbf7c835cd",
@@ -143,4 +143,4 @@ for rel, expected in EXPECTED.items():
     actual = hashlib.sha256((ROOT / rel).read_bytes()).hexdigest()
     check(f"protected multiplication surface unchanged: {rel}", actual == expected)
 
-print(f"PASS: {CHECKS}/{CHECKS} v2.19.4 classroom-hardening checks")
+print(f"PASS: {CHECKS}/{CHECKS} v2.19.5 classroom-hardening checks")

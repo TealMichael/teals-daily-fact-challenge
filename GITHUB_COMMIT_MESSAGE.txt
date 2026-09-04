@@ -1,1 +1,1 @@
-v2.19.4 - harden alternate student flow for classroom use
+v2.19.5 - fix alternate Daily keypad answer display

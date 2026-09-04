@@ -1,8 +1,8 @@
-Teal's Daily Fact Challenge v2.19.4 — Classroom Hardening
+Teal's Daily Fact Challenge v2.19.5 — Alternate Daily Keypad Display Hotfix
 
-1. Do NOT run any Supabase SQL for v2.19.4.
-2. Open COPY_INTO_GITHUB_REPO from the patch package.
-3. Copy everything inside it into the root of the existing v2.19.3 GitHub repository.
+1. Do NOT run any Supabase SQL for v2.19.5.
+2. Open UPLOAD_TO_GITHUB from this package.
+3. Copy everything inside it into the root of the existing v2.19.4 GitHub repository.
 4. Allow replacements.
 5. Review, commit, and push with GitHub Desktop.
 6. Let Streamlit Cloud redeploy, then refresh/reopen the app on student devices.
@@ -12,4 +12,4 @@ No AWTRIX changes.
 Do not rerun the v2.17 migration.
 
 Suggested commit:
-v2.19.4 - harden alternate student flow for classroom use
+v2.19.5 - fix alternate Daily keypad answer display

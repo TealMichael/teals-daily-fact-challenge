@@ -20,7 +20,7 @@ from fact_store import utc_now
 from supabase_fact_store import SupabaseFactStore
 
 ALT_DAILY_COMPONENT = components.declare_component(
-    "tdfc_alt_daily_v2194", path=str(Path(__file__).with_name("daily_alt_component"))
+    "tdfc_alt_daily_v2195", path=str(Path(__file__).with_name("daily_alt_component"))
 )
 ALT_FIX_COMPONENT = components.declare_component(
     "tdfc_alt_fix_v2194", path=str(Path(__file__).with_name("alt_fix_component"))
