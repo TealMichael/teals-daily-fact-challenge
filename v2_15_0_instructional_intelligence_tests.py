@@ -29,7 +29,7 @@ def check(name, condition):
     assert condition, name
     checks.append(name)
 
-check("v2.15 version", APP_VERSION == "2.19.6")
+check("v2.15 version", APP_VERSION == "2.19.7")
 check("student Daily contract unchanged", CHALLENGE_VERSION == "TDFC-DAILY-v1")
 
 # Phase 2 navigation + teacher UI contract.

@@ -22,7 +22,7 @@ def check(label: str, condition: bool) -> None:
         raise AssertionError(label)
     CHECKS += 1
 
-check("v2.19.5 version", APP_VERSION == "2.19.6")
+check("v2.19.5 version", APP_VERSION == "2.19.7")
 check("multiplication challenge version frozen", CHALLENGE_VERSION == "TDFC-DAILY-v1")
 
 # Student-mode reads must never silently fall back to Multiplication after a DB failure.
@@ -47,8 +47,8 @@ check("student login has transient-service message", "The app could not check yo
 
 UI = (ROOT / "student_alt_daily_ui.py").read_text(encoding="utf-8")
 check("alternate Daily cache-busted", '"tdfc_alt_daily_v2195"' in UI)
-check("alternate Fix cache-busted", '"tdfc_alt_fix_v2196"' in UI)
-check("alternate Focus cache-busted", '"tdfc_alt_focus_v2196"' in UI)
+check("alternate Fix cache-busted", '"tdfc_alt_fix_v2197"' in UI)
+check("alternate Focus cache-busted", '"tdfc_alt_focus_v2197"' in UI)
 
 # The alternate Daily keypad must keep its buttons mounted between rapid digit taps.
 DAILY_HTML = (ROOT / "daily_alt_component" / "index.html").read_text(encoding="utf-8")

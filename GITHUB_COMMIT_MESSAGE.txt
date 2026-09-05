@@ -1,1 +1,1 @@
-v2.19.6 - fix alternate follow-up button flow and match multiplication
+v2.19.7 - replace alternate follow-up lifecycle with multiplication parity and fix blank-page height

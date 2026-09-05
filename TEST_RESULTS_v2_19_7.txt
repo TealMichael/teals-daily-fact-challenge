@@ -1,0 +1,18 @@
+Teal's Daily Fact Challenge v2.19.7 — Verification Results
+
+PASS — 86/86 Python regression test files across three batches.
+PASS — v2.19.7 Follow-Up Lifecycle + Height: 67/67 checks.
+PASS — Alternate Follow-Up Parity Regression: 47/47 checks.
+PASS — Classroom-hardening regression: 48/48 checks.
+PASS — Real Chromium srcdoc iframe audit under repeated same-session Streamlit-style render messages.
+PASS — Desktop interaction flow: WATCH IT, REPLAY, TRY AGAIN, keypad, Delete, minus, checkmark submit.
+PASS — Touch-emulated interaction flow: WATCH IT, REPLAY, TRY AGAIN, keypad, Delete, minus, checkmark submit.
+PASS — Exact reported Integer case: 5 − (-5).
+PASS — Initial teaching card compact; stages grow on play; component shrinks on Replay (blank-page regression).
+PASS — All generated alternate teaching visual families exercised in Chromium.
+PASS — Production 180/1350/2650 ms teaching pacing exercised.
+PASS — All browser component JavaScript syntax checks.
+PASS — All Python files compile.
+PASS — Protected multiplication source hashes unchanged.
+
+No Supabase SQL, Streamlit Secret, dependency, or AWTRIX change.

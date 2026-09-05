@@ -6,7 +6,7 @@ ROOT = Path(__file__).resolve().parent
 HTML = (ROOT / "guided_practice_component" / "index.html").read_text()
 
 checks = {
-    "version 2.8.4": APP_VERSION == "2.19.6",
+    "version 2.8.4": APP_VERSION == "2.19.7",
     "takeaway explanation has start line": "START WITH ${anchorLine}" in HTML,
     "takeaway prompt names group size": "${removeCount} ${noun} OF ${size}" in HTML,
     "takeaway explanation names target fact": "THAT LEAVES ${item.a} × ${item.b}" in HTML,

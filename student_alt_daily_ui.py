@@ -23,10 +23,10 @@ ALT_DAILY_COMPONENT = components.declare_component(
     "tdfc_alt_daily_v2195", path=str(Path(__file__).with_name("daily_alt_component"))
 )
 ALT_FIX_COMPONENT = components.declare_component(
-    "tdfc_alt_fix_v2196", path=str(Path(__file__).with_name("alt_fix_component"))
+    "tdfc_alt_fix_v2197", path=str(Path(__file__).with_name("alt_fix_component"))
 )
 ALT_FOCUS_COMPONENT = components.declare_component(
-    "tdfc_alt_focus_v2196", path=str(Path(__file__).with_name("alt_focus_component"))
+    "tdfc_alt_focus_v2197", path=str(Path(__file__).with_name("alt_focus_component"))
 )
 
 
@@ -142,7 +142,7 @@ def render_alternate_daily(store: SupabaseFactStore, day, challenge, attempt, *,
                     result = ALT_FIX_COMPONENT(
                         items=model_items,
                         attempt_key=f"{attempt.attempt_id}:fix",
-                        version="TDFC-ALT-FIX-v3",
+                        version="TDFC-ALT-FIX-v4",
                         default=None,
                         key=f"alt_fix_{attempt.attempt_id}",
                     )
@@ -204,7 +204,7 @@ def render_alternate_daily(store: SupabaseFactStore, day, challenge, attempt, *,
                 result = ALT_FOCUS_COMPONENT(
                     items=remaining_items,
                     session_key=f"{attempt.attempt_id}:focus",
-                    version="TDFC-ALT-FOCUS-v2",
+                    version="TDFC-ALT-FOCUS-v3",
                     default=None,
                     key=f"alt_focus_{attempt.attempt_id}",
                 )

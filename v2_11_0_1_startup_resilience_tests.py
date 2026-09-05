@@ -7,7 +7,7 @@ ENGINE = (ROOT / "fact_engine.py").read_text()
 REQ = (ROOT / "requirements.txt").read_text()
 
 checks = {}
-checks["version bumped"] = 'APP_VERSION = "2.19.6"' in ENGINE
+checks["version bumped"] = 'APP_VERSION = "2.19.7"' in ENGINE
 checks["challenge version unchanged"] = 'CHALLENGE_VERSION = "TDFC-DAILY-v1"' in ENGINE
 
 # Visible shell must be emitted before database/bootstrap work.

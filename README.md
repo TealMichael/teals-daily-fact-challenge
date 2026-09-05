@@ -1,34 +1,46 @@
-# Teal's Daily Fact Challenge v2.19.6 — Alternate Follow-Up Interaction Parity
+# Teal's Daily Fact Challenge v2.19.7 — Follow-Up Lifecycle + Height Reliability
 
-v2.19.6 fixes the student interaction flow used after non-multiplication Daily 10 work (Addition, Subtraction, Division, Integers, and Mixed).
+v2.19.7 repairs the complete non-multiplication follow-up interaction path used by Addition, Subtraction, Division, Integers, and Mixed. This is intentionally a controller/lifecycle repair rather than another isolated button patch.
 
-The alternate teaching model had drifted from the proven multiplication behavior in two important ways: it auto-played as soon as the screen rendered, and the Fix/Focus browser components could remain stale on student devices even after code fixes. That made REPLAY and TRY AGAIN appear unresponsive in the classroom.
+## What was actually wrong
+
+The alternate Fix Your Misses / Focus Practice components had drifted from multiplication underneath the UI. They used their own timestamp/resume state machine and rebuilt the teaching DOM during routine Streamlit render messages. That made a valid-looking **WATCH IT** button vulnerable to becoming stranded when the live component lifecycle did not match the isolated browser test.
+
+The same alternate layout also kept later teaching content in the page with `opacity: 0`, which hid it visually but still reserved its height. Combined with scroll-height-based iframe sizing, this could leave a very long page with large amounts of blank white space.
 
 ## What changed
 
-- Teaching models now wait for the student to tap **WATCH IT**, matching multiplication.
-- **WATCH IT** and **REPLAY** now use the same single-click restart path as multiplication.
-- **REPLAY** visibly restarts the teaching sequence from the beginning.
-- **TRY AGAIN** remains locked until the teaching sequence reaches YOUR TURN, then reliably opens the retry keypad.
-- Fix Your Misses and Focus Practice component identities were cache-busted so student devices receive the corrected browser code.
-- Old alternate Fix/Focus browser state is intentionally invalidated for this release so a stale in-progress model cannot keep the old behavior.
-- The v2.19.5 alternate Daily keypad display fix remains intact.
+- **WATCH IT** now uses the same controller pattern as multiplication: one direct `startTeachSequence()` path.
+- **REPLAY** calls that same controller and fully resets the visible teaching stages before replaying.
+- **TRY AGAIN** remains unavailable until the teaching sequence reaches **YOUR TURN**, then transitions into the retry keypad.
+- Routine same-session Streamlit render messages now preserve the live teaching DOM instead of rebuilding it and interrupting the active sequence.
+- Legacy/unknown teaching phases are normalized safely back to the valid coaching state instead of showing a button that cannot run.
+- Fix Your Misses now uses session-scoped browser state, matching multiplication's safer lifecycle rather than persistent local storage.
+- Future teaching stages are `display: none` until SEE IT / CONNECT IT / YOUR TURN actually reach them, eliminating the giant invisible reserved area before WATCH IT.
+- Iframe height is measured from the actual rendered root content, so it can **grow and shrink** instead of retaining stale viewport/scroll height.
+- A root `ResizeObserver` keeps height synchronized as stages appear, replay, or transition.
+- Fix and Focus component identities/state contracts were advanced so student browsers load the corrected components fresh.
+- The v2.19.5 alternate Daily typed-answer display fix remains intact.
 
 ## What did NOT change
 
 The multiplication Daily, multiplication Guided Practice / Fix Your Misses / Focus Practice component, multiplication Fact Coach, multiplication adaptive/mastery engine, Weekly Mystery, Supabase schema, dependencies, and AWTRIX are unchanged.
 
-The protected multiplication files were verified byte-for-byte against the v2.19.5 source-of-truth hashes.
+The protected multiplication files were verified byte-for-byte against the established source-of-truth hashes.
 
 ## Verification
 
-- 85/85 Python regression test files passed.
-- New v2.19.6 alternate follow-up parity suite: 47/47 checks passed.
-- Real browser interaction audit passed on desktop and touch emulation for Daily keypad, Fix Your Misses, and Focus Practice.
-- Browser audit covered Addition, Subtraction, Division, positive/negative Integer cases, and a Mixed multiplication item.
-- WATCH IT no-autoplay behavior, REPLAY restart, TRY AGAIN transition, keypad digits, minus, Delete, and green-check submit were exercised.
-- Same-session rerender recovery was exercised during a teaching sequence.
-- All 8 browser component JavaScript files passed syntax checking.
-- All 115 Python files compiled successfully.
+- **86/86 Python regression test files passed** across three complete batches.
+- New **v2.19.7 Follow-Up Lifecycle + Height** suite: **67/67 checks passed**.
+- Updated alternate follow-up parity regression: **47/47 checks passed**.
+- Classroom-hardening regression: **48/48 checks passed**.
+- A real Chromium iframe audit exercised the actual component message lifecycle under deliberately noisy Streamlit-style same-session rerenders.
+- Chromium audit passed on both desktop and touch emulation for **WATCH IT → REPLAY → TRY AGAIN → keypad → submit**.
+- The exact reported Integer example `5 − (-5)` was exercised end-to-end.
+- Browser audit verified that the teaching card starts compact, grows as stages appear, and **shrinks again on Replay** rather than retaining white space.
+- Browser audit covered every generated alternate teaching visual family found in the 2026 question generators.
+- Production pacing was separately exercised at the real 180 ms / 1350 ms / 2650 ms stage timing.
+- All browser component JavaScript files pass syntax checking.
+- All Python files compile successfully.
 
-No Supabase SQL, Streamlit Secret, or AWTRIX change is required. Install directly over v2.19.5.
+No Supabase SQL, Streamlit Secret, or AWTRIX change is required. Install directly over v2.19.6.

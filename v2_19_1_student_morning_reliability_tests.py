@@ -22,7 +22,7 @@ def check(name: str, condition: bool):
     assert condition, name
     checks.append(name)
 
-check("v2.19.1 version", APP_VERSION == "2.19.6")
+check("v2.19.1 version", APP_VERSION == "2.19.7")
 check("alternate completed page mirrors multiplication evidence guard", 'daily_evidence_verified::{attempt.attempt_id}' in STUDENT)
 check("alternate completed page uses daily evidence repair marker", 'store.ensure_daily_learning_evidence(attempt.attempt_id)' in STUDENT)
 check("alternate completed page reads stored progress directly", 'store.get_alternate_learning_progress(' in STUDENT)

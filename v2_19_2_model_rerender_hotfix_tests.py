@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-"""v2.19.5 model-rerender reliability regression.
+"""Model-rerender reliability regression, updated for the v2.19.7 lifecycle.
 
-The classroom failure was caused by WATCH IT animation timers being cleared when
-Streamlit re-rendered the custom component mid-sequence. The fix persists the
-sequence start time and resumes the teaching sequence after same-session renders.
+The current fix follows multiplication's safer rule: same-session Streamlit render
+messages do not rebuild the live teaching DOM, so WATCH/REPLAY timers cannot be
+cleared by routine parent rerenders.
 """
 
 from pathlib import Path
@@ -19,38 +19,16 @@ def check(name: str, condition: bool):
     assert condition, name
     checks.append(name)
 
-check("v2.19.5 version", APP_VERSION == "2.19.6")
-
+check("current version", APP_VERSION == "2.19.7")
 for label, src in (("Fix", FIX), ("Focus", FOCUS)):
-    check(f"{label} stores coach sequence timestamp", "coachStartedAt" in src)
-    check(f"{label} saves WATCH IT start before animating", "state.coachStartedAt=Date.now();save();resumeSequence()" in src)
-    check(f"{label} resumes sequence after render", "bind();resumeSequence();" in src and "setHeight()" in src)
-    check(f"{label} derives animation progress from elapsed time", "Date.now()-started" in src)
-    check(f"{label} restores SEE stage", "elapsed>=a" in src and "seq-see" in src)
-    check(f"{label} restores CONNECT stage", "elapsed>=b" in src and "seq-connect" in src)
-    check(f"{label} restores YOUR TURN stage", "elapsed>=c" in src and "sequence-complete" in src)
-    check(f"{label} resets timestamp when leaving coach", "state.coachStartedAt=0" in src)
+    check(f"{label} no longer depends on rerender timestamps", "coachStartedAt" not in src and "resumeSequence" not in src)
+    check(f"{label} has multiplication-style start controller", "function startTeachSequence()" in src)
+    check(f"{label} Watch binds directly to start controller", "watch.addEventListener('click',startTeachSequence)" in src)
+    check(f"{label} Replay binds to same start controller", "replay.addEventListener('click',startTeachSequence)" in src)
+    check(f"{label} sequence clears only its own timers", "clearTimers();resetTeachClasses(card)" in src)
+    check(f"{label} uses multiplication pacing", "return [180,1350,2650]" in src)
+    check(f"{label} same-session parent rerender does not call render", "else{args=newArgs;setHeight()}" in src.replace(" ", ""))
+    check(f"{label} stale teach state normalizes to coach", "p.phase==='teach'" in src and "p.phase='coach'" in src)
+    check(f"{label} still has Watch and Try Again", "▶ WATCH IT" in src and "TRY AGAIN →" in src)
 
-# Fix used to reload localStorage on every Streamlit render. Same-attempt renders
-# must preserve live in-memory state so a storage/privacy limitation cannot reset
-# an already-started WATCH IT sequence.
-check(
-    "Fix preserves in-memory state on same attempt rerender",
-    "newKey=String(newArgs.attempt_key||'')" in FIX
-    and "oldKey=String(args&&args.attempt_key||'')" in FIX
-    and "if(!state||newKey!==oldKey){state=load();digits=''}render()" in FIX,
-)
-
-# Focus already had same-session state preservation; keep that contract too.
-check(
-    "Focus preserves in-memory state on same session rerender",
-    "newKey=String(newArgs.session_key||'session')" in FOCUS
-    and "if(!state||newKey!==oldKey){state=load();digits=''}render()" in FOCUS,
-)
-
-# The hotfix must remain inside the alternate components; multiplication browser
-# code is protected by the established hash regressions.
-check("Fix still uses WATCH IT coaching", "▶ WATCH IT" in FIX and "TRY AGAIN →" in FIX)
-check("Focus still uses WATCH IT coaching", "▶ WATCH IT" in FOCUS and "TRY AGAIN →" in FOCUS)
-
-print(f"v2.19.5 Model Rerender Hotfix: PASS ({len(checks)}/{len(checks)} checks)")
+print(f"Model Rerender Reliability: PASS ({len(checks)}/{len(checks)} checks)")

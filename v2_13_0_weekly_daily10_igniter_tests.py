@@ -18,7 +18,7 @@ def check(name, condition):
     checks.append(name)
 
 DAY = date(2026, 8, 26)
-check("v2.13 version", APP_VERSION == "2.19.6")
+check("v2.13 version", APP_VERSION == "2.19.7")
 check("multiplication challenge version untouched", CHALLENGE_VERSION == "TDFC-DAILY-v1")
 expected = [(6,10,'medium'),(4,4,'easy'),(11,3,'extension'),(5,10,'easy'),(3,7,'hard'),(8,7,'hard'),(9,3,'medium'),(8,5,'medium'),(5,4,'easy'),(6,5,'medium')]
 check("known multiplication daily unchanged", [(f.a,f.b,f.tier) for f in daily_facts_for_date(DAY)] == expected)

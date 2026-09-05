@@ -18,29 +18,28 @@ def check(label: str, condition: bool) -> None:
         raise AssertionError(label)
     CHECKS += 1
 
-check("v2.19.6 version", APP_VERSION == "2.19.6")
-
+check("current version", APP_VERSION == "2.19.7")
 ui = (ROOT / "student_alt_daily_ui.py").read_text(encoding="utf-8")
 fix = (ROOT / "alt_fix_component" / "index.html").read_text(encoding="utf-8")
 focus = (ROOT / "alt_focus_component" / "index.html").read_text(encoding="utf-8")
 daily = (ROOT / "daily_alt_component" / "index.html").read_text(encoding="utf-8")
 
-check("Fix component browser identity cache-busted", '"tdfc_alt_fix_v2196"' in ui)
-check("Focus component browser identity cache-busted", '"tdfc_alt_focus_v2196"' in ui)
-check("Fix stored state version advanced", 'version="TDFC-ALT-FIX-v3"' in ui and "tdfc_alt_fix_v3:" in fix)
-check("Focus stored state version advanced", 'version="TDFC-ALT-FOCUS-v2"' in ui and "tdfc-alt-focus-v2:" in focus)
+check("Fix component browser identity current", '"tdfc_alt_fix_v2197"' in ui)
+check("Focus component browser identity current", '"tdfc_alt_focus_v2197"' in ui)
+check("Fix stored state version current", 'version="TDFC-ALT-FIX-v4"' in ui and "tdfc-alt-fix-v4:" in fix)
+check("Focus stored state version current", 'version="TDFC-ALT-FOCUS-v3"' in ui and "tdfc-alt-focus-v3:" in focus)
 check("alternate Daily keypad display fix retained", 'id="entry"' in daily and "entry.textContent=digits||'Tap your answer'" in daily)
 
 for label, src in (("Fix", fix), ("Focus", focus)):
     compact = src.replace(" ", "")
-    check(f"{label} does not auto-play coaching", "state.phase==='coach'&&!Number(state.coachStartedAt||0)" not in compact)
-    check(f"{label} Watch uses multiplication-style click", "watch.addEventListener('click',startSequence)" in src)
-    check(f"{label} Replay uses the same restart path", "replay.addEventListener('click',startSequence)" in src)
+    check(f"{label} does not auto-play coaching", "function startTeachSequence()" in src)
+    check(f"{label} Watch uses multiplication-style click", "watch.addEventListener('click',startTeachSequence)" in src)
+    check(f"{label} Replay uses the same restart path", "replay.addEventListener('click',startTeachSequence)" in src)
     check(f"{label} avoids duplicate pointer/touch bindings", "addEventListener('pointerup'" not in src and "addEventListener('touchend'" not in src)
-    check(f"{label} Watch/Replay restart sequence from zero", "state.coachStartedAt=Date.now();save();resumeSequence()" in src)
-    check(f"{label} sequence survives same-session rerender", "bind();resumeSequence();setHeight()" in src and "Date.now()-started" in src)
-    check(f"{label} paced like multiplication before Your Turn", "[180,1350,2650]" in src)
-    check(f"{label} Try Again stays locked until teaching reaches Your Turn", ".continue-wrap{margin-top:10px;opacity:0;pointer-events:none" in src and ".coach-card.seq-turn .continue-wrap{opacity:1;pointer-events:auto" in src)
+    check(f"{label} has no timestamp-rerender state machine", "coachStartedAt" not in src and "resumeSequence" not in src)
+    check(f"{label} sequence survives same-session rerender by preserving DOM", "else{args=newArgs;setHeight()}" in compact)
+    check(f"{label} paced like multiplication before Your Turn", "return [180,1350,2650]" in src)
+    check(f"{label} Try Again stays locked until teaching reaches Your Turn", "if(!coachSequenceReady)return" in src)
     check(f"{label} Try Again transitions to retry", "const next=document.getElementById('to-retry')" in src and "state.phase='retry'" in src)
     check(f"{label} keypad digit buttons bound", "querySelectorAll('[data-digit]')" in src and "addDigit" in src)
     check(f"{label} minus button bound", "getElementById('minus')" in src and "toggleMinus" in src)
@@ -52,7 +51,6 @@ check("Fix records only corrected retry answers", "value!==Number(item.correct_a
 check("Focus miss enters coach before retry", "state.phase='coach'" in focus and "if(isRetry)" in focus)
 check("Focus retry remains required after a second miss", "state.retryMissed=true" in focus)
 
-# Every question the alternate Daily generators can produce must still build a supported model.
 supported = {"ten_frame", "double", "near_double", "counters", "part_whole", "equal_groups", "integer_line", "number_line", "multiplication_array"}
 start = date(2026, 1, 1)
 for mode in ALT_MODES:
@@ -68,7 +66,6 @@ for mode in ALT_MODES:
                 raise AssertionError(f"incomplete teaching plan for {mode}: {question}")
     check(f"{mode} 2026 Daily questions all build teaching models", bool(seen))
 
-# Multiplication is the literal known-good source of truth and must remain byte-for-byte unchanged.
 EXPECTED_MULTIPLICATION = {
     "daily_sprint_component/index.html": "dc8a59e1dbab86b3dd23f3eec37a4054fdc4fa9e117ffdb8b35395a4c9dcabad",
     "guided_practice_component/index.html": "f073b8fa704a7f52ebb45a046082d30bbad8892b8340fa2b933132bbf7c835cd",
@@ -80,4 +77,4 @@ for rel, expected in EXPECTED_MULTIPLICATION.items():
     actual = hashlib.sha256((ROOT / rel).read_bytes()).hexdigest()
     check(f"multiplication source unchanged: {rel}", actual == expected)
 
-print(f"v2.19.6 Alternate Follow-Up Parity: PASS ({CHECKS}/{CHECKS} checks)")
+print(f"Alternate Follow-Up Parity Regression: PASS ({CHECKS}/{CHECKS} checks)")
