@@ -18,7 +18,7 @@ leader_context = function_body("load_leaderboard_context", "_leaderboard_cache_k
 leader_render = function_body("render_leaderboard", "render_daily_review")
 
 a = {
-    "version 2.6": 'APP_VERSION = "2.19.5"' in ENGINE,
+    "version 2.6": 'APP_VERSION = "2.19.6"' in ENGINE,
     "four-step routine strip": 'def render_routine_strip(stage: str)' in APP and '1 · Daily 10' in APP and '4 · Mystery' in APP,
     "daily shows routine strip": 'render_routine_strip("daily")' in APP,
     "done screen is unmistakable": "YOU'RE DONE FOR TODAY!" in APP,

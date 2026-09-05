@@ -10,7 +10,7 @@ def check(name, condition):
     assert condition, name
     checks.append(name)
 
-check("v2.19.5 version", APP_VERSION == "2.19.5")
+check("v2.19.5 version", APP_VERSION == "2.19.6")
 check("alternate Daily component cache-busted", 'tdfc_alt_daily_v2195' in UI)
 check("answer display has stable entry id", 'id="entry" class="${digits?' in DAILY)
 check("display updater targets entry id", "document.getElementById('entry')" in DAILY)
@@ -19,7 +19,7 @@ check("minus tap updates visible answer", "function toggleMinus()" in DAILY and 
 check("delete tap updates visible answer", "function erase()" in DAILY and "updateEntry()" in DAILY)
 check("entry text swaps placeholder for digits", "entry.textContent=digits||'Tap your answer'" in DAILY)
 check("submit still reads browser-local digits", "const value=Number(digits)" in DAILY)
-check("Fix component identity left alone", 'tdfc_alt_fix_v2194' in UI)
-check("Focus component identity left alone", 'tdfc_alt_focus_v2194' in UI)
+check("Fix component identity advanced for follow-up parity", 'tdfc_alt_fix_v2196' in UI)
+check("Focus component identity advanced for follow-up parity", 'tdfc_alt_focus_v2196' in UI)
 
 print(f"v2.19.5 Alternate Daily Entry Display Hotfix: PASS ({len(checks)}/{len(checks)} checks)")

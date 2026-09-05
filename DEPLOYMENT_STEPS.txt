@@ -1,15 +1,16 @@
-Teal's Daily Fact Challenge v2.19.5 — Alternate Daily Keypad Display Hotfix
+Teal's Daily Fact Challenge v2.19.6 — Alternate Follow-Up Interaction Parity
 
-1. Do NOT run any Supabase SQL for v2.19.5.
+1. Do NOT run any Supabase SQL for v2.19.6.
 2. Open UPLOAD_TO_GITHUB from this package.
-3. Copy everything inside it into the root of the existing v2.19.4 GitHub repository.
+3. Copy everything inside it into the root of the existing v2.19.5 GitHub repository.
 4. Allow replacements.
 5. Review, commit, and push with GitHub Desktop.
-6. Let Streamlit Cloud redeploy, then refresh/reopen the app on student devices.
+6. Let Streamlit Cloud redeploy.
+7. Refresh/reopen the app on student devices before testing Fix Your Misses / Focus Practice so the cache-busted components load.
 
 No Streamlit Secret changes.
 No AWTRIX changes.
 Do not rerun the v2.17 migration.
 
 Suggested commit:
-v2.19.5 - fix alternate Daily keypad answer display
+v2.19.6 - fix alternate follow-up button flow and match multiplication

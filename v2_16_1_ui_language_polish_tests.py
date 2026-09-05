@@ -15,7 +15,7 @@ def check(name: str, condition: bool) -> None:
     checks.append(name)
 
 
-check("v2.17.0 version", APP_VERSION == "2.19.5")
+check("v2.17.0 version", APP_VERSION == "2.19.6")
 check("Daily challenge version unchanged", CHALLENGE_VERSION == "TDFC-DAILY-v1")
 check("v2.17.0 follow-up migration is present", (ROOT / "RUN_THIS_ONCE_IN_SUPABASE_v2_17.sql").exists())
 

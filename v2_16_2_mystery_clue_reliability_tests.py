@@ -208,7 +208,7 @@ def main():
     test_lost_unlock_response_is_recovered_without_losing_clue()
 
     checks = {
-        "version bumped": 'APP_VERSION = "2.19.5"' in ENGINE,
+        "version bumped": 'APP_VERSION = "2.19.6"' in ENGINE,
         "challenge version untouched": 'CHALLENGE_VERSION = "TDFC-DAILY-v1"' in ENGINE,
         "repair helper exists in production store": "def completed_mystery_days(" in STORE,
         "repair helper exists in reference store": "def completed_mystery_days(" in (ROOT / "fact_store.py").read_text(encoding="utf-8"),

@@ -7,7 +7,7 @@ TODAY = (ROOT / "teacher_today_ui.py").read_text(encoding="utf-8")
 ALL_UI = APP + "\n" + TODAY
 
 checks = {
-    "version bumped": 'APP_VERSION = "2.19.5"' in ENGINE,
+    "version bumped": 'APP_VERSION = "2.19.6"' in ENGINE,
     "leaderboard explains private tiebreak": "time used privately as the tiebreaker" in APP,
     "student leaderboard rows omit score cell": 'class="leader-score"' not in APP,
     "student daily result omits Accuracy card": '<div class="result-label">Accuracy</div>' not in APP,

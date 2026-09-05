@@ -21,7 +21,7 @@ def check(label: str, value) -> None:
     checks.append(label)
 
 
-check("v2.18 version", APP_VERSION == "2.19.5")
+check("v2.18 version", APP_VERSION == "2.19.6")
 check("multiplication challenge unchanged", CHALLENGE_VERSION == "TDFC-DAILY-v1")
 
 # Canonical high-quality model choices.
@@ -111,7 +111,7 @@ student_ui = (ROOT / "student_alt_daily_ui.py").read_text(encoding="utf-8")
 component = (ROOT / "alt_fix_component" / "index.html").read_text(encoding="utf-8")
 check("student UI imports alternate teaching", "from alternate_teaching import teaching_plan_for_question" in student_ui)
 check("student UI builds model items", "model_items" in student_ui and '"model": plan.as_dict()' in student_ui)
-check("student UI uses teaching component v2", 'version="TDFC-ALT-FIX-v2"' in student_ui)
+check("student UI uses teaching component v2", 'version="TDFC-ALT-FIX-v3"' in student_ui)
 check("model component starts every missed item in coach", "phase:'coach'" in component and "state.phase='coach'" in component)
 check("model component has multiplication-style learning stages", "SEE IT" in component and "CONNECT IT" in component and "YOUR TURN" in component)
 check("model component has watch and replay", "▶ WATCH IT" in component and "↻ REPLAY" in component)

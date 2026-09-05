@@ -19,7 +19,7 @@ def check(name: str, condition: bool):
     assert condition, name
     checks.append(name)
 
-check("v2.19.5 version", APP_VERSION == "2.19.5")
+check("v2.19.5 version", APP_VERSION == "2.19.6")
 
 for label, src in (("Fix", FIX), ("Focus", FOCUS)):
     check(f"{label} stores coach sequence timestamp", "coachStartedAt" in src)

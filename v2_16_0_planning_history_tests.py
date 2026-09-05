@@ -20,7 +20,7 @@ def check(name, condition):
     assert condition, name
     checks.append(name)
 
-check("v2.16 version", APP_VERSION == "2.19.5")
+check("v2.16 version", APP_VERSION == "2.19.6")
 check("student Daily contract unchanged", CHALLENGE_VERSION == "TDFC-DAILY-v1")
 check("Class History added to Learning", '["🗓️ Class History"]' in APP and "render_teacher_class_history(store)" in APP)
 check("existing Phase 2 Learning tools preserved", '["🧭 Next Steps", "📈 Learning Data", "🛠️ Student Support", "📅 Weekly Recap"]' in APP)
