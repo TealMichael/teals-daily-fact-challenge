@@ -18,7 +18,7 @@ def check(label: str, condition: bool) -> None:
         raise AssertionError(label)
     CHECKS += 1
 
-check("current version", APP_VERSION == "2.19.7")
+check("current version", APP_VERSION == "2.19.9")
 ui = (ROOT / "student_alt_daily_ui.py").read_text(encoding="utf-8")
 fix = (ROOT / "alt_fix_component" / "index.html").read_text(encoding="utf-8")
 focus = (ROOT / "alt_focus_component" / "index.html").read_text(encoding="utf-8")

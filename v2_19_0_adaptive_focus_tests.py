@@ -22,7 +22,7 @@ def check(label: str, value) -> None:
     checks.append(label)
 
 
-check("v2.19 version", APP_VERSION == "2.19.7")
+check("v2.19 version", APP_VERSION == "2.19.9")
 check("multiplication challenge unchanged", CHALLENGE_VERSION == "TDFC-DAILY-v1")
 check("alternate Focus matches multiplication length", ALT_FOCUS_SESSION_LENGTH == 8)
 
@@ -170,7 +170,7 @@ component = (ROOT / "alt_focus_component" / "index.html").read_text(encoding="ut
 focus_source = (ROOT / "alternate_focus.py").read_text(encoding="utf-8")
 store_source = (ROOT / "supabase_fact_store.py").read_text(encoding="utf-8")
 check("student UI declares alternate Focus component", '"tdfc_alt_focus_v2197"' in student_ui and "ALT_FOCUS_COMPONENT" in student_ui)
-check("student UI builds adaptive plan", "build_alternate_focus_plan" in student_ui and "recent_alternate_learning_events" in student_ui)
+check("student UI builds adaptive plan", "build_alternate_focus_plan" in student_ui and "recent_alternate_focus_evidence" in student_ui)
 check("student UI saves Focus evidence", "record_alternate_focus_batch" in student_ui)
 check("student UI unlocks Mystery after Focus branch", student_ui.index("Next: Focus Practice") < student_ui.index("Today's Mystery Reward"))
 check("finished banner includes Focus", "Focus Practice ✓" in student_ui)
@@ -209,7 +209,7 @@ expected_hashes = {
     "fact_coach.py": "dcbaf3aa62774a4627724d6de65fab31fb87254a25e601c16201980f806af9fb",
     "weekly_mystery.py": "dfe98e7ba8c9f86daa28396e9a61282bd2705f5f132c84ff7cbb5051b4740b1f",
     "daily_modes.py": "f37b151fc44514f761f66f616434d26764df9719b0ab64d1865c9ee0d1881561",
-    "student_igniter_ui.py": "043f3905b3e37a926cbae66d40de5e9ff963b2af3676f6bc4678336ca08e39ed",
+    "student_igniter_ui.py": "be1da6e5b6528586a150dfcca3e0861058ba96e53a431abdb3954cbefa9c651b",
     "AWTRIX_FactTop10.berry": "4ab1b8a25e84535591a2ff7905366aa89f18c83b41c2b56d22f2d68a49edc3e2",
     "requirements.txt": "3436997a9043e9843f0960bac0ade5a33acb72eba52a3070bd98a49b3fed7180",
 }

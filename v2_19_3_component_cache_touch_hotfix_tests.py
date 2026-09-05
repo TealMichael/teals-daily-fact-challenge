@@ -8,7 +8,7 @@ checks=[]
 def check(name, cond):
     assert cond, name
     checks.append(name)
-check('current version', APP_VERSION=='2.19.7')
+check('current version', APP_VERSION=='2.19.9')
 check('Fix component identity cache-busted', 'tdfc_alt_fix_v2197' in UI and '"tdfc_alt_fix"' not in UI)
 check('Focus component identity cache-busted', 'tdfc_alt_focus_v2197' in UI and '"tdfc_alt_focus"' not in UI)
 for label, src in [('Fix',FIX),('Focus',FOCUS)]:

@@ -7,6 +7,7 @@ ENGINE = (ROOT / "fact_engine.py").read_text(encoding="utf-8")
 LEARNING = (ROOT / "teacher_learning_ui.py").read_text(encoding="utf-8")
 TODAY = (ROOT / "teacher_today_ui.py").read_text(encoding="utf-8")
 ALL_UI = APP + "\n" + LEARNING + "\n" + TODAY
+RECOGNITION = (ROOT / "student_recognition.py").read_text(encoding="utf-8")
 
 
 def function_body(name: str, next_name: str) -> str:
@@ -18,7 +19,7 @@ leader_context = function_body("load_leaderboard_context", "_leaderboard_cache_k
 leader_render = function_body("render_leaderboard", "render_daily_review")
 
 a = {
-    "version 2.6": 'APP_VERSION = "2.19.7"' in ENGINE,
+    "version 2.6": 'APP_VERSION = "2.19.9"' in ENGINE,
     "four-step routine strip": 'def render_routine_strip(stage: str)' in APP and '1 · Daily 10' in APP and '4 · Mystery' in APP,
     "daily shows routine strip": 'render_routine_strip("daily")' in APP,
     "done screen is unmistakable": "YOU'RE DONE FOR TODAY!" in APP,
@@ -31,7 +32,7 @@ a = {
     "student leaderboard context strips correct_count": '"correct_count"' not in leader_context,
     "student leaderboard context strips timed_seconds": '"timed_seconds"' not in leader_context,
     "student leaderboard render has no score field": "leader-score" not in leader_render,
-    "student leaderboard only builds rank and nickname": '"rank": index' in leader_context and '"nickname": row["nickname"]' in leader_context,
+    "student leaderboard uses shared public recognition": "build_public_daily_recognition" in leader_context and '"rank": index' in RECOGNITION and '"nickname": str(row["nickname"])' in RECOGNITION,
     "teacher today defines Done": "Done means Daily 10 + Fix Your Misses + Focus Practice are complete" in TODAY,
     "teacher today says mystery optional": "The Mystery guess is optional" in TODAY,
     "teacher today has done working not-started": 'c1.metric("🟢 Done"' in TODAY and 'c2.metric("🟡 Working"' in TODAY and 'c3.metric("⚪ Not started"' in TODAY,

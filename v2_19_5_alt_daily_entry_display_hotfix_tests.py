@@ -10,7 +10,7 @@ def check(name, condition):
     assert condition, name
     checks.append(name)
 
-check("v2.19.5 version", APP_VERSION == "2.19.7")
+check("v2.19.5 version", APP_VERSION == "2.19.9")
 check("alternate Daily component cache-busted", 'tdfc_alt_daily_v2195' in UI)
 check("answer display has stable entry id", 'id="entry" class="${digits?' in DAILY)
 check("display updater targets entry id", "document.getElementById('entry')" in DAILY)

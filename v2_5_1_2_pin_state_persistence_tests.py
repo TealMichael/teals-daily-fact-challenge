@@ -6,7 +6,7 @@ APP = (ROOT / "app.py").read_text()
 ENGINE = (ROOT / "fact_engine.py").read_text()
 
 checks = {
-    "version bumped": 'APP_VERSION = "2.19.7"' in ENGINE,
+    "version bumped": 'APP_VERSION = "2.19.9"' in ENGINE,
     "component still declared": 'PIN_ENTRY_COMPONENT = components.declare_component' in APP,
     "no password input": 'type="password"' not in HTML.lower(),
     "no html input field": '<input' not in HTML.lower(),

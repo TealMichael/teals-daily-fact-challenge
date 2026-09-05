@@ -9,7 +9,7 @@ def run():
         "Fact 1 is untimed.",
         "DAILY_SPRINT_COMPONENT",
         "standings may change as more classmates finish · accuracy ranks first, with time used privately as the tiebreaker",
-        "Only the Top 10 is shown",
+        "Only Top 10 places are ranked",
         "Choose your area of need",
         "coach_plan_for_fact",
         "guided_practice_component",

@@ -29,7 +29,7 @@ def check(name: str, condition: bool) -> None:
     checks.append(name)
 
 
-check("v2.16.0 version", APP_VERSION == "2.19.7")
+check("v2.16.0 version", APP_VERSION == "2.19.9")
 check("multiplication challenge untouched", CHALLENGE_VERSION == "TDFC-DAILY-v1")
 check("v2.14 requires no SQL migration", not (ROOT / "RUN_THIS_ONCE_IN_SUPABASE_v2_14.sql").exists())
 
@@ -110,7 +110,7 @@ check("class-list terminal failure no longer crashes Today", "Classes could not 
 check("student support has confirmed reopen", "Reopen with a fresh Daily attempt" in APP and "confirm_reopen_daily" in APP)
 check("student support uses archive semantics", "Archive student" in APP and "Archiving keeps the student's history and PIN" in APP)
 
-# The most sensitive student files remain byte-for-byte v2.13.2.
+# Sensitive student sources remain protected; v2.19.9 intentionally updates only the Igniter completion cache.
 protected_files = {
     "daily_sprint_component/index.html": "dc8a59e1dbab86b3dd23f3eec37a4054fdc4fa9e117ffdb8b35395a4c9dcabad",
     "daily_alt_component/index.html": "332ee7265c450b00d4848a059f000439dba2089c4ec765bf18f41e2bed734c4d",
@@ -118,7 +118,7 @@ protected_files = {
     "answer_pad_component/index.html": "81dd828f95dcde11f20ae414bae1e16da3c9534d20400e1c3986989fdb7fe5cd",
     "persistent_login_component/index.html": "fae94c44f25512d2c017b24e17e3be2d987f21604072ed4c061fbae1cc9f9585",
     "pin_entry_component/index.html": "18a89b45481f83f33fd93746bdf854ba0e4b216c0c1f0904e035f871d5d8c2b7",
-    "student_igniter_ui.py": "043f3905b3e37a926cbae66d40de5e9ff963b2af3676f6bc4678336ca08e39ed",
+    "student_igniter_ui.py": "be1da6e5b6528586a150dfcca3e0861058ba96e53a431abdb3954cbefa9c651b",
     "fact_coach.py": "dcbaf3aa62774a4627724d6de65fab31fb87254a25e601c16201980f806af9fb",
     "adaptive_engine.py": "b828414cd7207a04c10feb71a797ee8650d09fba81017a503a4eacf274a1e6e9",
     "daily_modes.py": "f37b151fc44514f761f66f616434d26764df9719b0ab64d1865c9ee0d1881561",
@@ -129,9 +129,9 @@ for relative, expected in protected_files.items():
     actual = hashlib.sha256((ROOT / relative).read_bytes()).hexdigest()
     check(f"protected file unchanged: {relative}", actual == expected)
 
-# app.py mixes teacher and student routing, so protect the critical student functions independently.
+# app.py mixes teacher and student routing, so protect the current critical student functions independently.
 student_function_hashes = {
-    "render_daily": "7b4173eb5b7c047cf6d3541f650bf53c3d8c345f9b71d42e1d1288d78c017f65",
+    "render_daily": "897c6a8d249543a6ea22d4f8a6143fc3a1de8c71fccd3f97dcaf0dafb654898a",
     "handle_persistent_student_login": "2a71443811fa5ca321b1da2c573f8d7c489b136d8ce786164988ef0b5d5ce00d",
     "render_header": "209effe42c82db72f5593b1037669399f853c4e96dc47fc0eac0ed1a70d2d8a3",
 }

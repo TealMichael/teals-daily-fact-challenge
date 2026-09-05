@@ -1,16 +1,27 @@
-Teal's Daily Fact Challenge v2.19.7 — Follow-Up Lifecycle + Height Reliability
+Teal's Daily Fact Challenge v2.19.9 — Perfect Score Club
 
-1. Do NOT run any Supabase SQL for v2.19.7.
-2. Open UPLOAD_TO_GITHUB from this package.
-3. Copy everything inside it into the root of the existing v2.19.6 GitHub repository.
-4. Allow replacements.
-5. Review, commit, and push with GitHub Desktop.
-6. Let Streamlit Cloud redeploy.
-7. Refresh/reopen the app on the test-student device before testing Mixed / Fix Your Misses / Focus Practice so the v2.19.7 component identities load fresh.
+Browser-only GitHub install over v2.19.8
 
-No Streamlit Secret changes.
-No AWTRIX changes.
-Do not rerun the v2.17 migration.
+1. Upload the v2.19.9 changed GitHub files to the ROOT of the existing repository and allow replacements.
+2. Commit and push. Streamlit will redeploy automatically.
+3. In Supabase → SQL Editor, run RUN_THIS_ONCE_IN_SUPABASE_v2_19_9.sql exactly ONCE.
+4. No Streamlit Secret changes are needed.
+5. Do NOT reinstall or edit AWTRIX_FactTop10.berry. The existing clock script is intentionally unchanged.
+
+What students will see:
+- The existing Top 10 remains unchanged: accuracy first, time only as the private tiebreaker.
+- After the Top 10, a Perfect Score Club appears only when one or more 10/10 students are outside the Top 10.
+- Students already shown in the Top 10 are not repeated.
+- Perfect Score Club names are alphabetical, not ranked by speed.
+
+What the classroom clock will do:
+- The existing Top 10 scrolls first.
+- If there are additional 10/10 students outside the Top 10, the same notification then scrolls PERFECT SCORE CLUB! followed by those nicknames alphabetically.
+- If there are no additional perfect scores, the clock behaves exactly as before.
+- The full combined sequence still repeats twice using the existing AWTRIX script.
+
+Important test note:
+The Teacher Test Student remains excluded from public Top 10 / Perfect Score Club results by design, so it cannot be used to add a public club name to the clock.
 
 Suggested commit:
-v2.19.7 - replace alternate follow-up lifecycle with multiplication parity and fix blank-page height
+v2.19.9 - add Perfect Score Club after Top 10

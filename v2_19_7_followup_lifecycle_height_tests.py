@@ -18,7 +18,7 @@ def check(label: str, condition: bool) -> None:
         raise AssertionError(label)
     CHECKS += 1
 
-check("v2.19.7 version", APP_VERSION == "2.19.7")
+check("v2.19.9 version", APP_VERSION == "2.19.9")
 ui = (ROOT / "student_alt_daily_ui.py").read_text(encoding="utf-8")
 fix = (ROOT / "alt_fix_component" / "index.html").read_text(encoding="utf-8")
 focus = (ROOT / "alt_focus_component" / "index.html").read_text(encoding="utf-8")
@@ -93,4 +93,4 @@ for rel, expected in EXPECTED.items():
     actual = hashlib.sha256((ROOT / rel).read_bytes()).hexdigest()
     check(f"protected multiplication source unchanged: {rel}", actual == expected)
 
-print(f"v2.19.7 Follow-Up Lifecycle + Height: PASS ({CHECKS}/{CHECKS} checks)")
+print(f"v2.19.9 Follow-Up Lifecycle + Height: PASS ({CHECKS}/{CHECKS} checks)")

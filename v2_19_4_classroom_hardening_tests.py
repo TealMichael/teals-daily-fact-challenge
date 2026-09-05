@@ -22,7 +22,7 @@ def check(label: str, condition: bool) -> None:
         raise AssertionError(label)
     CHECKS += 1
 
-check("v2.19.5 version", APP_VERSION == "2.19.7")
+check("v2.19.5 version", APP_VERSION == "2.19.9")
 check("multiplication challenge version frozen", CHALLENGE_VERSION == "TDFC-DAILY-v1")
 
 # Student-mode reads must never silently fall back to Multiplication after a DB failure.

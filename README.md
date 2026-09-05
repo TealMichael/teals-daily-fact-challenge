@@ -1,46 +1,48 @@
-# Teal's Daily Fact Challenge v2.19.7 — Follow-Up Lifecycle + Height Reliability
+# Teal's Daily Fact Challenge v2.19.9 — Perfect Score Club
 
-v2.19.7 repairs the complete non-multiplication follow-up interaction path used by Addition, Subtraction, Division, Integers, and Mixed. This is intentionally a controller/lifecycle repair rather than another isolated button patch.
+v2.19.9 adds the student-requested **Perfect Score Club** without changing the existing Top 10 ranking.
 
-## What was actually wrong
+## Recognition rules
 
-The alternate Fix Your Misses / Focus Practice components had drifted from multiplication underneath the UI. They used their own timestamp/resume state machine and rebuilt the teaching DOM during routine Streamlit render messages. That made a valid-looking **WATCH IT** button vulnerable to becoming stranded when the live component lifecycle did not match the isolated browser test.
+- **Top 10 is unchanged.** Accuracy ranks first; time remains the private tiebreaker.
+- **Perfect Score Club = 10/10 students who are not already in the Top 10.**
+- Top 10 students are not duplicated in the club.
+- Club names are shown alphabetically so the club does not become a second speed leaderboard.
+- The club is omitted entirely when there are no additional perfect scorers.
+- Test students and inactive students remain excluded from public recognition.
 
-The same alternate layout also kept later teaching content in the page with `opacity: 0`, which hid it visually but still reserved its height. Combined with scroll-height-based iframe sizing, this could leave a very long page with large amounts of blank white space.
+## Student finish screen
 
-## What changed
+The final student screen now shows the existing Current Top 10 first, followed by **⭐ Perfect Score Club** when applicable. A student who earned 10/10 but missed the Top 10 receives a positive Perfect Score Club message instead of only seeing the generic lower-rank privacy message.
 
-- **WATCH IT** now uses the same controller pattern as multiplication: one direct `startTeachSequence()` path.
-- **REPLAY** calls that same controller and fully resets the visible teaching stages before replaying.
-- **TRY AGAIN** remains unavailable until the teaching sequence reaches **YOUR TURN**, then transitions into the retry keypad.
-- Routine same-session Streamlit render messages now preserve the live teaching DOM instead of rebuilding it and interrupting the active sequence.
-- Legacy/unknown teaching phases are normalized safely back to the valid coaching state instead of showing a button that cannot run.
-- Fix Your Misses now uses session-scoped browser state, matching multiplication's safer lifecycle rather than persistent local storage.
-- Future teaching stages are `display: none` until SEE IT / CONNECT IT / YOUR TURN actually reach them, eliminating the giant invisible reserved area before WATCH IT.
-- Iframe height is measured from the actual rendered root content, so it can **grow and shrink** instead of retaining stale viewport/scroll height.
-- A root `ResizeObserver` keeps height synchronized as stages appear, replay, or transition.
-- Fix and Focus component identities/state contracts were advanced so student browsers load the corrected components fresh.
-- The v2.19.5 alternate Daily typed-answer display fix remains intact.
+Multiplication and alternate Daily modes use the same new `student_recognition.py` helper so recognition rules cannot drift between fact areas. Raw class scores and times are still stripped from the student-facing context; only Top 10 rank/nickname plus public 10/10 club membership are retained.
+
+## AWTRIX classroom ticker
+
+The existing AWTRIX script is **not changed and does not need to be reinstalled**. The v2.19.9 Supabase helper keeps the current Top 10 text exactly first, then appends:
+
+`PERFECT SCORE CLUB!   Nickname   Nickname ...`
+
+only when additional 10/10 students exist outside the Top 10. Because it is appended to the existing payload, manual and automatic clock displays both get the feature and the full sequence still repeats twice.
 
 ## What did NOT change
 
-The multiplication Daily, multiplication Guided Practice / Fix Your Misses / Focus Practice component, multiplication Fact Coach, multiplication adaptive/mastery engine, Weekly Mystery, Supabase schema, dependencies, and AWTRIX are unchanged.
+- Daily question generation or scoring
+- Top 10 ranking order
+- Timer behavior
+- Multiplication Daily component
+- Multiplication Guided Practice / Fix / Focus component
+- Fact Coach or adaptive/mastery engine
+- Alternate Daily keypad
+- Alternate WATCH / REPLAY / TRY AGAIN components
+- Weekly Mystery
+- AWTRIX Berry script, connection token, or schedule windows
+- Streamlit dependencies or secrets
 
-The protected multiplication files were verified byte-for-byte against the established source-of-truth hashes.
+## Installation
+
+Deploy the GitHub files over v2.19.8, then run `RUN_THIS_ONCE_IN_SUPABASE_v2_19_9.sql` once in Supabase SQL Editor. No other SQL or clock setup is required.
 
 ## Verification
 
-- **86/86 Python regression test files passed** across three complete batches.
-- New **v2.19.7 Follow-Up Lifecycle + Height** suite: **67/67 checks passed**.
-- Updated alternate follow-up parity regression: **47/47 checks passed**.
-- Classroom-hardening regression: **48/48 checks passed**.
-- A real Chromium iframe audit exercised the actual component message lifecycle under deliberately noisy Streamlit-style same-session rerenders.
-- Chromium audit passed on both desktop and touch emulation for **WATCH IT → REPLAY → TRY AGAIN → keypad → submit**.
-- The exact reported Integer example `5 − (-5)` was exercised end-to-end.
-- Browser audit verified that the teaching card starts compact, grows as stages appear, and **shrinks again on Replay** rather than retaining white space.
-- Browser audit covered every generated alternate teaching visual family found in the 2026 question generators.
-- Production pacing was separately exercised at the real 180 ms / 1350 ms / 2650 ms stage timing.
-- All browser component JavaScript files pass syntax checking.
-- All Python files compile successfully.
-
-No Supabase SQL, Streamlit Secret, or AWTRIX change is required. Install directly over v2.19.6.
+See `TEST_RESULTS_v2_19_9.txt`. The release includes a dedicated Perfect Score Club regression suite plus the full historical test inventory.

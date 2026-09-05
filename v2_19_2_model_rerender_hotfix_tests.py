@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-"""Model-rerender reliability regression, updated for the v2.19.7 lifecycle.
+"""Model-rerender reliability regression, updated for the v2.19.9 lifecycle.
 
 The current fix follows multiplication's safer rule: same-session Streamlit render
 messages do not rebuild the live teaching DOM, so WATCH/REPLAY timers cannot be
@@ -19,7 +19,7 @@ def check(name: str, condition: bool):
     assert condition, name
     checks.append(name)
 
-check("current version", APP_VERSION == "2.19.7")
+check("current version", APP_VERSION == "2.19.9")
 for label, src in (("Fix", FIX), ("Focus", FOCUS)):
     check(f"{label} no longer depends on rerender timestamps", "coachStartedAt" not in src and "resumeSequence" not in src)
     check(f"{label} has multiplication-style start controller", "function startTeachSequence()" in src)

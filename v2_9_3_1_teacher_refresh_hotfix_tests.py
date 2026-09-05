@@ -22,7 +22,7 @@ def today_section() -> str:
 today = today_section()
 
 checks = {
-    'version 2.10.0': APP_VERSION == '2.19.7',
+    'version 2.10.0': APP_VERSION == '2.19.9',
     'refresh clears cached Supabase store': 'load_store.clear()' in request,
     'refresh marks fresh read pending': 'teacher_refresh_pending' in request,
     'button uses pre-rerun callback': 'on_click=_request_teacher_refresh' in control,

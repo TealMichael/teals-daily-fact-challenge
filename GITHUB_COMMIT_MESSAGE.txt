@@ -1,1 +1,1 @@
-v2.19.7 - replace alternate follow-up lifecycle with multiplication parity and fix blank-page height
+v2.19.9 - add Perfect Score Club after Top 10

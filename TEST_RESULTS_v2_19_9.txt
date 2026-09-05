@@ -1,0 +1,41 @@
+Teal's Daily Fact Challenge v2.19.9 — Verification
+
+Release feature: Perfect Score Club after the existing Top 10.
+
+RESULTS
+- Full historical Python test inventory: 88/88 test files passed across split regression runs.
+- New v2.19.9 Perfect Score Club suite: 38/38 checks passed.
+- v2.19.8 Student Speed Pass regression: 43/43 passed.
+- v2.19.7 Follow-Up Lifecycle + Height regression: 67/67 passed.
+- v2.19.6 Alternate Follow-Up Parity regression: 47/47 passed.
+- v2.19.4 Classroom Hardening regression: 48/48 passed.
+- Package smoke: 119 Python files parsed; 52 required app files present.
+- Runtime-name guard: 30 production modules checked.
+- Python compilation: all 119 Python files compiled successfully.
+- Browser component JavaScript syntax: 8/8 components passed.
+- Protected multiplication sources verified byte-for-byte unchanged.
+- AWTRIX_FactTop10.berry verified byte-for-byte unchanged from v2.19.8.
+
+PERFECT SCORE CLUB CONTRACT VERIFIED
+- Existing Top 10 order is preserved exactly.
+- Top 10 remains accuracy-first, with time as the private tiebreaker.
+- Only official 10/10 Daily scorers outside the Top 10 enter the club.
+- Top 10 students are never duplicated in the club.
+- Club names are alphabetical rather than speed-ranked.
+- Non-perfect students are excluded.
+- Public student context strips raw scores and times.
+- Test and inactive students remain excluded from public clock recognition.
+- Club is omitted when there are no additional perfect scorers.
+- Multiplication and alternate modes use one shared recognition helper.
+
+AWTRIX CONTRACT VERIFIED
+- Existing Berry script, token, schedule windows, polling, chime, repeat=2, and stack behavior are unchanged.
+- Supabase payload keeps the existing BLOCK N TOP 10 text first.
+- PERFECT SCORE CLUB is appended only when additional 10/10 students exist outside Top 10.
+- Manual and automatic clock sends both receive the combined payload through the existing RPCs.
+
+DEPLOYMENT
+- GitHub files: deploy over v2.19.8.
+- Supabase: run RUN_THIS_ONCE_IN_SUPABASE_v2_19_9.sql once.
+- Streamlit Secrets: no changes.
+- AWTRIX Berry script: no reinstall/change.

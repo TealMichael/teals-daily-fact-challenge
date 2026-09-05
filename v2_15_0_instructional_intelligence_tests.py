@@ -29,7 +29,7 @@ def check(name, condition):
     assert condition, name
     checks.append(name)
 
-check("v2.15 version", APP_VERSION == "2.19.7")
+check("v2.15 version", APP_VERSION == "2.19.9")
 check("student Daily contract unchanged", CHALLENGE_VERSION == "TDFC-DAILY-v1")
 
 # Phase 2 navigation + teacher UI contract.
@@ -157,7 +157,7 @@ protected = {
     "answer_pad_component/index.html": "81dd828f95dcde11f20ae414bae1e16da3c9534d20400e1c3986989fdb7fe5cd",
     "persistent_login_component/index.html": "fae94c44f25512d2c017b24e17e3be2d987f21604072ed4c061fbae1cc9f9585",
     "pin_entry_component/index.html": "18a89b45481f83f33fd93746bdf854ba0e4b216c0c1f0904e035f871d5d8c2b7",
-    "student_igniter_ui.py": "043f3905b3e37a926cbae66d40de5e9ff963b2af3676f6bc4678336ca08e39ed",
+    "student_igniter_ui.py": "be1da6e5b6528586a150dfcca3e0861058ba96e53a431abdb3954cbefa9c651b",
     "fact_coach.py": "dcbaf3aa62774a4627724d6de65fab31fb87254a25e601c16201980f806af9fb",
     "adaptive_engine.py": "b828414cd7207a04c10feb71a797ee8650d09fba81017a503a4eacf274a1e6e9",
     "daily_modes.py": "f37b151fc44514f761f66f616434d26764df9719b0ab64d1865c9ee0d1881561",
