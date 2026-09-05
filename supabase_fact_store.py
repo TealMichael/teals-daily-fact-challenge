@@ -8,6 +8,7 @@ receive direct database credentials.
 """
 
 from datetime import date, datetime, timedelta, timezone
+from dataclasses import replace
 from typing import Callable, Mapping, Sequence, TypeVar
 import hashlib
 import random
@@ -1000,7 +1001,20 @@ class SupabaseFactStore:
             "custom_answers": values,
             "learning_evidence_applied_at": None,
         }).eq("attempt_id", str(attempt_id)).execute())
-        return self.ensure_daily_learning_evidence(attempt_id)
+
+        # We already have the exact persisted attempt values in hand.  Build the
+        # alternate Daily evidence from them directly instead of immediately
+        # re-reading the same attempt several times during the stage transition.
+        completed_attempt = replace(
+            attempt, timed_started_at=started, completed_at=when, correct_count=correct_count,
+            timed_seconds=seconds, learning_evidence_applied_at=None, custom_answers=tuple(values),
+        )
+        self._ensure_alternate_followup_for_attempt(completed_attempt, repair_fix=False)
+        marker = utc_now()
+        _retry_transient(lambda: self.client.table("daily_attempts").update({
+            "learning_evidence_applied_at": marker.isoformat(),
+        }).eq("attempt_id", str(attempt_id)).is_("learning_evidence_applied_at", "null").execute())
+        return replace(completed_attempt, learning_evidence_applied_at=marker)
 
     def ensure_daily_learning_evidence(self, attempt_id: str) -> AttemptRecord:
         """Apply or repair Daily mastery/progress evidence exactly once in effect.
@@ -1014,11 +1028,12 @@ class SupabaseFactStore:
         if attempt.completed_at is None or attempt.learning_evidence_applied_at is not None:
             return attempt
         if attempt.daily_mode != "Multiplication":
-            self.ensure_alternate_followup_state(attempt_id)
+            self._ensure_alternate_followup_for_attempt(attempt, repair_fix=True)
+            marker = utc_now()
             _retry_transient(lambda: self.client.table("daily_attempts").update({
-                "learning_evidence_applied_at": utc_now().isoformat(),
+                "learning_evidence_applied_at": marker.isoformat(),
             }).eq("attempt_id", str(attempt_id)).is_("learning_evidence_applied_at", "null").execute())
-            return self.get_attempt(attempt_id)
+            return replace(attempt, learning_evidence_applied_at=marker)
         saved = self.get_answers(attempt_id)
         if len(saved) != 10:
             raise FactStoreError("Daily evidence repair requires all 10 saved answers.")
@@ -1146,14 +1161,18 @@ class SupabaseFactStore:
         self, student_id: str, challenge_id: str, daily_mode: str
     ) -> AlternateLearningProgressRecord:
         progress = self.get_or_create_alternate_learning_progress(student_id, challenge_id, daily_mode)
-        if progress.fix_completed_at is None:
-            now = utc_now().isoformat()
-            _retry_transient(lambda: (
-                self.client.table("alternate_learning_progress")
-                .update({"fix_completed_at": now, "updated_at": now})
-                .eq("student_id", str(student_id)).eq("challenge_id", str(challenge_id)).execute()
-            ))
-        return self.get_or_create_alternate_learning_progress(student_id, challenge_id, daily_mode)
+        if progress.fix_completed_at is not None:
+            return progress
+        now = utc_now()
+        now_text = now.isoformat()
+        row = _first(_retry_transient(lambda: _execute_returning(
+            self.client.table("alternate_learning_progress")
+            .update({"fix_completed_at": now_text, "updated_at": now_text})
+            .eq("student_id", str(student_id)).eq("challenge_id", str(challenge_id))
+        )))
+        if row is None:
+            raise FactStoreError("Could not save Fix Your Misses completion.")
+        return _alternate_learning(row)
 
     def set_alternate_focus_plan(
         self, student_id: str, challenge_id: str, daily_mode: str, plan: Sequence[Mapping]
@@ -1169,13 +1188,15 @@ class SupabaseFactStore:
             if daily_mode != "Mixed" and identity.domain != daily_mode:
                 raise ValueError("Alternate Focus plan contains a question from the wrong domain.")
             int(item.get("correct_answer"))
-        now = utc_now().isoformat()
-        _retry_transient(lambda: (
+        now_text = utc_now().isoformat()
+        row = _first(_retry_transient(lambda: _execute_returning(
             self.client.table("alternate_learning_progress")
-            .update({"focus_plan": items, "updated_at": now})
-            .eq("student_id", str(student_id)).eq("challenge_id", str(challenge_id)).execute()
-        ))
-        return self.get_or_create_alternate_learning_progress(student_id, challenge_id, daily_mode)
+            .update({"focus_plan": items, "updated_at": now_text})
+            .eq("student_id", str(student_id)).eq("challenge_id", str(challenge_id))
+        )))
+        if row is None:
+            raise FactStoreError("Could not save the Focus Practice plan.")
+        return _alternate_learning(row)
 
     def recent_alternate_learning_events(
         self, student_id: str, *, limit: int = 500
@@ -1187,23 +1208,55 @@ class SupabaseFactStore:
         )))
         return [_alternate_event(row) for row in rows]
 
+    def recent_alternate_focus_evidence(
+        self, student_id: str, *, limit: int = 500
+    ) -> list[dict]:
+        """Load only the fields the alternate Focus planner actually scores.
+
+        The planner still sees the same newest-first 500-event history; this only
+        avoids shipping full prompts/answers/IDs across the network on each new
+        Focus plan.
+        """
+        count = max(1, min(2000, int(limit)))
+        rows = _rows(_retry_transient(lambda: (
+            self.client.table("alternate_learning_events")
+            .select("activity_type,is_retry,domain,item_key,skill_key,correct,created_at")
+            .eq("student_id", str(student_id)).order("created_at", desc=True).range(0, count - 1).execute()
+        )))
+        return [
+            {
+                "activity_type": str(row.get("activity_type") or ""),
+                "is_retry": bool(row.get("is_retry")),
+                "domain": str(row.get("domain") or ""),
+                "item_key": str(row.get("item_key") or ""),
+                "skill_key": str(row.get("skill_key") or ""),
+                "correct": bool(row.get("correct")),
+            }
+            for row in rows
+        ]
+
     def mark_alternate_focus_complete(
         self, student_id: str, challenge_id: str, daily_mode: str
     ) -> AlternateLearningProgressRecord:
         progress = self.get_or_create_alternate_learning_progress(student_id, challenge_id, daily_mode)
         if progress.fix_completed_at is None:
             raise ValueError("Finish Fix Your Misses before Focus Practice.")
-        if progress.completed_at is None:
-            now = utc_now().isoformat()
-            _retry_transient(lambda: (
-                self.client.table("alternate_learning_progress")
-                .update({"focus_completed_at": now, "completed_at": now, "updated_at": now})
-                .eq("student_id", str(student_id)).eq("challenge_id", str(challenge_id)).execute()
-            ))
-        return self.get_or_create_alternate_learning_progress(student_id, challenge_id, daily_mode)
+        if progress.completed_at is not None:
+            return progress
+        now = utc_now()
+        now_text = now.isoformat()
+        row = _first(_retry_transient(lambda: _execute_returning(
+            self.client.table("alternate_learning_progress")
+            .update({"focus_completed_at": now_text, "completed_at": now_text, "updated_at": now_text})
+            .eq("student_id", str(student_id)).eq("challenge_id", str(challenge_id))
+        )))
+        if row is None:
+            raise FactStoreError("Could not save Focus Practice completion.")
+        return _alternate_learning(row)
 
-    def ensure_alternate_followup_state(self, attempt_id: str) -> AlternateLearningProgressRecord:
-        attempt = self.get_attempt(attempt_id)
+    def _ensure_alternate_followup_for_attempt(
+        self, attempt: AttemptRecord, *, repair_fix: bool
+    ) -> AlternateLearningProgressRecord:
         if attempt.daily_mode == "Multiplication" or attempt.daily_mode not in ALT_MODES:
             raise ValueError("Alternate follow-up is only available for alternate Daily 10 modes.")
         if attempt.completed_at is None:
@@ -1234,11 +1287,19 @@ class SupabaseFactStore:
         missed = missed_question_items(questions, answers, default_domain=None if attempt.daily_mode == "Mixed" else attempt.daily_mode)
         if not missed:
             return self.mark_alternate_fix_complete(attempt.student_id, attempt.challenge_id, attempt.daily_mode)
-        fixed_rows = self.alternate_learning_activity_rows(attempt.student_id, attempt.challenge_id, "fix_miss")
-        corrected = {int(row.activity_index) for row in fixed_rows if row.correct}
-        if {int(item["question_number"]) for item in missed}.issubset(corrected):
-            return self.mark_alternate_fix_complete(attempt.student_id, attempt.challenge_id, attempt.daily_mode)
+        if repair_fix:
+            # This read exists only on a defensive repair path.  A just-completed
+            # Daily cannot already have Fix events, so the normal completion path
+            # skips it.
+            fixed_rows = self.alternate_learning_activity_rows(attempt.student_id, attempt.challenge_id, "fix_miss")
+            corrected = {int(row.activity_index) for row in fixed_rows if row.correct}
+            if {int(item["question_number"]) for item in missed}.issubset(corrected):
+                return self.mark_alternate_fix_complete(attempt.student_id, attempt.challenge_id, attempt.daily_mode)
         return progress
+
+    def ensure_alternate_followup_state(self, attempt_id: str) -> AlternateLearningProgressRecord:
+        attempt = self.get_attempt(attempt_id)
+        return self._ensure_alternate_followup_for_attempt(attempt, repair_fix=True)
 
     def record_alternate_fix_batch(
         self, attempt_id: str, corrections: Sequence[Mapping]
@@ -1278,7 +1339,12 @@ class SupabaseFactStore:
                 "client_event_id": f"alt-fix:{attempt.attempt_id}:{index}",
             })
         self._upsert_alternate_events(payloads)
-        return self.ensure_alternate_followup_state(attempt_id)
+        # Every missed item was validated correct above and the idempotent upsert
+        # succeeded, so mark Fix complete directly.  The heavier Daily-evidence
+        # repair remains available when a genuinely interrupted save is reopened.
+        return self.mark_alternate_fix_complete(
+            attempt.student_id, attempt.challenge_id, attempt.daily_mode
+        )
 
     def record_alternate_focus_batch(
         self, attempt_id: str, events: Sequence[Mapping]
@@ -1337,9 +1403,12 @@ class SupabaseFactStore:
                     "is_retry": is_retry, "response_seconds": seconds, "created_at": utc_now().isoformat(),
                     "client_event_id": str(raw.get("client_event_id")),
                 })
-        self._upsert_alternate_events(payloads)
+        saved = self._upsert_alternate_events(payloads)
 
-        rows = self.alternate_learning_activity_rows(attempt.student_id, attempt.challenge_id, "focus")
+        # The pre-save query already loaded every existing Focus row, and the
+        # upsert returns the newly saved rows.  Combine those locally instead of
+        # immediately downloading the same activity history again.
+        rows = list(existing) + list(saved)
         complete = True
         for index in range(1, ALT_FOCUS_SESSION_LENGTH + 1):
             slot = [row for row in rows if int(row.activity_index) == index]
@@ -1349,7 +1418,7 @@ class SupabaseFactStore:
                 break
         if complete:
             return self.mark_alternate_focus_complete(attempt.student_id, attempt.challenge_id, attempt.daily_mode)
-        return self.get_or_create_alternate_learning_progress(attempt.student_id, attempt.challenge_id, attempt.daily_mode)
+        return progress
 
     def rebuild_mastery(self, student_id: str) -> list[MasterySnapshot]:
         attempt_rows = _rows(

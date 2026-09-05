@@ -30,6 +30,16 @@ ALT_FOCUS_COMPONENT = components.declare_component(
 )
 
 
+def _progress_cache_key(attempt) -> str:
+    # Attempt-scoped so Teacher → Reopen Daily cannot inherit stale Fix/Focus
+    # completion from the deleted attempt.
+    return f"alt_progress::{attempt.attempt_id}"
+
+def _cache_progress(attempt, progress):
+    st.session_state[_progress_cache_key(attempt)] = progress
+    return progress
+
+
 def _student_top10(store: SupabaseFactStore, challenge) -> dict:
     class_id = str(st.session_state.student_class_id)
     student_id = str(st.session_state.student_id)
@@ -101,15 +111,21 @@ def render_alternate_daily(store: SupabaseFactStore, day, challenge, attempt, *,
             # completion path already applies/repairs learning evidence, so do not
             # re-upsert the same ten Daily evidence rows on every finished-page rerun.
             evidence_key = f"daily_evidence_verified::{attempt.attempt_id}"
-            if not st.session_state.get(evidence_key, False):
-                store.ensure_daily_learning_evidence(attempt.attempt_id)
+            if getattr(attempt, "learning_evidence_applied_at", None) is not None:
                 st.session_state[evidence_key] = True
-            progress = store.get_alternate_learning_progress(
-                attempt.student_id, attempt.challenge_id, str(attempt.daily_mode)
-            )
+            if not st.session_state.get(evidence_key, False):
+                attempt = store.ensure_daily_learning_evidence(attempt.attempt_id)
+                st.session_state[evidence_key] = True
+
+            progress = st.session_state.get(_progress_cache_key(attempt))
             if progress is None:
-                # Defensive repair for an unexpectedly missing progress row.
-                progress = store.ensure_alternate_followup_state(attempt.attempt_id)
+                progress = store.get_alternate_learning_progress(
+                    attempt.student_id, attempt.challenge_id, str(attempt.daily_mode)
+                )
+                if progress is None:
+                    # Defensive repair for an unexpectedly missing progress row.
+                    progress = store.ensure_alternate_followup_state(attempt.attempt_id)
+                _cache_progress(attempt, progress)
 
             missed = missed_question_items(
                 questions, answers,
@@ -118,8 +134,11 @@ def render_alternate_daily(store: SupabaseFactStore, day, challenge, attempt, *,
             had_daily_misses = bool(missed)
             if progress.completed_at is None and progress.fix_completed_at is None:
                 if not missed:
-                    progress = store.mark_alternate_fix_complete(
-                        attempt.student_id, attempt.challenge_id, str(attempt.daily_mode)
+                    progress = _cache_progress(
+                        attempt,
+                        store.mark_alternate_fix_complete(
+                            attempt.student_id, attempt.challenge_id, str(attempt.daily_mode)
+                        ),
                     )
                 else:
                     st.success("✅ Daily 10 complete!")
@@ -148,7 +167,8 @@ def render_alternate_daily(store: SupabaseFactStore, day, challenge, attempt, *,
                     )
                     if isinstance(result, dict) and result.get("status") == "complete":
                         corrections = list(result.get("corrections") or [])
-                        store.record_alternate_fix_batch(attempt.attempt_id, corrections)
+                        progress = store.record_alternate_fix_batch(attempt.attempt_id, corrections)
+                        _cache_progress(attempt, progress)
                         st.rerun()
                     st.caption("After your fixes, you'll finish 8 personalized Focus questions.")
                     return
@@ -156,13 +176,16 @@ def render_alternate_daily(store: SupabaseFactStore, day, challenge, attempt, *,
             # v2.19: alternate modes now match multiplication's Step 3 rhythm.
             if progress.completed_at is None and progress.focus_completed_at is None:
                 if not progress.focus_plan:
-                    history = store.recent_alternate_learning_events(attempt.student_id, limit=500)
+                    history = store.recent_alternate_focus_evidence(attempt.student_id, limit=500)
                     focus_plan = build_alternate_focus_plan(
                         str(attempt.daily_mode), questions, answers, history,
                         student_id=str(attempt.student_id), date_key=day.isoformat(),
                     )
-                    progress = store.set_alternate_focus_plan(
-                        attempt.student_id, attempt.challenge_id, str(attempt.daily_mode), focus_plan
+                    progress = _cache_progress(
+                        attempt,
+                        store.set_alternate_focus_plan(
+                            attempt.student_id, attempt.challenge_id, str(attempt.daily_mode), focus_plan
+                        ),
                     )
 
                 plan_items = list(progress.focus_plan or ())
@@ -193,8 +216,11 @@ def render_alternate_daily(store: SupabaseFactStore, day, challenge, attempt, *,
                         "attempt_offset": len(slot),
                     })
                 if not remaining_items:
-                    progress = store.mark_alternate_focus_complete(
-                        attempt.student_id, attempt.challenge_id, str(attempt.daily_mode)
+                    progress = _cache_progress(
+                        attempt,
+                        store.mark_alternate_focus_complete(
+                            attempt.student_id, attempt.challenge_id, str(attempt.daily_mode)
+                        ),
                     )
                     st.rerun()
 
@@ -210,7 +236,8 @@ def render_alternate_daily(store: SupabaseFactStore, day, challenge, attempt, *,
                 )
                 if isinstance(result, dict) and result.get("status") == "complete":
                     events = list(result.get("events") or [])
-                    store.record_alternate_focus_batch(attempt.attempt_id, events)
+                    progress = store.record_alternate_focus_batch(attempt.attempt_id, events)
+                    _cache_progress(attempt, progress)
                     st.rerun()
                 st.caption("Your Mystery reward unlocks after Focus Practice.")
                 return
@@ -255,7 +282,11 @@ def render_alternate_daily(store: SupabaseFactStore, day, challenge, attempt, *,
             values = [int(value) for value in raw_answers]
             if any(value < -999 or value > 999 for value in values):
                 raise ValueError("Alternate Daily component returned an invalid answer.")
-            store.complete_custom_attempt(attempt.attempt_id, values, timed_seconds, completed_at=utc_now())
+            attempt = store.complete_custom_attempt(
+                attempt.attempt_id, values, timed_seconds, completed_at=utc_now()
+            )
+            if getattr(attempt, "learning_evidence_applied_at", None) is not None:
+                st.session_state[f"daily_evidence_verified::{attempt.attempt_id}"] = True
             st.rerun()
         except Exception as exc:
             st.error("Your finished Daily could not be saved. Leave this page open and try once more; your answers are still here.")

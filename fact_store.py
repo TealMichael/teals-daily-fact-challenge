@@ -841,6 +841,21 @@ class InMemoryFactStore:
         rows.sort(key=lambda row: (row.created_at, row.event_id), reverse=True)
         return rows[:max(1, int(limit))]
 
+    def recent_alternate_focus_evidence(
+        self, student_id: str, *, limit: int = 500
+    ) -> list[dict]:
+        return [
+            {
+                "activity_type": row.activity_type,
+                "is_retry": bool(row.is_retry),
+                "domain": row.domain,
+                "item_key": row.item_key,
+                "skill_key": row.skill_key,
+                "correct": bool(row.correct),
+            }
+            for row in self.recent_alternate_learning_events(student_id, limit=limit)
+        ]
+
     def mark_alternate_focus_complete(
         self, student_id: str, challenge_id: str, daily_mode: str
     ) -> AlternateLearningProgressRecord:

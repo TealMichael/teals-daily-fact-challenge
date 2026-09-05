@@ -1008,6 +1008,78 @@ def ensure_today(store: SupabaseFactStore):
     challenge = store.get_or_create_challenge(day, CHALLENGE_VERSION, facts)
     return day, list(challenge.facts), challenge
 
+def _alternate_day_context_cache_key(day) -> str:
+    return (
+        f"alt_day_context::{st.session_state.student_id}::"
+        f"{st.session_state.student_class_id}::{day.isoformat()}"
+    )
+
+def load_student_daily_context(store: SupabaseFactStore):
+    """Load today's Daily context with reset-safe alternate-mode reuse.
+
+    Multiplication deliberately keeps its established load path untouched. For an
+    alternate attempt, the immutable challenge/facts are kept in this Streamlit
+    session, but the attempt itself is always re-read at a stage transition. That
+    preserves Teacher → Reopen Daily semantics while avoiding repeated challenge
+    and class/date mode reads during the normal Daily → Fix → Focus sequence.
+    """
+    day = current_daily_date()
+    context_key = _alternate_day_context_cache_key(day)
+    cached = st.session_state.get(context_key)
+    if isinstance(cached, dict):
+        challenge = cached.get("challenge")
+        facts = list(cached.get("facts") or ())
+        cached_mode = str(cached.get("daily_mode") or "Multiplication")
+        if challenge is not None and len(facts) == 10 and cached_mode != "Multiplication":
+            # Do not cache the attempt object. A teacher can reopen/reset today's
+            # Daily from another browser session, which deletes that attempt.
+            attempt = store.get_attempt_for_student(
+                st.session_state.student_id, challenge.challenge_id
+            )
+            if attempt is not None:
+                if str(getattr(attempt, "daily_mode", None) or "Multiplication") != "Multiplication":
+                    return day, facts, challenge, attempt
+                # Unexpected mode mismatch: discard the alternate-only cache and
+                # fall through to the original load path.
+                st.session_state.pop(context_key, None)
+            else:
+                # A support reset/reopen was detected. Re-read the class/date mode
+                # before creating the fresh attempt so a teacher's setup change is
+                # respected immediately.
+                configured_mode = configured_daily_mode(
+                    store, st.session_state.student_class_id, day, strict=True
+                )
+                custom_questions = (
+                    questions_for_mode(day, configured_mode)
+                    if configured_mode != "Multiplication" else None
+                )
+                attempt = store.get_or_create_attempt(
+                    st.session_state.student_id, challenge.challenge_id,
+                    daily_mode=configured_mode, custom_questions=custom_questions,
+                )
+                if str(getattr(attempt, "daily_mode", None) or "Multiplication") != "Multiplication":
+                    st.session_state[context_key] = {
+                        "facts": tuple(facts), "challenge": challenge, "daily_mode": str(attempt.daily_mode)
+                    }
+                else:
+                    st.session_state.pop(context_key, None)
+                return day, facts, challenge, attempt
+
+    # First load (and every Multiplication load) intentionally follows the
+    # established source-of-truth path exactly.
+    day, facts, challenge = ensure_today(store)
+    configured_mode = configured_daily_mode(store, st.session_state.student_class_id, day, strict=True)
+    custom_questions = questions_for_mode(day, configured_mode) if configured_mode != "Multiplication" else None
+    attempt = store.get_or_create_attempt(
+        st.session_state.student_id, challenge.challenge_id,
+        daily_mode=configured_mode, custom_questions=custom_questions,
+    )
+    if str(getattr(attempt, "daily_mode", None) or "Multiplication") != "Multiplication":
+        st.session_state[context_key] = {
+            "facts": tuple(facts), "challenge": challenge, "daily_mode": str(attempt.daily_mode)
+        }
+    return day, facts, challenge, attempt
+
 def load_leaderboard_context(store: SupabaseFactStore, challenge) -> dict:
     """Load a privacy-sanitized student leaderboard snapshot.
 
@@ -1587,13 +1659,7 @@ def render_daily(store: SupabaseFactStore | None) -> None:
         return
 
     try:
-        day, facts, challenge = ensure_today(store)
-        configured_mode = configured_daily_mode(store, st.session_state.student_class_id, day, strict=True)
-        custom_questions = questions_for_mode(day, configured_mode) if configured_mode != "Multiplication" else None
-        attempt = store.get_or_create_attempt(
-            st.session_state.student_id, challenge.challenge_id,
-            daily_mode=configured_mode, custom_questions=custom_questions,
-        )
+        day, facts, challenge, attempt = load_student_daily_context(store)
     except Exception as exc:
         render_daily_load_retry(exc)
         return
@@ -2696,6 +2762,11 @@ def _enter_teacher_test_student(store: SupabaseFactStore, class_record, *, reset
     _set_student_session(student, class_record)
     st.session_state["teacher_test_student_mode"] = True
     st.session_state["teacher_test_student_class_id"] = class_record.class_id
+    # Keep the already-loaded sandbox identity in this Streamlit session.
+    # Test Student reruns should not reload the whole class list + student row
+    # before every Daily/Fix/Focus screen.
+    st.session_state["teacher_test_student_class_record"] = class_record
+    st.session_state["teacher_test_student_record"] = student
     st.rerun()
 
 def _exit_teacher_test_student() -> None:
@@ -2704,6 +2775,8 @@ def _exit_teacher_test_student() -> None:
         st.session_state[key] = backup.get(key)
     st.session_state["teacher_test_student_mode"] = False
     st.session_state.pop("teacher_test_student_class_id", None)
+    st.session_state.pop("teacher_test_student_class_record", None)
+    st.session_state.pop("teacher_test_student_record", None)
     st.rerun()
 
 def render_teacher_warmup(store: SupabaseFactStore) -> None:
@@ -2740,14 +2813,21 @@ def render_teacher_test_student_launcher(store: SupabaseFactStore) -> None:
 
 def render_teacher_test_student_mode(store: SupabaseFactStore) -> None:
     class_id = st.session_state.get("teacher_test_student_class_id")
-    classes = store.list_classes()
-    class_record = next((item for item in classes if item.class_id == class_id), None)
-    if class_record is None:
-        _exit_teacher_test_student()
-        return
-    student = store.get_test_student(class_record.class_id)
-    if student is None:
-        student = store.reset_test_student(class_record.class_id)
+    class_record = st.session_state.get("teacher_test_student_class_record")
+    if class_record is None or str(getattr(class_record, "class_id", "")) != str(class_id or ""):
+        classes = store.list_classes()
+        class_record = next((item for item in classes if item.class_id == class_id), None)
+        if class_record is None:
+            _exit_teacher_test_student()
+            return
+        st.session_state["teacher_test_student_class_record"] = class_record
+
+    student = st.session_state.get("teacher_test_student_record")
+    if student is None or str(getattr(student, "class_id", "")) != str(class_record.class_id):
+        student = store.get_test_student(class_record.class_id)
+        if student is None:
+            student = store.reset_test_student(class_record.class_id)
+        st.session_state["teacher_test_student_record"] = student
     _set_student_session(student, class_record)
 
     left, right = st.columns([2.5, 2])
@@ -2757,6 +2837,7 @@ def render_teacher_test_student_mode(store: SupabaseFactStore) -> None:
     with right:
         if st.button("↻ Reset Test Student", use_container_width=True, key="reset_test_student_mode"):
             student = store.reset_test_student(class_record.class_id)
+            st.session_state["teacher_test_student_record"] = student
             _set_student_session(student, class_record)
             st.rerun()
     st.warning("🧪 **TEST STUDENT** · This practice account stays separate from class results and raffles.")

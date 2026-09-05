@@ -27,6 +27,14 @@ def render_quick_warmup(store: SupabaseFactStore, day: date) -> bool:
     if not class_id or not student_id:
         return True
 
+    # Once today's two saved Igniter responses have been observed complete, the
+    # rest of the student routine should not re-download the same Warm-Up set +
+    # answer rows on every Daily/Fix/Focus rerun.  The cache is scoped to this
+    # student, class, and date, so tomorrow (or another student) always rechecks.
+    complete_cache_key = f"warmup_complete::{student_id}::{class_id}::{day.isoformat()}"
+    if st.session_state.get(complete_cache_key, False):
+        return True
+
     try:
         warmup = store.get_warmup_set(class_id, day)
     except Exception as exc:
@@ -67,8 +75,10 @@ def render_quick_warmup(store: SupabaseFactStore, day: date) -> bool:
             if st.button("Start Daily 10 →", type="primary", use_container_width=True, key=f"warmup_start_daily_{warmup.warmup_set_id}"):
                 st.session_state.warmup_just_completed = None
                 st.session_state.warmup_feedback = None
+                st.session_state[complete_cache_key] = True
                 st.rerun()
             return False
+        st.session_state[complete_cache_key] = True
         return True
 
     if feedback_matches:

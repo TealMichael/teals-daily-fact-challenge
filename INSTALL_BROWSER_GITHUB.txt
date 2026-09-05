@@ -1,0 +1,35 @@
+TEAL'S DAILY FACT CHALLENGE v2.19.8
+BROWSER-ONLY GITHUB INSTALL
+
+This package contains ONLY the production files changed from v2.19.7 to v2.19.8.
+
+FILES TO UPLOAD TO THE ROOT OF YOUR GITHUB REPOSITORY:
+- app.py
+- fact_engine.py
+- fact_store.py
+- student_alt_daily_ui.py
+- student_igniter_ui.py
+- supabase_fact_store.py
+
+INSTALL STEPS (GitHub website):
+1. Unzip this download on your computer.
+2. Open your Teal's Daily Fact Challenge repository on github.com.
+3. Stay in the ROOT of the repository (the same place where app.py currently lives).
+4. Choose Add file -> Upload files.
+5. Drag the SIX .py files listed above into the upload area.
+6. GitHub should show that these existing files will be replaced/updated.
+7. Commit the changes to your normal deployment branch.
+
+Suggested commit message:
+v2.19.8 - student speed pass and alternate database round-trip cleanup
+
+IMPORTANT:
+- Do NOT upload this instruction text file unless you want it in the repo.
+- No Supabase SQL needs to be run.
+- No Streamlit secrets need to change.
+- No AWTRIX files changed.
+- No browser component folders changed.
+- Multiplication files/components were not changed by this speed pass.
+
+SOURCE:
+Built as the production-only diff from the verified v2.19.7 release to v2.19.8.
