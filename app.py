@@ -38,6 +38,7 @@ from supabase_fact_store import SupabaseFactStore
 from persistent_login import REMEMBER_DAYS, issue_student_token, peek_student_id, verify_student_token
 from ui_helpers import format_seconds, strategy_tip
 from student_igniter_ui import render_quick_warmup
+from student_recognition import build_public_daily_recognition
 from daily_modes import configured_daily_mode, questions_for_mode
 from student_alt_daily_ui import render_alternate_daily
 from teacher_daily_setup_ui import render_teacher_daily_setup
@@ -1085,20 +1086,13 @@ def load_leaderboard_context(store: SupabaseFactStore, challenge) -> dict:
 
     Supabase performs the accuracy-first/time-second ranking.  After ranking,
     the student session intentionally keeps only rank, nickname, and student ID.
-    Classmates' scores and times never enter the student-facing context.
+    Raw classmates' scores and times never enter the student-facing context;
+    only Top 10 rank/nickname and Perfect Score Club membership are retained.
     """
     class_id = st.session_state.student_class_id
     roster = store.list_students(class_id)
     completed = store.completed_attempts_for_class(class_id, challenge.challenge_id, students=roster)
-    rows = [
-        {
-            "student_id": row["student_id"],
-            "nickname": row["nickname"],
-            "rank": index,
-        }
-        for index, row in enumerate(completed[:10], start=1)
-    ]
-    return {"rows": rows, "finished": len(completed), "roster_count": len(roster)}
+    return build_public_daily_recognition(completed, roster_count=len(roster))
 
 def _leaderboard_cache_key(challenge) -> str:
     return f"leaderboard_context_{st.session_state.student_id}_{challenge.challenge_id}"
@@ -1166,7 +1160,29 @@ def render_leaderboard(
         )
     st.markdown('<div class="soft-card">' + "".join(html_rows) + "</div>", unsafe_allow_html=True)
     if highlight_student_id and not any(row["student_id"] == highlight_student_id for row in rows):
-        st.caption("Only the Top 10 is shown. Your exact class rank stays private.")
+        if any(row.get("student_id") == highlight_student_id for row in context.get("perfect_rows") or []):
+            st.success("⭐ Perfect 10/10! You're in today's Perfect Score Club.")
+        else:
+            st.caption("Only Top 10 places are ranked. Your exact class rank stays private.")
+    render_perfect_score_club(context, highlight_student_id=highlight_student_id)
+
+def render_perfect_score_club(context: dict, *, highlight_student_id: str | None = None) -> None:
+    """Celebrate 10/10 students who are not already represented in the Top 10."""
+    rows = list(context.get("perfect_rows") or [])
+    if not rows:
+        return
+    st.markdown("### ⭐ Perfect Score Club")
+    st.caption("10/10 today · Top 10 students are already celebrated above.")
+    names = []
+    for row in rows:
+        name = html.escape(str(row.get("nickname") or ""))
+        suffix = " · you" if row.get("student_id") == highlight_student_id else ""
+        names.append(f"<strong>{name}{suffix}</strong>")
+    st.markdown(
+        '<div class="soft-card">⭐ ' + " &nbsp;•&nbsp; ".join(names) + "</div>",
+        unsafe_allow_html=True,
+    )
+
 
 def render_daily_review(facts: list[Fact], answers) -> None:
     with st.expander("Review your Daily 10", expanded=False):
@@ -1201,8 +1217,13 @@ def render_learning_path(progress, missed_count: int) -> None:
         st.caption("Learning work complete ✓ · your Weekly Mystery is the reward, not another assignment.")
 
 def render_daily_result_summary(store: SupabaseFactStore, day, challenge, attempt, *, leaderboard_context: dict | None = None) -> None:
-    leaderboard = list((leaderboard_context or load_leaderboard_context(store, challenge))["rows"])
+    context = leaderboard_context or load_leaderboard_context(store, challenge)
+    leaderboard = list(context["rows"])
     own_top = next((row for row in leaderboard if row["student_id"] == st.session_state.student_id), None)
+    own_perfect = next(
+        (row for row in context.get("perfect_rows") or [] if row.get("student_id") == st.session_state.student_id),
+        None,
+    )
     st.markdown(f"## Daily 10 complete · {day.strftime('%B %d').replace(' 0', ' ')}")
     st.markdown(
         f"""
@@ -1218,8 +1239,10 @@ def render_daily_result_summary(store: SupabaseFactStore, day, challenge, attemp
     )
     if own_top:
         st.success(f"You're #{own_top['rank']} in your class Top 10 right now!")
+    elif own_perfect:
+        st.success("⭐ Perfect 10/10! You're in today's Perfect Score Club.")
     elif len(leaderboard) >= 10:
-        st.info("Only the class Top 10 is shown. Your exact class rank stays private.")
+        st.info("Only Top 10 places are ranked. Your exact class rank stays private.")
     else:
         st.caption("The class Top 10 will keep filling in as classmates finish.")
 
@@ -1439,8 +1462,9 @@ def render_final_top10_status(challenge, leaderboard_context: dict | None) -> No
     """Show the student's status plus the full rank-and-nickname Top 10 at finish.
 
     Reuse the leaderboard snapshot already loaded for this Daily so the final
-    celebration does not add another classroom database round trip. Only Top
-    10 rank + nickname are shown; lower exact ranks remain private.
+    celebration does not add another classroom database round trip. Public
+    recognition is limited to Top 10 rank/nickname plus 10/10 Perfect Score
+    Club membership; lower exact ranks and times remain private.
     """
     st.markdown("## 🏆 Current Top 10")
     if leaderboard_context is None:
@@ -1451,11 +1475,17 @@ def render_final_top10_status(challenge, leaderboard_context: dict | None) -> No
     finished = int(leaderboard_context.get("finished") or 0)
     roster_count = int(leaderboard_context.get("roster_count") or 0)
     own_top = next((row for row in rows if row.get("student_id") == st.session_state.student_id), None)
+    own_perfect = next(
+        (row for row in leaderboard_context.get("perfect_rows") or [] if row.get("student_id") == st.session_state.student_id),
+        None,
+    )
 
     if own_top:
         st.success(f"🏆 You're #{int(own_top['rank'])} in your class Top 10 right now!")
+    elif own_perfect:
+        st.success("⭐ Perfect 10/10! You're in today's Perfect Score Club.")
     else:
-        st.info("You finished today's challenge! Only Top 10 places are shown, so lower exact ranks stay private.")
+        st.info("You finished today's challenge! Only Top 10 places are ranked, so lower exact ranks stay private.")
 
     if roster_count:
         st.caption(f"{finished} of {roster_count} finished · standings may change as classmates finish")
@@ -1479,6 +1509,7 @@ def render_final_top10_status(challenge, leaderboard_context: dict | None) -> No
             f'<div class="leader-name">{name}{suffix}</div></div>'
         )
     st.markdown('<div class="soft-card">' + "".join(html_rows) + "</div>", unsafe_allow_html=True)
+    render_perfect_score_club(leaderboard_context, highlight_student_id=st.session_state.student_id)
 
 def render_day_complete(
     store: SupabaseFactStore, day, facts: list[Fact], challenge, attempt, answers,

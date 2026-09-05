@@ -18,6 +18,7 @@ from alternate_teaching import teaching_plan_for_question
 from alternate_focus import ALT_FOCUS_SESSION_LENGTH, build_alternate_focus_plan
 from fact_store import utc_now
 from supabase_fact_store import SupabaseFactStore
+from student_recognition import build_public_daily_recognition
 
 ALT_DAILY_COMPONENT = components.declare_component(
     "tdfc_alt_daily_v2195", path=str(Path(__file__).with_name("daily_alt_component"))
@@ -48,22 +49,21 @@ def _student_top10(store: SupabaseFactStore, challenge) -> dict:
         completed = store.completed_attempts_for_class(class_id, challenge.challenge_id, students=roster)
     except TypeError:
         completed = store.completed_attempts_for_class(class_id, challenge.challenge_id)
-    rows = [
-        {"student_id": str(row["student_id"]), "nickname": str(row["nickname"]), "rank": index}
-        for index, row in enumerate(completed[:10], start=1)
-    ]
-    return {"rows": rows, "finished": len(completed), "roster_count": len(roster), "student_id": student_id}
+    return build_public_daily_recognition(completed, roster_count=len(roster), student_id=student_id)
 
 
 def _render_top10(context: dict) -> None:
     rows = list(context.get("rows") or [])
     own_id = str(context.get("student_id") or "")
     own = next((row for row in rows if row["student_id"] == own_id), None)
+    own_perfect = next((row for row in context.get("perfect_rows") or [] if row["student_id"] == own_id), None)
     st.markdown("## 🏆 Current Top 10")
     if own:
         st.success(f"🏆 You're #{own['rank']} in your class Top 10 right now!")
+    elif own_perfect:
+        st.success("⭐ Perfect 10/10! You're in today's Perfect Score Club.")
     else:
-        st.info("You finished today's challenge! Only Top 10 places are shown, so lower exact ranks stay private.")
+        st.info("You finished today's challenge! Only Top 10 places are ranked, so lower exact ranks stay private.")
     st.caption(f"{int(context.get('finished') or 0)} of {int(context.get('roster_count') or 0)} finished · standings may change as classmates finish")
     medal = {1: "🥇", 2: "🥈", 3: "🥉"}
     if not rows:
@@ -79,6 +79,19 @@ def _render_top10(context: dict) -> None:
             f'<div class="leader-name">{html.escape(row["nickname"])}{suffix}</div></div>'
         )
     st.markdown('<div class="soft-card">' + "".join(html_rows) + "</div>", unsafe_allow_html=True)
+
+    perfect_rows = list(context.get("perfect_rows") or [])
+    if perfect_rows:
+        st.markdown("### ⭐ Perfect Score Club")
+        st.caption("10/10 today · Top 10 students are already celebrated above.")
+        names = []
+        for row in perfect_rows:
+            suffix = " · you" if row["student_id"] == own_id else ""
+            names.append(f"<strong>{html.escape(str(row['nickname']))}{suffix}</strong>")
+        st.markdown(
+            '<div class="soft-card">⭐ ' + " &nbsp;•&nbsp; ".join(names) + "</div>",
+            unsafe_allow_html=True,
+        )
 
 
 def _render_review(attempt) -> None:

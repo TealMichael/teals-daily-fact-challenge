@@ -1,35 +1,42 @@
-TEAL'S DAILY FACT CHALLENGE v2.19.8
-BROWSER-ONLY GITHUB INSTALL
+Teal's Daily Fact Challenge v2.19.9 — Browser-only GitHub Install
 
-This package contains ONLY the production files changed from v2.19.7 to v2.19.8.
+This package contains ONLY the runtime/source files needed for the v2.19.8 → v2.19.9 Perfect Score Club update.
 
-FILES TO UPLOAD TO THE ROOT OF YOUR GITHUB REPOSITORY:
-- app.py
-- fact_engine.py
-- fact_store.py
-- student_alt_daily_ui.py
-- student_igniter_ui.py
-- supabase_fact_store.py
+FILES TO UPLOAD TO THE ROOT OF YOUR GITHUB REPOSITORY
+1. app.py
+2. fact_engine.py
+3. student_alt_daily_ui.py
+4. student_recognition.py   ← NEW FILE
+5. SUPABASE_SCHEMA.sql
+6. RUN_THIS_ONCE_IN_SUPABASE_v2_19_9.sql   ← NEW FILE
 
-INSTALL STEPS (GitHub website):
-1. Unzip this download on your computer.
-2. Open your Teal's Daily Fact Challenge repository on github.com.
-3. Stay in the ROOT of the repository (the same place where app.py currently lives).
-4. Choose Add file -> Upload files.
-5. Drag the SIX .py files listed above into the upload area.
-6. GitHub should show that these existing files will be replaced/updated.
-7. Commit the changes to your normal deployment branch.
+GITHUB BROWSER STEPS
+1. Open your existing Teal's Daily Fact Challenge repository.
+2. Choose Add file → Upload files.
+3. Drag all 6 files above into the upload area.
+4. GitHub should show replacements for the existing 4 files and additions for the 2 new files.
+5. Commit with:
+   v2.19.9 - add Perfect Score Club after Top 10
+6. Wait for Streamlit Cloud to redeploy.
 
-Suggested commit message:
-v2.19.8 - student speed pass and alternate database round-trip cleanup
+SUPABASE STEP — REQUIRED ONCE
+1. Open RUN_THIS_ONCE_IN_SUPABASE_v2_19_9.sql from this package (or from GitHub after upload).
+2. Copy the entire SQL file.
+3. Open Supabase → SQL Editor → New query.
+4. Paste it and click Run ONCE.
 
-IMPORTANT:
-- Do NOT upload this instruction text file unless you want it in the repo.
-- No Supabase SQL needs to be run.
-- No Streamlit secrets need to change.
-- No AWTRIX files changed.
-- No browser component folders changed.
-- Multiplication files/components were not changed by this speed pass.
+DO NOT
+- Do not rerun old migrations.
+- Do not change Streamlit Secrets.
+- Do not reinstall/edit AWTRIX_FactTop10.berry.
+- Do not upload any component folder for this patch.
 
-SOURCE:
-Built as the production-only diff from the verified v2.19.7 release to v2.19.8.
+WHAT CHANGES
+- Existing Top 10 stays exactly the same.
+- After Top 10, 10/10 students who are not already Top 10 appear in Perfect Score Club.
+- Perfect Score Club is alphabetical, not speed-ranked.
+- The classroom clock appends Perfect Score Club after Top 10 automatically.
+- If nobody qualifies outside Top 10, nothing extra is shown.
+
+TEST STUDENT NOTE
+Teacher Test Student is intentionally excluded from public Top 10 and Perfect Score Club results, so it will not create a public ticker name during testing.

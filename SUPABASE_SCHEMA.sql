@@ -417,6 +417,8 @@ declare
     v_challenge_id uuid;
     v_count integer := 0;
     v_names text;
+    v_perfect_count integer := 0;
+    v_perfect_names text;
     v_text text;
 begin
     if p_block not between 1 and 3 then
@@ -453,7 +455,8 @@ begin
                 row_number() over (
                     order by da.correct_count desc, da.timed_seconds asc, da.completed_at asc
                 ) as rank,
-                s.nickname
+                s.nickname,
+                da.correct_count
             from public.daily_attempts da
             join public.students s on s.student_id = da.student_id
             where da.challenge_id = v_challenge_id
@@ -461,17 +464,15 @@ begin
               and s.class_id = v_class_id
               and s.active = true
               and coalesce(s.is_test, false) = false
-        ), top_rows as (
-            select rank, nickname
-            from ranked
-            where rank <= 10
-            order by rank
         )
         select
-            count(*)::integer,
-            string_agg('#' || rank::text || ' ' || nickname, '   ' order by rank)
-        into v_count, v_names
-        from top_rows;
+            (select count(*)::integer from ranked where rank <= 10),
+            (select string_agg('#' || rank::text || ' ' || nickname, '   ' order by rank)
+               from ranked where rank <= 10),
+            (select count(*)::integer from ranked where correct_count = 10 and rank > 10),
+            (select string_agg(nickname, '   ' order by lower(nickname), nickname)
+               from ranked where correct_count = 10 and rank > 10)
+        into v_count, v_names, v_perfect_count, v_perfect_names;
     end if;
 
     if v_count > 0 then
@@ -480,11 +481,16 @@ begin
         v_text := 'BLOCK ' || p_block::text || ' TOP 10!   NO FINISHERS YET';
     end if;
 
+    if v_perfect_count > 0 then
+        v_text := v_text || '   PERFECT SCORE CLUB!   ' || v_perfect_names;
+    end if;
+
     return jsonb_build_object(
         'ok', true,
         'block', p_block,
         'class_name', coalesce(v_class_name, 'Class'),
         'count', v_count,
+        'perfect_count', v_perfect_count,
         'text', v_text
     );
 end;
