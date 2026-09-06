@@ -1,42 +1,48 @@
-Teal's Daily Fact Challenge v2.19.9 — Browser-only GitHub Install
+Teal's Daily Fact Challenge v2.20.0 — Browser GitHub Install Only
 
-This package contains ONLY the runtime/source files needed for the v2.19.8 → v2.19.9 Perfect Score Club update.
+STARTING POINT
+This patch is for the verified v2.19.9 app.
 
-FILES TO UPLOAD TO THE ROOT OF YOUR GITHUB REPOSITORY
-1. app.py
-2. fact_engine.py
-3. student_alt_daily_ui.py
-4. student_recognition.py   ← NEW FILE
-5. SUPABASE_SCHEMA.sql
-6. RUN_THIS_ONCE_IN_SUPABASE_v2_19_9.sql   ← NEW FILE
+UPLOAD THESE 12 PRODUCTION FILES TO THE ROOT OF YOUR GITHUB REPOSITORY
+- app.py
+- fact_engine.py
+- fact_store.py
+- supabase_fact_store.py
+- teacher_daily_setup_ui.py
+- teacher_intelligence_ui.py
+- teacher_mystery_raffle.py          (NEW)
+- teacher_planning.py
+- teacher_recovery_ui.py             (NEW)
+- teacher_today_ui.py
+- teacher_warmup_settings.py         (NEW)
+- teacher_warmup_ui.py
 
-GITHUB BROWSER STEPS
-1. Open your existing Teal's Daily Fact Challenge repository.
-2. Choose Add file → Upload files.
-3. Drag all 6 files above into the upload area.
-4. GitHub should show replacements for the existing 4 files and additions for the 2 new files.
-5. Commit with:
-   v2.19.9 - add Perfect Score Club after Top 10
-6. Wait for Streamlit Cloud to redeploy.
+BROWSER STEPS
+1. Unzip this package on your computer.
+2. Open the teals-daily-fact-challenge repository on GitHub.com.
+3. Make sure you are on main.
+4. Choose Add file → Upload files.
+5. Drag ALL 12 .py files from this folder into the repository root.
+6. GitHub should show replacements for existing files plus 3 new files.
+7. Commit directly to main using:
+   v2.20.0 - teacher efficiency and recovery pass
+8. Allow Streamlit to redeploy.
+9. Confirm the app footer/version shows v2.20.0.
 
-SUPABASE STEP — REQUIRED ONCE
-1. Open RUN_THIS_ONCE_IN_SUPABASE_v2_19_9.sql from this package (or from GitHub after upload).
-2. Copy the entire SQL file.
-3. Open Supabase → SQL Editor → New query.
-4. Paste it and click Run ONCE.
+NO SUPABASE SQL FOR v2.20.0
+No new database migration is required.
+Do not rerun an old migration just for this update.
 
-DO NOT
-- Do not rerun old migrations.
-- Do not change Streamlit Secrets.
-- Do not reinstall/edit AWTRIX_FactTop10.berry.
-- Do not upload any component folder for this patch.
+NO SECRETS OR CLOCK STEP
+No Streamlit Secrets changes.
+No AWTRIX reinstall or token change.
 
-WHAT CHANGES
-- Existing Top 10 stays exactly the same.
-- After Top 10, 10/10 students who are not already Top 10 appear in Perfect Score Club.
-- Perfect Score Club is alphabetical, not speed-ranked.
-- The classroom clock appends Perfect Score Club after Top 10 automatically.
-- If nobody qualifies outside Top 10, nothing extra is shown.
+QUICK CHECK AFTER DEPLOY
+- Teacher → Manage → Daily 10 Setup: open next week, change a box, Save.
+- Teacher → Student Support: choose a class and open “🚑 Show class recovery tools.”
+- Confirm “Repair earned clues for this class” and “Bulk reopen today's Daily” are present.
+- Do not actually reopen students unless you intend to reset today's work.
 
-TEST STUDENT NOTE
-Teacher Test Student is intentionally excluded from public Top 10 and Perfect Score Club results, so it will not create a public ticker name during testing.
+PROTECTED STUDENT BEHAVIOR
+Multiplication Daily/Guided Practice, alternate keypad/teaching components,
+Perfect Score Club, and the AWTRIX script were not changed by this patch.

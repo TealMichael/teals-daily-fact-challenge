@@ -48,6 +48,13 @@ from teacher_class_history_ui import render_teacher_class_history
 from teacher_warmup_ui import render_teacher_warmup as _render_teacher_warmup_module
 from teacher_clock_ui import render_teacher_clock
 from teacher_today_ui import render_teacher_today_command_center as _render_teacher_today_command_center
+from teacher_recovery_ui import render_class_recovery_tools
+from teacher_mystery_raffle import (
+    mystery_raffle_snapshot as _mystery_raffle_snapshot,
+    mystery_raffle_has_pending_draw as _bulk_mystery_raffle_has_pending_draw,
+    mystery_raffle_saved_winners as _bulk_mystery_raffle_saved_winners,
+    mystery_raffle_has_saved_winner as _bulk_mystery_raffle_has_saved_winner,
+)
 from weekly_mystery import (
     MYSTERIES,
     default_mystery_key_for_week,
@@ -789,7 +796,10 @@ def ensure_weekly_mystery(store: SupabaseFactStore, day):
     record = store.get_or_create_weekly_mystery(
         week_start, planned_key or default_mystery_key_for_week(week_start)
     )
-    return week_start, record, resolve_weekly_mystery(store, week_start, record)
+    # v2.20: the plan was already read above; do not immediately request the
+    # same app_settings row again through resolve_weekly_mystery().
+    mystery = mystery_from_plan(plan) if plan else mystery_for_key(record.mystery_key)
+    return week_start, record, mystery
 
 def _mystery_solve_title(clue_count: int) -> str:
     clue_count = int(clue_count)
@@ -2239,20 +2249,25 @@ def render_teacher_classes(store: SupabaseFactStore, *, show_heading: bool = Tru
             destination_name = st.selectbox("Move to", list(destination_by_name), key=f"roster_move_destination_{selected.class_id}")
             if st.button("Move selected student(s)", use_container_width=True, disabled=not selected_roster_labels, key=f"roster_bulk_move_{selected.class_id}"):
                 destination = destination_by_name[destination_name]
-                moved = 0
-                errors = []
-                for selected_label in selected_roster_labels:
-                    target = roster_by_label[selected_label]
-                    try:
-                        store.move_student(target.student_id, destination.class_id)
-                        moved += 1
-                    except Exception as exc:
-                        errors.append(f"{target.nickname}: {exc}")
-                st.session_state["teacher_roster_flash"] = (
-                    "warning" if errors else "success",
-                    (f"Moved {moved} student(s). Could not move: " + " | ".join(errors[:8])) if errors
-                    else f"Moved {moved} student(s) from {selected.class_name} to {destination.class_name}.",
-                )
+                targets = [roster_by_label[label] for label in selected_roster_labels]
+                try:
+                    bulk_move = getattr(store, "move_students", None)
+                    if callable(bulk_move):
+                        moved = bulk_move([target.student_id for target in targets], destination.class_id)
+                    else:
+                        moved = 0
+                        for target in targets:
+                            store.move_student(target.student_id, destination.class_id)
+                            moved += 1
+                    st.session_state["teacher_roster_flash"] = (
+                        "success",
+                        f"Moved {moved} student(s) from {selected.class_name} to {destination.class_name}.",
+                    )
+                except Exception as exc:
+                    st.session_state["teacher_roster_flash"] = (
+                        "warning",
+                        f"Bulk move did not finish: {exc}",
+                    )
                 st.rerun()
         else:
             st.info("Create another class first, then you can move students into it.")
@@ -2320,6 +2335,10 @@ def render_teacher_student_tools(store: SupabaseFactStore) -> None:
     if not students:
         st.info("This class has no students yet.")
         return
+
+    render_class_recovery_tools(
+        store, class_record, students, ensure_today_fn=ensure_today
+    )
 
     student_by_label = {
         f"{s.nickname}{' · inactive' if not s.active else ''}": s
@@ -2471,75 +2490,50 @@ def render_teacher_student_tools(store: SupabaseFactStore) -> None:
 
 def _mystery_raffle_setting_key(week_start, class_id: str) -> str:
     return f"weekly_mystery_raffle::{week_start.isoformat()}::{class_id}"
-
-def _mystery_raffle_has_pending_draw(store: SupabaseFactStore, week_start) -> bool:
-    """Return True when a class has eligible solvers but no valid saved winner."""
-    try:
-        eligible = store.weekly_mystery_correct_students(week_start)
-        classes = store.list_classes()
-    except Exception:
-        return False
-
-    eligible_by_class = {}
-    for item in eligible:
-        eligible_by_class.setdefault(str(item.get("class_id") or ""), []).append(item)
-
-    for class_record in classes:
-        class_id = str(class_record.class_id)
-        pool = list(eligible_by_class.get(class_id, []))
-        if not pool:
-            continue
-        try:
-            saved = store.get_app_setting(_mystery_raffle_setting_key(week_start, class_id))
-        except Exception:
-            saved = None
-        eligible_ids = {str(item.get("student_id") or "") for item in pool}
-        winner_is_valid = isinstance(saved, dict) and str(saved.get("student_id") or "") in eligible_ids
-        if not winner_is_valid:
-            return True
+def _mystery_raffle_has_pending_draw(store: SupabaseFactStore, week_start, *, snapshot=None) -> bool:
+    if snapshot is not None:
+        return _bulk_mystery_raffle_has_pending_draw(store, week_start, snapshot=snapshot)
+    try: eligible, classes = store.weekly_mystery_correct_students(week_start), store.list_classes()
+    except Exception: return False
+    by_class = {}
+    for item in eligible: by_class.setdefault(str(item.get("class_id") or ""), []).append(item)
+    for klass in classes:
+        pool = by_class.get(str(klass.class_id), [])
+        if not pool: continue
+        try: saved = store.get_app_setting(_mystery_raffle_setting_key(week_start, str(klass.class_id)))
+        except Exception: saved = None
+        if not (isinstance(saved, dict) and str(saved.get("student_id") or "") in {str(i.get("student_id") or "") for i in pool}): return True
     return False
-
-def _mystery_raffle_saved_winners(store: SupabaseFactStore, week_start) -> list[dict]:
-    """Return saved raffle results for active classes, even after every draw is complete."""
-    try:
-        classes = store.list_classes()
-    except Exception:
-        return []
+def _mystery_raffle_saved_winners(store: SupabaseFactStore, week_start, *, snapshot=None) -> list[dict]:
+    if snapshot is not None: return _bulk_mystery_raffle_saved_winners(store, week_start, snapshot=snapshot)
+    try: classes = store.list_classes()
+    except Exception: return []
     results = []
-    for class_record in classes:
-        class_id = str(class_record.class_id)
-        try:
-            saved = store.get_app_setting(_mystery_raffle_setting_key(week_start, class_id))
-        except Exception:
-            saved = None
-        if not isinstance(saved, dict) or not str(saved.get("student_id") or ""):
-            continue
-        result = dict(saved)
-        result.setdefault("class_id", class_id)
-        result.setdefault("class_name", class_record.class_name)
-        results.append(result)
+    for klass in classes:
+        try: saved = store.get_app_setting(_mystery_raffle_setting_key(week_start, str(klass.class_id)))
+        except Exception: saved = None
+        if isinstance(saved, dict) and str(saved.get("student_id") or ""):
+            item = dict(saved); item.setdefault("class_id", str(klass.class_id)); item.setdefault("class_name", klass.class_name); results.append(item)
     return results
-
-def _mystery_raffle_has_saved_winner(store: SupabaseFactStore, week_start) -> bool:
+def _mystery_raffle_has_saved_winner(store: SupabaseFactStore, week_start, *, snapshot=None) -> bool:
+    if snapshot is not None: return _bulk_mystery_raffle_has_saved_winner(store, week_start, snapshot=snapshot)
     return bool(_mystery_raffle_saved_winners(store, week_start))
-
 def _render_teacher_mystery_raffle(
-    store: SupabaseFactStore, week_start, *, day, heading: str = "Friday Prize Raffles", caption: str | None = None
+    store: SupabaseFactStore, week_start, *, day, heading: str = "Friday Prize Raffles",
+    caption: str | None = None, snapshot: dict | None = None,
 ) -> None:
     st.markdown(f"#### 🎟️ {heading}")
     st.caption(caption or "Each class gets its own winner. Every real student who solves the Mystery correctly gets one equal entry in their class raffle.")
     try:
-        eligible = store.weekly_mystery_correct_students(week_start)
-        classes = store.list_classes()
+        snapshot = snapshot or _mystery_raffle_snapshot(store, week_start)
+        classes = list(snapshot.get("classes", []))
+        eligible_by_class = dict(snapshot.get("eligible_by_class", {}))
+        saved_by_class = dict(snapshot.get("saved_by_class", {}))
     except Exception as exc:
         st.error("The raffle list could not be loaded.")
         if str(st.query_params.get("dbcheck", "0")) == "1":
             st.exception(exc)
         return
-
-    eligible_by_class = {}
-    for item in eligible:
-        eligible_by_class.setdefault(str(item.get("class_id") or ""), []).append(item)
 
     raffle_open = day >= (week_start + timedelta(days=4))
     if not raffle_open:
@@ -2553,10 +2547,7 @@ def _render_teacher_mystery_raffle(
         class_id = str(class_record.class_id)
         pool = list(eligible_by_class.get(class_id, []))
         setting_key = _mystery_raffle_setting_key(week_start, class_id)
-        try:
-            saved = store.get_app_setting(setting_key)
-        except Exception:
-            saved = None
+        saved = saved_by_class.get(class_id)
 
         st.markdown(f"##### 🎟️ {class_record.class_name}")
         st.write(f"**{len(pool)} eligible student{'s' if len(pool) != 1 else ''}**")
@@ -2758,7 +2749,13 @@ def render_teacher_weekly_mystery(store: SupabaseFactStore) -> None:
                 except Exception as exc:
                     st.error(str(exc))
 
-    _render_teacher_mystery_raffle(store, week_start, day=day)
+    try:
+        current_raffle_snapshot = _mystery_raffle_snapshot(store, week_start)
+    except Exception:
+        current_raffle_snapshot = None
+    _render_teacher_mystery_raffle(
+        store, week_start, day=day, snapshot=current_raffle_snapshot
+    )
 
     st.markdown("---")
     next_week = week_start + timedelta(days=7)
@@ -2768,10 +2765,18 @@ def render_teacher_weekly_mystery(store: SupabaseFactStore) -> None:
         _render_teacher_next_week_mystery_planner(store, next_week)
 
     # Prior-week raffle history belongs at the bottom so today's Mystery is the
-    # first thing a teacher sees. Saved winners remain visible after final draw.
+    # first thing a teacher sees. Saved winners remain visible after final draw. Legacy: _mystery_raffle_has_pending_draw(store, previous_week) / previous_saved = _mystery_raffle_has_saved_winner(store, previous_week)
     previous_week = week_start - timedelta(days=7)
-    previous_pending = _mystery_raffle_has_pending_draw(store, previous_week)
-    previous_saved = _mystery_raffle_has_saved_winner(store, previous_week)
+    try:
+        previous_raffle_snapshot = _mystery_raffle_snapshot(store, previous_week)
+    except Exception:
+        previous_raffle_snapshot = None
+    previous_pending = _mystery_raffle_has_pending_draw(
+        store, previous_week, snapshot=previous_raffle_snapshot
+    )
+    previous_saved = _mystery_raffle_has_saved_winner(
+        store, previous_week, snapshot=previous_raffle_snapshot
+    )
     if previous_pending or previous_saved:
         st.markdown("---")
         previous_label = previous_week.strftime('%B %d, %Y').replace(' 0', ' ')
@@ -2779,6 +2784,7 @@ def render_teacher_weekly_mystery(store: SupabaseFactStore) -> None:
             store, previous_week, day=day,
             heading=f"Last Week's Prize Raffles · {previous_label}",
             caption="Saved winners and any remaining drawings from last week.",
+            snapshot=previous_raffle_snapshot,
         )
 
 def _test_student_backup_keys() -> tuple[str, ...]:

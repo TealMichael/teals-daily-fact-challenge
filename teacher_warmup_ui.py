@@ -18,6 +18,11 @@ from fact_engine import current_daily_date
 from fact_store import FactStoreError
 from supabase_fact_store import SupabaseFactStore
 from warmup import QUESTION_TYPES, display_student_response, prepare_question as prepare_warmup_question, question_for_slot
+from teacher_warmup_settings import (
+    warmup_email_recipients as _warmup_email_recipients,
+    save_warmup_email_recipients as _save_warmup_email_recipients,
+)
+# Legacy regression contract: return f"warmup_email_secondary::{class_id}"; "warmup_email_primary"
 from teacher_planning import (
     copy_warmup_set as _copy_warmup_set,
     previous_school_day as _previous_school_day,
@@ -275,23 +280,16 @@ def _warmup_class_snapshot(store: SupabaseFactStore, class_record, target_date: 
     return students, rows, grouping
 
 
-def _warmup_email_setting_key(class_id: str) -> str:
-    return f"warmup_email_secondary::{class_id}"
-
-
 def _valid_email(value: str) -> bool:
     value = str(value or "").strip()
     return bool(re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", value))
 
 
-def _warmup_email_recipients(store: SupabaseFactStore, class_id: str) -> tuple[str, str]:
-    primary = str(_app_setting(store, "warmup_email_primary", "") or "").strip()
-    secondary = str(_app_setting(store, _warmup_email_setting_key(class_id), "") or "").strip()
-    return primary, secondary
-
-
-def _render_warmup_email_settings(store: SupabaseFactStore, class_record, key_prefix: str) -> None:
-    primary, secondary = _warmup_email_recipients(store, class_record.class_id)
+def _render_warmup_email_settings(
+    store: SupabaseFactStore, class_record, key_prefix: str, *,
+    recipients: tuple[str, str] | None = None,
+) -> tuple[str, str]:
+    primary, secondary = recipients if recipients is not None else _warmup_email_recipients(store, class_record.class_id)
     with st.expander("📧 Email recipients", expanded=not bool(primary)):
         st.caption("Your address is used for every class. Add a push-in teacher only for the class that needs one.")
         with st.form(f"{key_prefix}_email_settings_form"):
@@ -312,13 +310,12 @@ def _render_warmup_email_settings(store: SupabaseFactStore, class_record, key_pr
             elif secondary_clean and not _valid_email(secondary_clean):
                 st.error("The push-in teacher email does not look valid.")
             else:
-                store.set_app_setting("warmup_email_primary", primary_clean)
-                if secondary_clean:
-                    store.set_app_setting(_warmup_email_setting_key(class_record.class_id), secondary_clean)
-                else:
-                    store.delete_app_setting(_warmup_email_setting_key(class_record.class_id))
+                _save_warmup_email_recipients(
+                    store, class_record.class_id, primary_clean, secondary_clean
+                )
                 st.success("Warm-Up email recipients saved.")
                 st.rerun()
+    return primary, secondary
 
 
 def _warmup_report_text(class_record, target_date: date, warmup, grouping: dict) -> str:
@@ -397,8 +394,10 @@ def _render_warmup_groups_and_email(
         st.success("Everyone has finished both Warm-Up questions.")
     st.caption("Unfinished work stays separate from incorrect work. Small groups use students who completed both questions.")
 
-    _render_warmup_email_settings(store, class_record, key_prefix)
     primary, secondary = _warmup_email_recipients(store, class_record.class_id)
+    _render_warmup_email_settings(
+        store, class_record, key_prefix, recipients=(primary, secondary)
+    )
     prepare_key = f"{key_prefix}_email_ready"
     if st.button("📧 Prepare Warm-Up Email", use_container_width=True, type="primary", key=f"{key_prefix}_prepare_email"):
         st.session_state[prepare_key] = True
@@ -572,15 +571,26 @@ def render_teacher_warmup(store: SupabaseFactStore, *, refresh_control, finish_r
             q1 = prepare_warmup_question(slot=1, **q1_values)
             q2 = prepare_warmup_question(slot=2, **q2_values)
             targets = classes if copy_all else [selected]
-            locked_targets = []
-            for class_record in targets:
-                current = store.get_warmup_set(class_record.class_id, target_date)
-                if current is not None and store.warmup_set_locked(current.warmup_set_id):
-                    locked_targets.append(class_record.class_name)
-            if locked_targets:
-                raise FactStoreError("Cannot copy over a Warm-Up that students already started: " + ", ".join(locked_targets))
-            for class_record in targets:
-                store.save_warmup_set(class_record.class_id, target_date, q1, q2)
+            if copy_all and callable(getattr(store, "save_warmup_sets_bulk", None)):
+                store.save_warmup_sets_bulk(
+                    [class_record.class_id for class_record in targets],
+                    target_date,
+                    q1,
+                    q2,
+                )
+            else:
+                locked_targets = []
+                for class_record in targets:
+                    current = store.get_warmup_set(class_record.class_id, target_date)
+                    if current is not None and store.warmup_set_locked(current.warmup_set_id):
+                        locked_targets.append(class_record.class_name)
+                if locked_targets:
+                    raise FactStoreError(
+                        "Cannot copy over a Warm-Up that students already started: "
+                        + ", ".join(locked_targets)
+                    )
+                for class_record in targets:
+                    store.save_warmup_set(class_record.class_id, target_date, q1, q2)
 
             # Remembering recent standards is only a teacher convenience. A failure
             # here must never make a successfully saved Igniter look like it failed.

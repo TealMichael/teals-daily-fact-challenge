@@ -563,6 +563,35 @@ class SupabaseFactStore:
             return query.order("nickname").execute()
         return [_student(row) for row in _rows(_retry_transient(fetch_students))]
 
+    def list_students_for_classes(
+        self, class_ids: Sequence[str], *, include_inactive: bool = False, include_test: bool = False
+    ) -> dict[str, list[StudentRecord]]:
+        """Load several class rosters in one PostgREST request."""
+        ids = list(dict.fromkeys(str(class_id) for class_id in class_ids if str(class_id)))
+        result = {class_id: [] for class_id in ids}
+        if not ids:
+            return result
+
+        def fetch_students():
+            query = (
+                self.client.table("students")
+                .select("student_id,class_id,nickname,pin_code,active,created_at,is_test")
+                .in_("class_id", ids)
+            )
+            if not include_inactive:
+                query = query.eq("active", True)
+            if not include_test:
+                query = query.eq("is_test", False)
+            return query.order("nickname").execute()
+
+        for row in _rows(_retry_transient(fetch_students)):
+            student = _student(row)
+            if student.class_id in result:
+                result[student.class_id].append(student)
+        for class_id in result:
+            result[class_id].sort(key=lambda item: item.nickname.casefold())
+        return result
+
     def get_student(self, student_id: str) -> StudentRecord:
         row = _first(_retry_transient(lambda: (
             self.client.table("students")
@@ -688,6 +717,59 @@ class SupabaseFactStore:
         if row is None:
             raise NotFound("Student not found.")
         return _student(row)
+
+    def move_students(self, student_ids: Sequence[str], new_class_id: str) -> int:
+        """Move several students with one update after one combined conflict check."""
+        ids = list(dict.fromkeys(str(student_id) for student_id in student_ids if str(student_id)))
+        if not ids:
+            return 0
+        destination = str(new_class_id)
+        destination_row = _first(_retry_transient(lambda: (
+            self.client.table("classes").select("class_id").eq("class_id", destination).limit(1).execute()
+        )))
+        if destination_row is None:
+            raise NotFound("Class not found.")
+
+        moving_rows = _rows(_retry_transient(lambda: (
+            self.client.table("students")
+            .select("student_id,class_id,nickname,nickname_key")
+            .in_("student_id", ids)
+            .execute()
+        )))
+        if len(moving_rows) != len(ids):
+            raise NotFound("One or more selected students could not be found.")
+        moving_ids = {str(row["student_id"]) for row in moving_rows}
+        destination_rows = _rows(_retry_transient(lambda: (
+            self.client.table("students")
+            .select("student_id,nickname,nickname_key")
+            .eq("class_id", destination)
+            .execute()
+        )))
+        destination_keys = {
+            str(row.get("nickname_key") or str(row.get("nickname") or "").casefold())
+            for row in destination_rows
+            if str(row.get("student_id") or "") not in moving_ids
+        }
+        duplicates = sorted({
+            str(row.get("nickname") or "Student")
+            for row in moving_rows
+            if str(row.get("nickname_key") or str(row.get("nickname") or "").casefold()) in destination_keys
+        }, key=str.casefold)
+        if duplicates:
+            raise NameTaken("Nickname already used in the destination class: " + ", ".join(duplicates[:8]))
+
+        try:
+            _retry_transient(lambda: (
+                self.client.table("students")
+                .update({"class_id": destination})
+                .in_("student_id", ids)
+                .execute()
+            ))
+        except Exception as exc:
+            if _is_unique(exc):
+                raise NameTaken("A selected nickname is already used in the destination class.") from exc
+            raise
+        return len(ids)
 
     def delete_student(self, student_id: str) -> None:
         # One database request. Child rows are removed by ON DELETE CASCADE.
@@ -1474,30 +1556,199 @@ class SupabaseFactStore:
             self.client.table("student_fact_mastery").insert(payloads).execute()
         return list(snapshots.values())
 
-    def reset_daily_attempt(self, student_id: str, challenge_id: str) -> bool:
-        attempt = self.get_attempt_for_student(student_id, challenge_id)
-        if attempt is None:
-            return False
-        (
+    def rebuild_mastery_for_students(
+        self, student_ids: Sequence[str]
+    ) -> dict[str, list[MasterySnapshot]]:
+        """Rebuild multiplication mastery for several students from shared bulk reads.
+
+        Only completed Multiplication Dailies and first-try Focus evidence are
+        replayed, matching rebuild_mastery exactly.
+        """
+        ids = list(dict.fromkeys(str(student_id) for student_id in student_ids if str(student_id)))
+        if not ids:
+            return {}
+        events_by_student: dict[str, list[tuple[datetime, int, int, bool, float | None]]] = {
+            student_id: [] for student_id in ids
+        }
+
+        attempt_rows: list[dict] = []
+        for offset in range(0, len(ids), 25):
+            batch = ids[offset:offset + 25]
+            attempt_rows.extend(_rows(_retry_transient(lambda batch=batch: (
+                self.client.table("daily_attempts")
+                .select("attempt_id,student_id,completed_at,daily_mode")
+                .in_("student_id", batch)
+                .eq("daily_mode", "Multiplication")
+                .not_.is_("completed_at", "null")
+                .range(0, 9999)
+                .execute()
+            ))))
+        attempt_to_student = {
+            str(row["attempt_id"]): str(row["student_id"]) for row in attempt_rows
+        }
+        attempt_ids = list(attempt_to_student)
+        for offset in range(0, len(attempt_ids), 100):
+            batch = attempt_ids[offset:offset + 100]
+            rows = _rows(_retry_transient(lambda batch=batch: (
+                self.client.table("daily_answers")
+                .select("attempt_id,a,b,correct,first_correct,response_seconds,submitted_at")
+                .in_("attempt_id", batch)
+                .range(0, 9999)
+                .execute()
+            )))
+            for row in rows:
+                student_id = attempt_to_student.get(str(row.get("attempt_id") or ""))
+                if student_id not in events_by_student:
+                    continue
+                a, b = int(row["a"]), int(row["b"])
+                if max(a, b) > 10:
+                    continue
+                events_by_student[student_id].append((
+                    _dt(row.get("submitted_at")) or utc_now(),
+                    a,
+                    b,
+                    bool(row.get("first_correct") if row.get("first_correct") is not None else row["correct"]),
+                    None if row.get("response_seconds") is None else float(row["response_seconds"]),
+                ))
+
+        for offset in range(0, len(ids), 25):
+            batch = ids[offset:offset + 25]
+            page_start = 0
+            while True:
+                page_size = 1000
+                rows = _rows(_retry_transient(lambda batch=batch, page_start=page_start: (
+                    self.client.table("practice_answers")
+                    .select("student_id,a,b,correct,response_seconds,created_at")
+                    .in_("student_id", batch)
+                    .eq("activity_type", "focus")
+                    .eq("is_retry", False)
+                    .order("created_at")
+                    .range(page_start, page_start + page_size - 1)
+                    .execute()
+                )))
+                for row in rows:
+                    student_id = str(row.get("student_id") or "")
+                    if student_id not in events_by_student:
+                        continue
+                    a, b = int(row["a"]), int(row["b"])
+                    if max(a, b) > 10:
+                        continue
+                    events_by_student[student_id].append((
+                        _dt(row.get("created_at")) or utc_now(),
+                        a,
+                        b,
+                        bool(row["correct"]),
+                        None if row.get("response_seconds") is None else float(row["response_seconds"]),
+                    ))
+                if len(rows) < page_size:
+                    break
+                page_start += page_size
+
+        snapshots_by_student: dict[str, list[MasterySnapshot]] = {}
+        payloads: list[dict] = []
+        now = utc_now().isoformat()
+        for student_id, events in events_by_student.items():
+            events.sort(key=lambda item: item[0])
+            snapshots: dict[tuple[int, int], MasterySnapshot] = {}
+            for when, a, b, correct, seconds in events:
+                key = canonical_pair(a, b)
+                snapshots[key] = update_snapshot(
+                    snapshots.get(key),
+                    a=key[0],
+                    b=key[1],
+                    correct=correct,
+                    response_seconds=seconds,
+                    practiced_at=when,
+                )
+            rows = list(snapshots.values())
+            snapshots_by_student[student_id] = rows
+            for row in rows:
+                payloads.append({
+                    "student_id": student_id,
+                    "a": row.a,
+                    "b": row.b,
+                    "evidence_count": row.evidence_count,
+                    "correct_count": row.correct_count,
+                    "ema_accuracy": row.ema_accuracy,
+                    "ema_seconds": row.ema_seconds,
+                    "correct_streak": row.correct_streak,
+                    "mastery_status": row.status,
+                    "last_practiced_at": row.last_practiced_at.isoformat() if row.last_practiced_at else None,
+                    "updated_at": now,
+                })
+
+        for offset in range(0, len(ids), 100):
+            batch = ids[offset:offset + 100]
+            _retry_transient(lambda batch=batch: (
+                self.client.table("student_fact_mastery").delete().in_("student_id", batch).execute()
+            ))
+        for offset in range(0, len(payloads), 500):
+            batch = payloads[offset:offset + 500]
+            _retry_transient(lambda batch=batch: (
+                self.client.table("student_fact_mastery").insert(batch).execute()
+            ))
+        return snapshots_by_student
+
+    def reset_daily_attempts(self, student_ids: Sequence[str], challenge_id: str) -> int:
+        """Clear today's Daily/follow-up for several students with batched deletes."""
+        ids = list(dict.fromkeys(str(student_id) for student_id in student_ids if str(student_id)))
+        if not ids:
+            return 0
+        attempt_rows = _rows(_retry_transient(lambda: (
+            self.client.table("daily_attempts")
+            .select("attempt_id,student_id,daily_mode,completed_at,learning_evidence_applied_at")
+            .eq("challenge_id", str(challenge_id))
+            .in_("student_id", ids)
+            .execute()
+        )))
+        if not attempt_rows:
+            return 0
+
+        target_student_ids = list(dict.fromkeys(str(row["student_id"]) for row in attempt_rows))
+        target_attempt_ids = [str(row["attempt_id"]) for row in attempt_rows]
+        rebuild_ids = list(dict.fromkeys(
+            str(row["student_id"])
+            for row in attempt_rows
+            if str(row.get("daily_mode") or "Multiplication") == "Multiplication"
+            and (row.get("completed_at") is not None or row.get("learning_evidence_applied_at") is not None)
+        ))
+
+        _retry_transient(lambda: (
             self.client.table("practice_answers").delete()
-            .eq("student_id", str(student_id)).eq("challenge_id", str(challenge_id))
-            .in_("activity_type", ["fix_miss", "focus"]).execute()
-        )
-        (
+            .eq("challenge_id", str(challenge_id))
+            .in_("student_id", target_student_ids)
+            .in_("activity_type", ["fix_miss", "focus"])
+            .execute()
+        ))
+        _retry_transient(lambda: (
             self.client.table("daily_learning_progress").delete()
-            .eq("student_id", str(student_id)).eq("challenge_id", str(challenge_id)).execute()
-        )
+            .eq("challenge_id", str(challenge_id))
+            .in_("student_id", target_student_ids)
+            .execute()
+        ))
         _retry_transient(lambda: (
             self.client.table("alternate_learning_events").delete()
-            .eq("student_id", str(student_id)).eq("challenge_id", str(challenge_id)).execute()
+            .eq("challenge_id", str(challenge_id))
+            .in_("student_id", target_student_ids)
+            .execute()
         ))
         _retry_transient(lambda: (
             self.client.table("alternate_learning_progress").delete()
-            .eq("student_id", str(student_id)).eq("challenge_id", str(challenge_id)).execute()
+            .eq("challenge_id", str(challenge_id))
+            .in_("student_id", target_student_ids)
+            .execute()
         ))
-        self.client.table("daily_attempts").delete().eq("attempt_id", attempt.attempt_id).execute()
-        self.rebuild_mastery(student_id)
-        return True
+        _retry_transient(lambda: (
+            self.client.table("daily_attempts").delete()
+            .in_("attempt_id", target_attempt_ids)
+            .execute()
+        ))
+        if rebuild_ids:
+            self.rebuild_mastery_for_students(rebuild_ids)
+        return len(attempt_rows)
+
+    def reset_daily_attempt(self, student_id: str, challenge_id: str) -> bool:
+        return bool(self.reset_daily_attempts([str(student_id)], str(challenge_id)))
 
     def completed_attempts_for_class(
         self, class_id: str, challenge_id: str, *, students: Sequence[StudentRecord] | None = None
@@ -1566,6 +1817,53 @@ class SupabaseFactStore:
                 "attempt_id": str(row["attempt_id"]) if row else None,
                 "completed_at": _dt(row.get("completed_at")) if row else None,
             })
+        return result
+
+
+    def daily_status_for_classes(
+        self, class_ids: Sequence[str], challenge_id: str,
+        *, students_by_class: Mapping[str, Sequence[StudentRecord]] | None = None,
+    ) -> dict[str, list[dict]]:
+        """Load Daily status for several class rosters with one attempts request."""
+        ids = list(dict.fromkeys(str(class_id) for class_id in class_ids if str(class_id)))
+        rosters = (
+            {str(key): list(value) for key, value in students_by_class.items()}
+            if students_by_class is not None
+            else self.list_students_for_classes(ids)
+        )
+        student_map = {
+            student.student_id: student
+            for class_id in ids for student in rosters.get(class_id, [])
+        }
+        if not student_map:
+            return {class_id: [] for class_id in ids}
+        rows = _rows(_retry_transient(lambda: (
+            self.client.table("daily_attempts")
+            .select("attempt_id,student_id,timed_started_at,completed_at,correct_count,timed_seconds")
+            .eq("challenge_id", str(challenge_id))
+            .in_("student_id", list(student_map))
+            .execute()
+        )))
+        attempt_map = {str(row["student_id"]): row for row in rows}
+        result = {}
+        for class_id in ids:
+            class_rows = []
+            for student in rosters.get(class_id, []):
+                row = attempt_map.get(student.student_id)
+                class_rows.append({
+                    "student_id": student.student_id,
+                    "nickname": student.nickname,
+                    "status": (
+                        "Complete" if row and row.get("completed_at") else
+                        "In progress" if row else
+                        "Not started"
+                    ),
+                    "correct_count": None if not row or row.get("correct_count") is None else int(row["correct_count"]),
+                    "timed_seconds": None if not row or row.get("timed_seconds") is None else float(row["timed_seconds"]),
+                    "attempt_id": str(row["attempt_id"]) if row else None,
+                    "completed_at": _dt(row.get("completed_at")) if row else None,
+                })
+            result[class_id] = class_rows
         return result
 
 
@@ -1929,6 +2227,71 @@ class SupabaseFactStore:
             raise FactStoreError("Could not load the saved Warm-Up.")
         return record
 
+    def save_warmup_sets_bulk(
+        self, class_ids: Sequence[str], warmup_date: date | str, question_one: Mapping, question_two: Mapping
+    ) -> list[WarmupSetRecord]:
+        """Save one Warm-Up to several classes with combined lock checks and one upsert."""
+        ids = list(dict.fromkeys(str(class_id) for class_id in class_ids if str(class_id)))
+        if not ids:
+            return []
+        date_key = warmup_date.isoformat() if isinstance(warmup_date, date) else str(warmup_date)
+
+        existing_rows = _rows(_retry_transient(lambda: (
+            self.client.table("warmup_sets")
+            .select("*")
+            .in_("class_id", ids)
+            .eq("warmup_date", date_key)
+            .execute()
+        )))
+        existing_ids = [str(row["warmup_set_id"]) for row in existing_rows]
+        test_ids = self._test_student_ids() if existing_ids else set()
+        answer_rows = _rows(_retry_transient(lambda: (
+            self.client.table("warmup_answers")
+            .select("warmup_set_id,student_id")
+            .in_("warmup_set_id", existing_ids)
+            .execute()
+        ))) if existing_ids else []
+        real_answer_sets = {
+            str(row["warmup_set_id"])
+            for row in answer_rows
+            if str(row.get("student_id") or "") not in test_ids
+        }
+        if real_answer_sets:
+            raise FactStoreError("Cannot copy over a Warm-Up that students already started.")
+
+        if existing_ids:
+            _retry_transient(lambda: (
+                self.client.table("warmup_answers").delete().in_("warmup_set_id", existing_ids).execute()
+            ))
+
+        now = utc_now().isoformat()
+        payloads = [
+            {
+                "class_id": class_id,
+                "warmup_date": date_key,
+                "question_one": dict(question_one),
+                "question_two": dict(question_two),
+                "updated_at": now,
+            }
+            for class_id in ids
+        ]
+        _retry_transient(lambda: (
+            self.client.table("warmup_sets")
+            .upsert(payloads, on_conflict="class_id,warmup_date")
+            .execute()
+        ))
+        saved_rows = _rows(_retry_transient(lambda: (
+            self.client.table("warmup_sets")
+            .select("*")
+            .in_("class_id", ids)
+            .eq("warmup_date", date_key)
+            .execute()
+        )))
+        by_class = {str(row["class_id"]): _warmup_set(row) for row in saved_rows}
+        if len(by_class) != len(ids):
+            raise FactStoreError("Could not load all saved Warm-Ups.")
+        return [by_class[class_id] for class_id in ids]
+
     def delete_warmup_set(self, class_id: str, warmup_date: date | str) -> None:
         date_key = warmup_date.isoformat() if isinstance(warmup_date, date) else str(warmup_date)
         existing = self.get_warmup_set(class_id, date_key)
@@ -2110,6 +2473,51 @@ class SupabaseFactStore:
     def delete_app_setting(self, setting_key: str) -> None:
         _retry_transient(lambda: self.client.table("app_settings").delete()
             .eq("setting_key", str(setting_key)).execute())
+
+    def get_app_settings(self, setting_keys: Sequence[str]) -> dict[str, object]:
+        """Read several private app settings in one request."""
+        keys = list(dict.fromkeys(str(key) for key in setting_keys if str(key)))
+        if not keys:
+            return {}
+        rows = _rows(_retry_transient(lambda: (
+            self.client.table("app_settings")
+            .select("setting_key,setting_value")
+            .in_("setting_key", keys)
+            .execute()
+        )))
+        return {
+            str(row["setting_key"]): row.get("setting_value")
+            for row in rows
+            if row.get("setting_key") is not None
+        }
+
+    def set_app_settings(self, values: Mapping[str, object]) -> None:
+        """Upsert several private app settings in one request."""
+        payloads = [
+            {
+                "setting_key": str(key),
+                "setting_value": value,
+                "updated_at": utc_now().isoformat(),
+            }
+            for key, value in dict(values).items()
+            if str(key)
+        ]
+        if not payloads:
+            return
+        _retry_transient(lambda: (
+            self.client.table("app_settings")
+            .upsert(payloads, on_conflict="setting_key")
+            .execute()
+        ))
+
+    def delete_app_settings(self, setting_keys: Sequence[str]) -> None:
+        """Delete several private app settings in one request."""
+        keys = list(dict.fromkeys(str(key) for key in setting_keys if str(key)))
+        if not keys:
+            return
+        _retry_transient(lambda: (
+            self.client.table("app_settings").delete().in_("setting_key", keys).execute()
+        ))
 
     @staticmethod
     def _mystery_plan_key(week_start: date | str) -> str:
@@ -2417,6 +2825,153 @@ class SupabaseFactStore:
                 qualified.append((day_number, challenge_id))
         qualified.sort(key=lambda item: item[0])
         return qualified
+
+    def repair_missing_mystery_clues_for_class(
+        self, class_id: str, week_start: date | str, *, through_day_number: int = 5,
+        students: Sequence[StudentRecord] | None = None,
+    ) -> dict[str, object]:
+        """Repair missing clue receipts for a whole class from saved completion evidence."""
+        week_key = self._week_key(week_start)
+        monday = date.fromisoformat(week_key)
+        through = max(0, min(5, int(through_day_number)))
+        roster = list(students) if students is not None else self.list_students(str(class_id))
+        if not roster or through <= 0:
+            return {"repaired": [], "already_ok": [], "incomplete": [s.nickname for s in roster], "repaired_count": 0}
+
+        student_map = {str(student.student_id): student for student in roster}
+        student_ids = list(student_map)
+        end_key = (monday + timedelta(days=through - 1)).isoformat()
+
+        challenge_rows = _rows(_retry_transient(lambda: (
+            self.client.table("daily_challenges")
+            .select("challenge_id,challenge_date")
+            .gte("challenge_date", week_key)
+            .lte("challenge_date", end_key)
+            .order("challenge_date")
+            .execute()
+        )))
+        challenge_by_id = {str(row["challenge_id"]): str(row["challenge_date"]) for row in challenge_rows}
+        challenge_ids = list(challenge_by_id)
+        if not challenge_ids:
+            return {"repaired": [], "already_ok": [], "incomplete": [s.nickname for s in roster], "repaired_count": 0}
+
+        attempt_rows = _rows(_retry_transient(lambda: (
+            self.client.table("daily_attempts")
+            .select("student_id,challenge_id,daily_mode,completed_at")
+            .in_("student_id", student_ids)
+            .in_("challenge_id", challenge_ids)
+            .not_.is_("completed_at", "null")
+            .range(0, 9999)
+            .execute()
+        )))
+        mult_pairs = {
+            (str(row["student_id"]), str(row["challenge_id"]))
+            for row in attempt_rows
+            if str(row.get("daily_mode") or "Multiplication") == "Multiplication"
+        }
+        alt_pairs = {
+            (str(row["student_id"]), str(row["challenge_id"]))
+            for row in attempt_rows
+            if str(row.get("daily_mode") or "Multiplication") != "Multiplication"
+        }
+
+        completed_mult: set[tuple[str, str]] = set()
+        if mult_pairs:
+            rows = _rows(_retry_transient(lambda: (
+                self.client.table("daily_learning_progress")
+                .select("student_id,challenge_id,completed_at")
+                .in_("student_id", student_ids)
+                .in_("challenge_id", challenge_ids)
+                .not_.is_("completed_at", "null")
+                .range(0, 9999)
+                .execute()
+            )))
+            completed_mult = {(str(row["student_id"]), str(row["challenge_id"])) for row in rows}
+        completed_alt: set[tuple[str, str]] = set()
+        if alt_pairs:
+            rows = _rows(_retry_transient(lambda: (
+                self.client.table("alternate_learning_progress")
+                .select("student_id,challenge_id,completed_at")
+                .in_("student_id", student_ids)
+                .in_("challenge_id", challenge_ids)
+                .not_.is_("completed_at", "null")
+                .range(0, 9999)
+                .execute()
+            )))
+            completed_alt = {(str(row["student_id"]), str(row["challenge_id"])) for row in rows}
+
+        qualified: dict[str, dict[int, str]] = {student_id: {} for student_id in student_ids}
+        for row in attempt_rows:
+            student_id = str(row["student_id"])
+            challenge_id = str(row["challenge_id"])
+            mode = str(row.get("daily_mode") or "Multiplication")
+            pair = (student_id, challenge_id)
+            if mode == "Multiplication" and pair not in completed_mult:
+                continue
+            if mode != "Multiplication" and pair not in completed_alt:
+                continue
+            challenge_date = date.fromisoformat(challenge_by_id[challenge_id])
+            day_number = (challenge_date - monday).days + 1
+            if 1 <= day_number <= through:
+                qualified[student_id][day_number] = challenge_id
+
+        existing_rows = _rows(_retry_transient(lambda: (
+            self.client.table("weekly_mystery_unlocks")
+            .select("student_id,day_number")
+            .eq("week_start", week_key)
+            .in_("student_id", student_ids)
+            .range(0, 9999)
+            .execute()
+        )))
+        existing = {
+            (str(row["student_id"]), int(row["day_number"])) for row in existing_rows
+        }
+
+        payloads = []
+        repaired_by_student: dict[str, list[int]] = {}
+        for student_id, by_day in qualified.items():
+            for day_number, challenge_id in by_day.items():
+                if (student_id, day_number) in existing:
+                    continue
+                payloads.append({
+                    "student_id": student_id,
+                    "week_start": week_key,
+                    "day_number": int(day_number),
+                    "challenge_id": str(challenge_id),
+                })
+                repaired_by_student.setdefault(student_id, []).append(int(day_number))
+
+        if payloads:
+            _retry_transient(lambda: (
+                self.client.table("weekly_mystery_unlocks")
+                .upsert(payloads, on_conflict="student_id,week_start,day_number")
+                .execute()
+            ))
+
+        repaired = [
+            {
+                "student_id": student_id,
+                "nickname": student_map[student_id].nickname,
+                "days": sorted(days),
+            }
+            for student_id, days in repaired_by_student.items()
+        ]
+        already = [
+            student_map[student_id].nickname
+            for student_id, by_day in qualified.items()
+            if by_day and student_id not in repaired_by_student
+        ]
+        incomplete = [
+            student_map[student_id].nickname
+            for student_id, by_day in qualified.items()
+            if not by_day
+        ]
+        return {
+            "repaired": sorted(repaired, key=lambda item: str(item["nickname"]).casefold()),
+            "already_ok": sorted(already, key=str.casefold),
+            "incomplete": sorted(incomplete, key=str.casefold),
+            "repaired_count": len(repaired),
+        }
 
     def get_weekly_mystery(self, week_start: date | str) -> WeeklyMysteryRecord | None:
         row = _first(_retry_transient(lambda: (

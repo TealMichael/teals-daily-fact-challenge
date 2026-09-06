@@ -8,7 +8,7 @@ store teacher planning records that already exist in the app's data model.
 
 from datetime import date, timedelta
 
-from daily_modes import configured_daily_mode, daily_mode_setting_key
+from daily_modes import configured_daily_mode, daily_mode_setting_key, normalize_daily_mode
 from fact_store import FactStoreError
 
 WARMUP_TEMPLATES_KEY = "warmup_templates:v1"
@@ -44,12 +44,81 @@ def set_daily_mode(store, class_id: str, day: date, mode: str) -> None:
         store.set_app_setting(key, mode)
 
 
+def load_daily_modes(store, class_ids, days) -> dict[tuple[str, date], str]:
+    """Load a class/week Daily 10 grid with one settings request when supported."""
+    class_ids = list(dict.fromkeys(str(class_id) for class_id in class_ids if str(class_id)))
+    days = list(days)
+    keys = {
+        (class_id, day): daily_mode_setting_key(day, class_id)
+        for class_id in class_ids for day in days
+    }
+    bulk_reader = getattr(store, "get_app_settings", None)
+    if callable(bulk_reader):
+        saved = bulk_reader(list(keys.values()))
+    else:
+        saved = {}
+        for key in keys.values():
+            value = store.get_app_setting(key)
+            if value is not None:
+                saved[key] = value
+    return {
+        pair: normalize_daily_mode(saved.get(key, "Multiplication"))
+        for pair, key in keys.items()
+    }
+
+
+def save_daily_modes_bulk(
+    store, planned: dict[tuple[str, date], str], *,
+    current: dict[tuple[str, date], str] | None = None,
+) -> int:
+    """Save only changed Daily 10 cells; alternate modes upsert together and defaults delete together."""
+    if current is None:
+        class_ids = list(dict.fromkeys(class_id for class_id, _ in planned))
+        days = list(dict.fromkeys(day for _, day in planned))
+        current = load_daily_modes(store, class_ids, days)
+    upserts = {}
+    deletes = []
+    changed = 0
+    for pair, raw_mode in planned.items():
+        mode = normalize_daily_mode(raw_mode)
+        if normalize_daily_mode(current.get(pair, "Multiplication")) == mode:
+            continue
+        class_id, day = pair
+        key = daily_mode_setting_key(day, class_id)
+        changed += 1
+        if mode == "Multiplication":
+            deletes.append(key)
+        else:
+            upserts[key] = mode
+
+    bulk_writer = getattr(store, "set_app_settings", None)
+    bulk_deleter = getattr(store, "delete_app_settings", None)
+    if upserts:
+        if callable(bulk_writer):
+            bulk_writer(upserts)
+        else:
+            for key, value in upserts.items():
+                store.set_app_setting(key, value)
+    if deletes:
+        if callable(bulk_deleter):
+            bulk_deleter(deletes)
+        else:
+            for key in deletes:
+                store.delete_app_setting(key)
+    return changed
+
+
 def copy_daily_week(store, classes, source_week: date, target_week: date) -> None:
-    for class_record in classes:
-        for offset in range(5):
-            source_day = source_week + timedelta(days=offset)
-            target_day = target_week + timedelta(days=offset)
-            set_daily_mode(store, class_record.class_id, target_day, configured_daily_mode(store, class_record.class_id, source_day))
+    class_ids = [str(class_record.class_id) for class_record in classes]
+    source_days = [source_week + timedelta(days=offset) for offset in range(5)]
+    target_days = [target_week + timedelta(days=offset) for offset in range(5)]
+    source = load_daily_modes(store, class_ids, source_days)
+    target = load_daily_modes(store, class_ids, target_days)
+    planned = {}
+    for class_id in class_ids:
+        for source_day, target_day in zip(source_days, target_days):
+            planned[(class_id, target_day)] = source[(class_id, source_day)]
+    save_daily_modes_bulk(store, planned, current=target)
 
 
 def _app_setting(store, key: str, default=None):

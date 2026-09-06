@@ -219,8 +219,10 @@ def render_student_learning_snapshot(store: SupabaseFactStore, class_record, stu
     try:
         raw = store.get_mastery(student.student_id)
         full_map = complete_mastery_map(raw)
+        # v2.20: Student Support asks for one student's history, not the entire
+        # class history only to discard classmates immediately afterward.
         history = store.teacher_daily_history(
-            class_record.class_id, today - timedelta(days=28), today, students=students,
+            class_record.class_id, today - timedelta(days=28), today, students=[student],
         )
         signals = build_student_signals([student], {student.student_id: full_map}, history, today=today)
         signal = signals[0]

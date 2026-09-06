@@ -9,6 +9,7 @@ import pandas as pd
 import streamlit as st
 
 from daily_modes import configured_daily_mode
+from teacher_planning import load_daily_modes
 from fact_engine import daily_mix_summary
 from supabase_fact_store import SupabaseFactStore
 from teacher_clock_ui import queue_clock_top10_for_class
@@ -51,41 +52,76 @@ def render_teacher_today_command_center(
     day_label = day.strftime("%A, %B %d").replace(" 0", " ")
     st.caption(f"📅 {day_label}")
 
-    # Load a lightweight Daily 10 snapshot for each class once.  The selected
-    # class reuses this roster/status data below instead of repeating reads.
+    # Load all class lists, today's attempts, and today's Daily modes in bulk.
+    # The selected class reuses the same fresh snapshot below.
     overview_rows = []
     class_snapshot = {}
     overview_errors = []
-    for class_record in classes:
-        try:
-            roster = store.list_students(class_record.class_id)
-            status_rows = store.daily_status(class_record.class_id, challenge.challenge_id, students=roster)
-            summary = summarize_daily_status(status_rows)
-            mode = configured_daily_mode(store, class_record.class_id, day)
-            class_snapshot[class_record.class_id] = {
-                "students": roster,
-                "status": status_rows,
-                "summary": summary,
-                "mode": mode,
-            }
-            overview_rows.append({
-                "Class": class_record.class_name,
-                "Daily 10": mode,
-                "Finished": f"{summary['complete']}/{summary['present']}",
-                "In progress": summary["in_progress"],
-                "Not started": summary["not_started"],
-            })
-        except Exception as exc:
-            overview_errors.append((class_record.class_name, exc))
-            class_snapshot[class_record.class_id] = {
-                "students": [], "status": [], "summary": None,
-                "mode": configured_daily_mode(store, class_record.class_id, day), "error": exc,
-            }
-            overview_rows.append({
-                "Class": class_record.class_name,
-                "Daily 10": class_snapshot[class_record.class_id]["mode"],
-                "Finished": "—", "In progress": "—", "Not started": "—",
-            })
+    class_ids = [str(class_record.class_id) for class_record in classes]
+    try:
+        roster_loader = getattr(store, "list_students_for_classes", None)
+        status_loader = getattr(store, "daily_status_for_classes", None)
+        if callable(roster_loader) and callable(status_loader):
+            rosters = roster_loader(class_ids)
+            statuses = status_loader(class_ids, challenge.challenge_id, students_by_class=rosters)
+            modes = load_daily_modes(store, class_ids, [day])
+            for class_record in classes:
+                class_id = str(class_record.class_id)
+                roster = list(rosters.get(class_id, []))
+                status_rows = list(statuses.get(class_id, []))
+                summary = summarize_daily_status(status_rows)
+                mode = modes[(class_id, day)]
+                class_snapshot[class_id] = {
+                    "students": roster,
+                    "status": status_rows,
+                    "summary": summary,
+                    "mode": mode,
+                }
+                overview_rows.append({
+                    "Class": class_record.class_name,
+                    "Daily 10": mode,
+                    "Finished": f"{summary['complete']}/{summary['present']}",
+                    "In progress": summary["in_progress"],
+                    "Not started": summary["not_started"],
+                })
+        else:
+            raise AttributeError("Bulk teacher snapshot helpers are not available.")
+    except Exception as bulk_exc:
+        # Compatibility fallback for simple test doubles and unusual local stores.
+        overview_rows = []
+        class_snapshot = {}
+        for class_record in classes:
+            try:
+                roster = store.list_students(class_record.class_id)
+                status_rows = store.daily_status(class_record.class_id, challenge.challenge_id, students=roster)
+                summary = summarize_daily_status(status_rows)
+                mode = configured_daily_mode(store, class_record.class_id, day)
+                class_snapshot[str(class_record.class_id)] = {
+                    "students": roster,
+                    "status": status_rows,
+                    "summary": summary,
+                    "mode": mode,
+                }
+                overview_rows.append({
+                    "Class": class_record.class_name,
+                    "Daily 10": mode,
+                    "Finished": f"{summary['complete']}/{summary['present']}",
+                    "In progress": summary["in_progress"],
+                    "Not started": summary["not_started"],
+                })
+            except Exception as exc:
+                overview_errors.append((class_record.class_name, exc))
+                class_snapshot[str(class_record.class_id)] = {
+                    "students": [], "status": [], "summary": None,
+                    "mode": configured_daily_mode(store, class_record.class_id, day), "error": exc,
+                }
+                overview_rows.append({
+                    "Class": class_record.class_name,
+                    "Daily 10": class_snapshot[str(class_record.class_id)]["mode"],
+                    "Finished": "—", "In progress": "—", "Not started": "—",
+                })
+        if not overview_errors:
+            overview_errors.append(("All Classes", bulk_exc))
 
     st.markdown("#### All Classes")
     st.dataframe(pd.DataFrame(overview_rows), hide_index=True, use_container_width=True)
@@ -95,7 +131,7 @@ def render_teacher_today_command_center(
     class_by_name = {item.class_name: item for item in classes}
     selected_name = st.selectbox("Open class", list(class_by_name), key="teacher_today_class")
     selected = class_by_name[selected_name]
-    selected_snapshot = class_snapshot.get(selected.class_id, {})
+    selected_snapshot = class_snapshot.get(str(selected.class_id), {})
     students = list(selected_snapshot.get("students") or [])
     status = list(selected_snapshot.get("status") or [])
     absent_ids: set[str] = set()

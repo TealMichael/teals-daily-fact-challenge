@@ -378,6 +378,28 @@ class InMemoryFactStore:
             result = [student for student in result if student.active]
         return sorted(result, key=lambda item: item.nickname.casefold())
 
+    def list_students_for_classes(
+        self, class_ids: Sequence[str], *, include_inactive: bool = False, include_test: bool = False
+    ) -> dict[str, list[StudentRecord]]:
+        """Return rosters for several classes from one in-memory scan."""
+        ids = list(dict.fromkeys(str(class_id) for class_id in class_ids if str(class_id)))
+        result = {class_id: [] for class_id in ids}
+        if not ids:
+            return result
+        wanted = set(ids)
+        for row in self.students.values():
+            student = row["record"]
+            if student.class_id not in wanted:
+                continue
+            if not include_inactive and not student.active:
+                continue
+            if not include_test and student.is_test:
+                continue
+            result[student.class_id].append(student)
+        for class_id in result:
+            result[class_id].sort(key=lambda item: item.nickname.casefold())
+        return result
+
     def get_student(self, student_id: str) -> StudentRecord:
         try:
             return self.students[student_id]["record"]
@@ -432,6 +454,32 @@ class InMemoryFactStore:
         updated = replace(record, class_id=new_class_id)
         self.students[student_id]["record"] = updated
         return updated
+
+    def move_students(self, student_ids: Sequence[str], new_class_id: str) -> int:
+        """Move several students at once while preserving nickname uniqueness."""
+        ids = list(dict.fromkeys(str(student_id) for student_id in student_ids if str(student_id)))
+        if not ids:
+            return 0
+        destination = str(new_class_id)
+        if destination not in self.classes:
+            raise NotFound("Class not found.")
+        moving = [self.get_student(student_id) for student_id in ids]
+        moving_ids = {student.student_id for student in moving}
+        destination_names = {
+            student.nickname.casefold()
+            for student in self.list_students(destination, include_inactive=True, include_test=True)
+            if student.student_id not in moving_ids
+        }
+        duplicates = sorted(
+            {student.nickname for student in moving if student.nickname.casefold() in destination_names},
+            key=str.casefold,
+        )
+        if duplicates:
+            raise NameTaken("Nickname already used in the destination class: " + ", ".join(duplicates[:8]))
+        for student in moving:
+            row = self.students[student.student_id]
+            row["record"] = replace(student, class_id=destination)
+        return len(moving)
 
     def get_test_student(self, class_id: str | None = None) -> StudentRecord | None:
         rows = [row["record"] for row in self.students.values() if row["record"].is_test]
@@ -1042,24 +1090,54 @@ class InMemoryFactStore:
         return self.get_mastery(student_id)
 
     def reset_daily_attempt(self, student_id: str, challenge_id: str) -> bool:
-        target = self.get_attempt_for_student(student_id, challenge_id)
-        if target is None:
-            return False
+        return bool(self.reset_daily_attempts([str(student_id)], str(challenge_id)))
+
+    def reset_daily_attempts(self, student_ids: Sequence[str], challenge_id: str) -> int:
+        """Bulk version of reset_daily_attempt; alternate modes never rebuild multiplication mastery."""
+        ids = list(dict.fromkeys(str(student_id) for student_id in student_ids if str(student_id)))
+        if not ids:
+            return 0
+        id_set = set(ids)
+        targets = [
+            attempt for attempt in self.attempts.values()
+            if attempt.student_id in id_set and attempt.challenge_id == str(challenge_id)
+        ]
+        if not targets:
+            return 0
+        target_ids = {attempt.attempt_id for attempt in targets}
+        rebuild_ids = {
+            attempt.student_id for attempt in targets
+            if attempt.daily_mode == "Multiplication" and attempt.completed_at is not None
+        }
         self.practice = [
             row for row in self.practice
-            if not (row.student_id == student_id and row.challenge_id == challenge_id and row.activity_type in {"fix_miss", "focus"})
+            if not (
+                row.student_id in id_set
+                and row.challenge_id == str(challenge_id)
+                and row.activity_type in {"fix_miss", "focus"}
+            )
         ]
-        self.learning_progress.pop((student_id, challenge_id), None)
-        self.alternate_learning_progress.pop((str(student_id), str(challenge_id)), None)
+        self.learning_progress = {
+            key: row for key, row in self.learning_progress.items()
+            if not (key[0] in id_set and key[1] == str(challenge_id))
+        }
+        self.alternate_learning_progress = {
+            key: row for key, row in self.alternate_learning_progress.items()
+            if not (key[0] in id_set and key[1] == str(challenge_id))
+        }
         self.alternate_learning_events = [
             row for row in self.alternate_learning_events
-            if not (row.student_id == str(student_id) and row.challenge_id == str(challenge_id))
+            if not (row.student_id in id_set and row.challenge_id == str(challenge_id))
         ]
-        self.alternate_event_ids = {str(row.client_event_id) for row in self.alternate_learning_events if row.client_event_id}
-        self.answers.pop(target.attempt_id, None)
-        self.attempts.pop(target.attempt_id, None)
-        self.rebuild_mastery(student_id)
-        return True
+        self.alternate_event_ids = {
+            str(row.client_event_id) for row in self.alternate_learning_events if row.client_event_id
+        }
+        for attempt_id in target_ids:
+            self.answers.pop(attempt_id, None)
+            self.attempts.pop(attempt_id, None)
+        for student_id in sorted(rebuild_ids):
+            self.rebuild_mastery(student_id)
+        return len(targets)
 
     def completed_attempts_for_class(self, class_id: str, challenge_id: str) -> list[dict]:
         student_map = {s.student_id: s for s in self.list_students(class_id, include_inactive=True)}
@@ -1109,6 +1187,46 @@ class InMemoryFactStore:
                 "attempt_id": attempt.attempt_id if attempt else None,
             })
         return result
+    def daily_status_for_classes(
+        self, class_ids: Sequence[str], challenge_id: str,
+        *, students_by_class: Mapping[str, Sequence[StudentRecord]] | None = None,
+    ) -> dict[str, list[dict]]:
+        """Build several class Daily snapshots from one attempt scan."""
+        ids = list(dict.fromkeys(str(class_id) for class_id in class_ids if str(class_id)))
+        rosters = (
+            {str(key): list(value) for key, value in students_by_class.items()}
+            if students_by_class is not None
+            else self.list_students_for_classes(ids)
+        )
+        all_student_ids = {
+            student.student_id for class_id in ids for student in rosters.get(class_id, [])
+        }
+        attempt_by_student = {
+            attempt.student_id: attempt
+            for attempt in self.attempts.values()
+            if attempt.challenge_id == str(challenge_id) and attempt.student_id in all_student_ids
+        }
+        result = {}
+        for class_id in ids:
+            rows = []
+            for student in rosters.get(class_id, []):
+                attempt = attempt_by_student.get(student.student_id)
+                rows.append({
+                    "student_id": student.student_id,
+                    "nickname": student.nickname,
+                    "status": (
+                        "Complete" if attempt and attempt.completed_at else
+                        "In progress" if attempt else
+                        "Not started"
+                    ),
+                    "correct_count": attempt.correct_count if attempt else None,
+                    "timed_seconds": attempt.timed_seconds if attempt else None,
+                    "attempt_id": attempt.attempt_id if attempt else None,
+                    "completed_at": attempt.completed_at if attempt else None,
+                })
+            result[class_id] = rows
+        return result
+
 
 
     # ----- Adaptive learning / Practice -----
@@ -1362,6 +1480,21 @@ class InMemoryFactStore:
         self.warmup_sets[key] = record
         return record
 
+    def save_warmup_sets_bulk(
+        self, class_ids: Sequence[str], warmup_date: date | str, question_one: Mapping, question_two: Mapping
+    ) -> list[WarmupSetRecord]:
+        """Save the same Warm-Up to several classes after one combined lock check."""
+        ids = list(dict.fromkeys(str(class_id) for class_id in class_ids if str(class_id)))
+        date_key = _as_date_key(warmup_date)
+        existing = [self.warmup_sets.get((class_id, date_key)) for class_id in ids]
+        locked = [row for row in existing if row is not None and self.warmup_set_locked(row.warmup_set_id)]
+        if locked:
+            raise FactStoreError("Cannot copy over a Warm-Up that students already started.")
+        result = []
+        for class_id in ids:
+            result.append(self.save_warmup_set(class_id, date_key, question_one, question_two))
+        return result
+
     def delete_warmup_set(self, class_id: str, warmup_date: date | str) -> None:
         key = (str(class_id), _as_date_key(warmup_date))
         existing = self.warmup_sets.get(key)
@@ -1480,6 +1613,18 @@ class InMemoryFactStore:
     def delete_app_setting(self, setting_key: str) -> None:
         self.app_settings.pop(str(setting_key), None)
 
+    def get_app_settings(self, setting_keys: Sequence[str]) -> dict[str, object]:
+        keys = list(dict.fromkeys(str(key) for key in setting_keys if str(key)))
+        return {key: self.app_settings[key] for key in keys if key in self.app_settings}
+
+    def set_app_settings(self, values: Mapping[str, object]) -> None:
+        for key, value in dict(values).items():
+            self.app_settings[str(key)] = value
+
+    def delete_app_settings(self, setting_keys: Sequence[str]) -> None:
+        for key in dict.fromkeys(str(key) for key in setting_keys if str(key)):
+            self.app_settings.pop(key, None)
+
     @staticmethod
     def _mystery_plan_key(week_start: date | str) -> str:
         return f"weekly_mystery_plan::{_as_date_key(week_start)}"
@@ -1532,6 +1677,45 @@ class InMemoryFactStore:
                     continue
             qualified.append((day_number, challenge.challenge_id))
         return qualified
+
+    def repair_missing_mystery_clues_for_class(
+        self, class_id: str, week_start: date | str, *, through_day_number: int = 5,
+        students: Sequence[StudentRecord] | None = None,
+    ) -> dict[str, object]:
+        """Restore only missing clue receipts for students whose required routine is already complete."""
+        roster = list(students) if students is not None else self.list_students(str(class_id))
+        week_key = _as_date_key(week_start)
+        through = max(0, min(5, int(through_day_number)))
+        repaired = []
+        already = []
+        incomplete = []
+        for student in roster:
+            qualified = dict(
+                self.completed_mystery_days(
+                    student.student_id, week_key, through_day_number=through
+                )
+            )
+            existing = {row.day_number for row in self.list_mystery_unlocks(student.student_id, week_key)}
+            missing = []
+            for day_number, challenge_id in qualified.items():
+                if day_number in existing:
+                    continue
+                self.unlock_mystery_day(student.student_id, week_key, day_number, challenge_id)
+                missing.append(day_number)
+            if missing:
+                repaired.append(
+                    {"student_id": student.student_id, "nickname": student.nickname, "days": missing}
+                )
+            elif qualified:
+                already.append(student.nickname)
+            else:
+                incomplete.append(student.nickname)
+        return {
+            "repaired": repaired,
+            "already_ok": already,
+            "incomplete": incomplete,
+            "repaired_count": len(repaired),
+        }
 
     def get_weekly_mystery(self, week_start: date | str) -> WeeklyMysteryRecord | None:
         return self.weekly_mysteries.get(_as_date_key(week_start))
