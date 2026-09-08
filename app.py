@@ -39,6 +39,7 @@ from persistent_login import REMEMBER_DAYS, issue_student_token, peek_student_id
 from ui_helpers import format_seconds, strategy_tip
 from student_igniter_ui import render_quick_warmup
 from student_recognition import build_public_daily_recognition
+from student_daily_save_recovery import clear_pending_daily_payload, pending_daily_payload, save_multiplication_daily
 from daily_modes import configured_daily_mode, questions_for_mode
 from student_alt_daily_ui import render_alternate_daily
 from teacher_daily_setup_ui import render_teacher_daily_setup
@@ -1716,6 +1717,7 @@ def render_daily(store: SupabaseFactStore | None) -> None:
         st.caption(f"{daily_mode} · 10 questions. Accuracy comes first; time only breaks ties.")
 
     if attempt.completed_at is not None:
+        clear_pending_daily_payload(attempt.attempt_id)
         if daily_mode == "Multiplication":
             render_completed_daily(store, day, facts, challenge, attempt)
         else:
@@ -1735,44 +1737,15 @@ def render_daily(store: SupabaseFactStore | None) -> None:
 
         # Protected v2.12 multiplication browser sprint. Its component file and
         # TDFC-DAILY-v1 challenge generator are intentionally unchanged.
-        component_result = DAILY_SPRINT_COMPONENT(
+        component_result = pending_daily_payload(attempt.attempt_id) or DAILY_SPRINT_COMPONENT(
             facts=[{"a": fact.a, "b": fact.b} for fact in facts],
             attempt_key=f"{st.session_state.student_id}:{challenge.challenge_id}:{attempt.attempt_id}",
-            challenge_version=CHALLENGE_VERSION,
-            default=None,
-            key=f"daily_sprint_{attempt.attempt_id}",
+            challenge_version=CHALLENGE_VERSION, default=None, key=f"daily_sprint_{attempt.attempt_id}",
         )
-
         if isinstance(component_result, dict) and component_result.get("status") == "complete":
-            try:
-                raw_answers = component_result.get("answers")
-                raw_first_answers = component_result.get("first_answers")
-                raw_response_seconds = component_result.get("response_seconds")
-                timed_seconds = float(component_result.get("timed_seconds"))
-                if not isinstance(raw_answers, list) or len(raw_answers) != 10:
-                    raise ValueError("Daily component returned an incomplete answer set.")
-                values = [int(value) for value in raw_answers]
-                if not isinstance(raw_first_answers, list) or len(raw_first_answers) != 10:
-                    raw_first_answers = raw_answers
-                first_values = [int(value) for value in raw_first_answers]
-                if not isinstance(raw_response_seconds, list) or len(raw_response_seconds) != 10:
-                    raw_response_seconds = [None] * 10
-                response_seconds = [None if value is None else float(value) for value in raw_response_seconds]
-                if any(value < 0 or value > 200 for value in values):
-                    raise ValueError("Daily component returned an invalid answer.")
-                store.complete_full_attempt(
-                    attempt.attempt_id,
-                    list(zip(facts, values)),
-                    timed_seconds,
-                    response_seconds=response_seconds,
-                    first_answers=list(zip(facts, first_values)),
-                    completed_at=utc_now(),
-                )
+            if save_multiplication_daily(store, attempt, facts, component_result):
                 st.rerun()
-            except Exception as exc:
-                st.error("Your finished Daily could not be saved. Leave this page open and try once more; your completed answers are still held in this browser.")
-                if str(st.query_params.get("dbcheck", "0")) == "1":
-                    st.exception(exc)
+            return
     else:
         render_alternate_daily(
             store, day, challenge, attempt, render_mystery_reward=render_weekly_mystery_reward

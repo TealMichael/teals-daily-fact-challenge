@@ -1,48 +1,36 @@
-Teal's Daily Fact Challenge v2.20.0 — Browser GitHub Install Only
+Teal's Daily Fact Challenge v2.20.1 — Browser GitHub Install Only
 
-STARTING POINT
-This patch is for the verified v2.19.9 app.
+PURPOSE
+Hotfix for a completed Daily 10 that fails to save and otherwise leaves the student stranded.
 
-UPLOAD THESE 12 PRODUCTION FILES TO THE ROOT OF YOUR GITHUB REPOSITORY
+UPLOAD THESE 4 FILES TO THE ROOT OF YOUR GITHUB REPOSITORY:
 - app.py
 - fact_engine.py
-- fact_store.py
-- supabase_fact_store.py
-- teacher_daily_setup_ui.py
-- teacher_intelligence_ui.py
-- teacher_mystery_raffle.py          (NEW)
-- teacher_planning.py
-- teacher_recovery_ui.py             (NEW)
-- teacher_today_ui.py
-- teacher_warmup_settings.py         (NEW)
-- teacher_warmup_ui.py
+- student_alt_daily_ui.py
+- student_daily_save_recovery.py   (NEW FILE)
 
-BROWSER STEPS
-1. Unzip this package on your computer.
-2. Open the teals-daily-fact-challenge repository on GitHub.com.
-3. Make sure you are on main.
-4. Choose Add file → Upload files.
-5. Drag ALL 12 .py files from this folder into the repository root.
-6. GitHub should show replacements for existing files plus 3 new files.
-7. Commit directly to main using:
-   v2.20.0 - teacher efficiency and recovery pass
-8. Allow Streamlit to redeploy.
-9. Confirm the app footer/version shows v2.20.0.
+BROWSER-ONLY GITHUB STEPS
+1. Open your teals-daily-fact-challenge repository on GitHub.com.
+2. Confirm you are on the main branch.
+3. Choose Add file -> Upload files.
+4. Drag all four .py files from this folder into the repository root.
+5. Confirm app.py, fact_engine.py, and student_alt_daily_ui.py show as replacements, and student_daily_save_recovery.py shows as a new file.
+6. Commit directly to main.
+7. Let Streamlit redeploy.
+8. Confirm the app version displays v2.20.1.
 
-NO SUPABASE SQL FOR v2.20.0
-No new database migration is required.
-Do not rerun an old migration just for this update.
+NO OTHER INSTALL STEPS
+- No Supabase SQL.
+- No Streamlit Secret changes.
+- No AWTRIX reinstall or clock changes.
+- No browser component folders changed.
 
-NO SECRETS OR CLOCK STEP
-No Streamlit Secrets changes.
-No AWTRIX reinstall or token change.
+WHAT THE HOTFIX DOES
+- Saves a completed Daily payload into temporary Streamlit session state before the first database save attempt.
+- If saving fails, shows a visible "Try saving again" button.
+- Retrying reuses the exact completed payload; the student does not redo the Daily 10.
+- The existing browser localStorage remains a second recovery layer after a hard refresh.
+- Applies to Multiplication and alternate Daily modes.
 
-QUICK CHECK AFTER DEPLOY
-- Teacher → Manage → Daily 10 Setup: open next week, change a box, Save.
-- Teacher → Student Support: choose a class and open “🚑 Show class recovery tools.”
-- Confirm “Repair earned clues for this class” and “Bulk reopen today's Daily” are present.
-- Do not actually reopen students unless you intend to reset today's work.
-
-PROTECTED STUDENT BEHAVIOR
-Multiplication Daily/Guided Practice, alternate keypad/teaching components,
-Perfect Score Club, and the AWTRIX script were not changed by this patch.
+Suggested GitHub commit message:
+v2.20.1 - prevent students getting stranded after Daily save failure

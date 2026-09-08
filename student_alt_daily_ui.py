@@ -19,6 +19,7 @@ from alternate_focus import ALT_FOCUS_SESSION_LENGTH, build_alternate_focus_plan
 from fact_store import utc_now
 from supabase_fact_store import SupabaseFactStore
 from student_recognition import build_public_daily_recognition
+from student_daily_save_recovery import clear_pending_daily_payload, pending_daily_payload, save_alternate_daily
 
 ALT_DAILY_COMPONENT = components.declare_component(
     "tdfc_alt_daily_v2195", path=str(Path(__file__).with_name("daily_alt_component"))
@@ -115,6 +116,7 @@ def render_alternate_daily(store: SupabaseFactStore, day, challenge, attempt, *,
         return
 
     if attempt.completed_at is not None:
+        clear_pending_daily_payload(attempt.attempt_id)
         answers = list(attempt.custom_answers or ())
         if len(answers) != 10:
             st.error("Today's results did not finish loading. Show your teacher this screen.")
@@ -281,27 +283,12 @@ def render_alternate_daily(store: SupabaseFactStore, day, challenge, attempt, *,
         "<div class='private-note'><strong>Question 1 is untimed.</strong> After you submit it, the hidden timer starts. Accuracy comes first.</div>",
         unsafe_allow_html=True,
     )
-    result = ALT_DAILY_COMPONENT(
+    result = pending_daily_payload(attempt.attempt_id) or ALT_DAILY_COMPONENT(
         questions=[{"prompt": str(item.get("prompt") or "")} for item in questions],
         attempt_key=f"{st.session_state.student_id}:{challenge.challenge_id}:{attempt.attempt_id}",
         daily_version=f"{ALT_DAILY_VERSION}:{attempt.daily_mode}", default=None, key=f"alt_daily_{attempt.attempt_id}",
     )
     if isinstance(result, dict) and result.get("status") == "complete":
-        try:
-            raw_answers = result.get("answers")
-            timed_seconds = float(result.get("timed_seconds"))
-            if not isinstance(raw_answers, list) or len(raw_answers) != 10:
-                raise ValueError("Alternate Daily component returned an incomplete answer set.")
-            values = [int(value) for value in raw_answers]
-            if any(value < -999 or value > 999 for value in values):
-                raise ValueError("Alternate Daily component returned an invalid answer.")
-            attempt = store.complete_custom_attempt(
-                attempt.attempt_id, values, timed_seconds, completed_at=utc_now()
-            )
-            if getattr(attempt, "learning_evidence_applied_at", None) is not None:
-                st.session_state[f"daily_evidence_verified::{attempt.attempt_id}"] = True
+        if save_alternate_daily(store, attempt, result):
             st.rerun()
-        except Exception as exc:
-            st.error("Your finished Daily could not be saved. Leave this page open and try once more; your answers are still here.")
-            if str(st.query_params.get("dbcheck", "0")) == "1":
-                st.exception(exc)
+        return
