@@ -1,36 +1,17 @@
-Teal's Daily Fact Challenge v2.20.1 — Browser GitHub Install Only
+Teal's Daily Fact Challenge v2.20.2 — Browser-only GitHub install
 
-PURPOSE
-Hotfix for a completed Daily 10 that fails to save and otherwise leaves the student stranded.
-
-UPLOAD THESE 4 FILES TO THE ROOT OF YOUR GITHUB REPOSITORY:
+Upload these 4 .py files to the ROOT of your existing GitHub repository:
 - app.py
 - fact_engine.py
-- student_alt_daily_ui.py
-- student_daily_save_recovery.py   (NEW FILE)
+- student_daily_save_recovery.py
+- supabase_fact_store.py
 
-BROWSER-ONLY GITHUB STEPS
-1. Open your teals-daily-fact-challenge repository on GitHub.com.
-2. Confirm you are on the main branch.
-3. Choose Add file -> Upload files.
-4. Drag all four .py files from this folder into the repository root.
-5. Confirm app.py, fact_engine.py, and student_alt_daily_ui.py show as replacements, and student_daily_save_recovery.py shows as a new file.
-6. Commit directly to main.
-7. Let Streamlit redeploy.
-8. Confirm the app version displays v2.20.1.
+Allow GitHub to replace the current versions, then commit directly to main and let Streamlit redeploy.
+Confirm the teacher footer shows v2.20.2.
 
-NO OTHER INSTALL STEPS
-- No Supabase SQL.
-- No Streamlit Secret changes.
-- No AWTRIX reinstall or clock changes.
-- No browser component folders changed.
+No Supabase SQL.
+No Streamlit Secrets changes.
+No AWTRIX changes.
 
-WHAT THE HOTFIX DOES
-- Saves a completed Daily payload into temporary Streamlit session state before the first database save attempt.
-- If saving fails, shows a visible "Try saving again" button.
-- Retrying reuses the exact completed payload; the student does not redo the Daily 10.
-- The existing browser localStorage remains a second recovery layer after a hard refresh.
-- Applies to Multiplication and alternate Daily modes.
-
-Suggested GitHub commit message:
-v2.20.1 - prevent students getting stranded after Daily save failure
+Suggested commit message:
+v2.20.2 - harden Daily save recovery and fresh-connection retry

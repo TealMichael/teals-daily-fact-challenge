@@ -3,8 +3,9 @@ from __future__ import annotations
 """Recover a finished browser-local Daily when its first Supabase save fails.
 
 The browser components already keep their completed payload in localStorage.
-This module adds a second, Streamlit-session copy before the first mutation so
-an explicit retry never depends on the component emitting the same value twice.
+This module adds a Streamlit-session copy before the first database mutation.
+A retry also requests a fresh Supabase client on the next run so a wedged pooled
+connection is not reused indefinitely.
 """
 
 from typing import Mapping, Sequence
@@ -20,6 +21,10 @@ def _key(attempt_id: str) -> str:
     return f"pending_daily_save::{attempt_id}"
 
 
+def _retry_count_key(attempt_id: str) -> str:
+    return f"pending_daily_retry_count::{attempt_id}"
+
+
 def pending_daily_payload(attempt_id: str) -> dict | None:
     payload = st.session_state.get(_key(attempt_id))
     if isinstance(payload, dict) and payload.get("status") == "complete":
@@ -29,6 +34,7 @@ def pending_daily_payload(attempt_id: str) -> dict | None:
 
 def clear_pending_daily_payload(attempt_id: str) -> None:
     st.session_state.pop(_key(attempt_id), None)
+    st.session_state.pop(_retry_count_key(attempt_id), None)
 
 
 def _capture(attempt_id: str, payload: Mapping) -> dict:
@@ -37,15 +43,24 @@ def _capture(attempt_id: str, payload: Mapping) -> dict:
     return saved
 
 
-def _render_retry(exc: Exception, *, button_key: str) -> None:
+def _render_retry(exc: Exception, *, attempt_id: str, button_key: str) -> None:
     # Keep diagnostics private and coarse: no student, question, answer, or PIN data.
     print(f"[TDFC connection] daily_save: {type(exc).__name__}", flush=True)
+    count_key = _retry_count_key(attempt_id)
+    failures = int(st.session_state.get(count_key, 0)) + 1
+    st.session_state[count_key] = failures
+
     st.error("Your finished Daily has not finished saving yet.")
     st.caption(
         "Your 10 completed answers are safe on this device. "
         "Tap Try saving again — you do not need to redo the Daily 10."
     )
+    if failures > 1:
+        st.caption("The last retry still could not reach the save service. The next try will use a fresh connection.")
     if st.button("🔄 Try saving again", type="primary", use_container_width=True, key=button_key):
+        # The previous v2.20.1 button merely reran the same cached Supabase client.
+        # Ask app.py to build a one-run fresh client before retrying the preserved payload.
+        st.session_state["tdfc_force_fresh_store_once"] = True
         st.rerun()
     if str(st.query_params.get("dbcheck", "0")) == "1":
         st.exception(exc)
@@ -74,6 +89,9 @@ def save_multiplication_daily(
         response_seconds = [None if value is None else float(value) for value in raw_response_seconds]
         if any(value < 0 or value > 200 for value in values):
             raise ValueError("Daily component returned an invalid answer.")
+
+        # Make the official result durable first.  Do not make mastery/follow-up
+        # bookkeeping part of the classroom-critical save transaction.
         store.complete_full_attempt(
             attempt.attempt_id,
             list(zip(facts, values)),
@@ -81,9 +99,15 @@ def save_multiplication_daily(
             response_seconds=response_seconds,
             first_answers=list(zip(facts, first_values)),
             completed_at=utc_now(),
+            attempt_record=attempt,
+            defer_evidence=True,
         )
     except Exception as exc:
-        _render_retry(exc, button_key=f"retry_daily_save_{attempt.attempt_id}")
+        _render_retry(
+            exc,
+            attempt_id=str(attempt.attempt_id),
+            button_key=f"retry_daily_save_{attempt.attempt_id}",
+        )
         return False
     clear_pending_daily_payload(str(attempt.attempt_id))
     return True
@@ -99,13 +123,19 @@ def save_alternate_daily(store: SupabaseFactStore, attempt, component_result: Ma
         values = [int(value) for value in raw_answers]
         if any(value < -999 or value > 999 for value in values):
             raise ValueError("Alternate Daily component returned an invalid answer.")
-        completed = store.complete_custom_attempt(
-            attempt.attempt_id, values, timed_seconds, completed_at=utc_now()
+
+        # Alternate official completion is one database mutation. Follow-up rows
+        # are repaired immediately after the completed attempt reloads.
+        store.complete_custom_attempt(
+            attempt.attempt_id, values, timed_seconds, completed_at=utc_now(),
+            attempt_record=attempt, defer_evidence=True,
         )
-        if getattr(completed, "learning_evidence_applied_at", None) is not None:
-            st.session_state[f"daily_evidence_verified::{attempt.attempt_id}"] = True
     except Exception as exc:
-        _render_retry(exc, button_key=f"retry_alt_daily_save_{attempt.attempt_id}")
+        _render_retry(
+            exc,
+            attempt_id=str(attempt.attempt_id),
+            button_key=f"retry_alt_daily_save_{attempt.attempt_id}",
+        )
         return False
     clear_pending_daily_payload(str(attempt.attempt_id))
     return True

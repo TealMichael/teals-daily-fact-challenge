@@ -992,9 +992,9 @@ class SupabaseFactStore:
         }).eq("attempt_id", str(attempt_id)).execute()
         return self.get_attempt(attempt_id)
 
-    def complete_full_attempt(
+    def persist_full_attempt_completion(
         self,
-        attempt_id: str,
+        attempt: AttemptRecord,
         answers: Sequence[tuple[Fact, int]],
         timed_seconds: float,
         *,
@@ -1002,9 +1002,16 @@ class SupabaseFactStore:
         first_answers: Sequence[tuple[Fact, int]] | None = None,
         completed_at: datetime | None = None,
     ) -> AttemptRecord:
-        attempt = self.get_attempt(attempt_id)
+        """Persist the official Multiplication Daily result with only two mutations.
+
+        This is the classroom-critical commit path.  Mastery/follow-up evidence is
+        repaired on the completed-Daily screen after this official result is durable,
+        so a temporary secondary write can never make a student redo the Daily 10.
+        The two writes are idempotent: answer rows upsert by attempt/question and the
+        attempt summary update can safely be repeated after a lost response.
+        """
         if attempt.completed_at is not None:
-            return self.ensure_daily_learning_evidence(attempt_id)
+            return attempt
         if len(answers) != 10:
             raise ValueError("A Daily completion must contain exactly 10 answers.")
         evidence_answers = list(first_answers or answers)
@@ -1019,19 +1026,22 @@ class SupabaseFactStore:
         when = completed_at or utc_now()
         started = when - timedelta(seconds=seconds)
         payloads = []
+        correct_count = 0
         for question_number, (((fact, value), (evidence_fact, first_value)), latency) in enumerate(
             zip(zip(answers, evidence_answers), latencies), start=1
         ):
             if fact.key != evidence_fact.key:
                 raise ValueError("Daily first-answer evidence does not match the Daily fact order.")
+            correct = int(value) == fact.product
+            correct_count += int(correct)
             payloads.append({
-                "attempt_id": str(attempt_id),
+                "attempt_id": str(attempt.attempt_id),
                 "question_number": question_number,
                 "a": fact.a,
                 "b": fact.b,
                 "student_answer": int(value),
                 "correct_answer": fact.product,
-                "correct": int(value) == fact.product,
+                "correct": correct,
                 "first_student_answer": int(first_value),
                 "first_correct": int(first_value) == fact.product,
                 "submitted_at": when.isoformat(),
@@ -1040,28 +1050,41 @@ class SupabaseFactStore:
         _retry_transient(lambda: self.client.table("daily_answers").upsert(
             payloads, on_conflict="attempt_id,question_number"
         ).execute())
-        saved = self.get_answers(attempt_id)
-        if len(saved) != 10:
-            raise FactStoreError("Daily completion did not save all 10 answers.")
-        correct_count = sum(answer.correct for answer in saved)
-        _retry_transient(lambda: self.client.table("daily_attempts").update({
-            "timed_started_at": started.isoformat(),
-            "completed_at": when.isoformat(),
-            "correct_count": correct_count,
-            "timed_seconds": round(seconds, 3),
-            "learning_evidence_applied_at": None,
-        }).eq("attempt_id", str(attempt_id)).execute())
-        return self.ensure_daily_learning_evidence(attempt_id)
+        # Do not add a verification read here.  The upsert is one atomic PostgREST
+        # request; the immediately following attempt-summary mutation is the second
+        # and final request required to make the official result durable.
+        summary_response = _retry_transient(lambda: _execute_returning(
+            self.client.table("daily_attempts").update({
+                "timed_started_at": started.isoformat(),
+                "completed_at": when.isoformat(),
+                "correct_count": correct_count,
+                "timed_seconds": round(seconds, 3),
+                "learning_evidence_applied_at": None,
+            }).eq("attempt_id", str(attempt.attempt_id))
+        ))
+        summary_row = _first(summary_response)
+        if summary_row is not None:
+            return _attempt(summary_row)
+        # A zero-row mutation can happen only in an unusual reset/race or a
+        # response-shape edge case. Confirm rather than claiming a local save.
+        refreshed = self.get_attempt(str(attempt.attempt_id))
+        if refreshed.completed_at is None:
+            raise FactStoreError("Daily attempt summary did not finish saving.")
+        return refreshed
 
-    def complete_custom_attempt(
-        self, attempt_id: str, answers: Sequence[int], timed_seconds: float, *,
+    def persist_custom_attempt_completion(
+        self, attempt: AttemptRecord, answers: Sequence[int], timed_seconds: float, *,
         completed_at: datetime | None = None,
     ) -> AttemptRecord:
-        attempt = self.get_attempt(attempt_id)
+        """Persist the official alternate Daily result in one mutation.
+
+        Alternate learning evidence/follow-up rows are deliberately deferred until
+        the completed-Daily route, matching the resilient Multiplication contract.
+        """
         if attempt.daily_mode == "Multiplication":
-            raise ValueError("Multiplication Daily attempts must use complete_full_attempt().")
+            raise ValueError("Multiplication Daily attempts must use persist_full_attempt_completion().")
         if attempt.completed_at is not None:
-            return self.ensure_daily_learning_evidence(attempt_id)
+            return attempt
         questions = list(attempt.custom_questions)
         values = [int(value) for value in answers]
         if len(questions) != 10 or len(values) != 10:
@@ -1075,28 +1098,70 @@ class SupabaseFactStore:
             int(value) == int(question.get("correct_answer"))
             for question, value in zip(questions, values)
         )
-        _retry_transient(lambda: self.client.table("daily_attempts").update({
-            "timed_started_at": started.isoformat(),
-            "completed_at": when.isoformat(),
-            "correct_count": correct_count,
-            "timed_seconds": round(seconds, 3),
-            "custom_answers": values,
-            "learning_evidence_applied_at": None,
-        }).eq("attempt_id", str(attempt_id)).execute())
+        summary_response = _retry_transient(lambda: _execute_returning(
+            self.client.table("daily_attempts").update({
+                "timed_started_at": started.isoformat(),
+                "completed_at": when.isoformat(),
+                "correct_count": correct_count,
+                "timed_seconds": round(seconds, 3),
+                "custom_answers": values,
+                "learning_evidence_applied_at": None,
+            }).eq("attempt_id", str(attempt.attempt_id))
+        ))
+        summary_row = _first(summary_response)
+        if summary_row is not None:
+            return _attempt(summary_row)
+        refreshed = self.get_attempt(str(attempt.attempt_id))
+        if refreshed.completed_at is None:
+            raise FactStoreError("Alternate Daily attempt summary did not finish saving.")
+        return refreshed
 
-        # We already have the exact persisted attempt values in hand.  Build the
-        # alternate Daily evidence from them directly instead of immediately
-        # re-reading the same attempt several times during the stage transition.
-        completed_attempt = replace(
-            attempt, timed_started_at=started, completed_at=when, correct_count=correct_count,
-            timed_seconds=seconds, learning_evidence_applied_at=None, custom_answers=tuple(values),
-        )
-        self._ensure_alternate_followup_for_attempt(completed_attempt, repair_fix=False)
-        marker = utc_now()
-        _retry_transient(lambda: self.client.table("daily_attempts").update({
-            "learning_evidence_applied_at": marker.isoformat(),
-        }).eq("attempt_id", str(attempt_id)).is_("learning_evidence_applied_at", "null").execute())
-        return replace(completed_attempt, learning_evidence_applied_at=marker)
+    def complete_full_attempt(
+        self,
+        attempt_id: str,
+        answers: Sequence[tuple[Fact, int]],
+        timed_seconds: float,
+        *,
+        response_seconds: Sequence[float | None] | None = None,
+        first_answers: Sequence[tuple[Fact, int]] | None = None,
+        completed_at: datetime | None = None,
+        attempt_record: AttemptRecord | None = None,
+        defer_evidence: bool = False,
+    ) -> AttemptRecord:
+        """Complete a Multiplication Daily, optionally deferring secondary evidence.
+
+        ``defer_evidence`` is used only by the browser Daily save path so the
+        official result can become durable before mastery/follow-up bookkeeping.
+        Existing callers keep the original all-in-one behavior by default.
+        """
+        attempt = attempt_record or self.get_attempt(attempt_id)
+        completed = attempt
+        if attempt.completed_at is None:
+            completed = self.persist_full_attempt_completion(
+                attempt, answers, timed_seconds, response_seconds=response_seconds,
+                first_answers=first_answers, completed_at=completed_at,
+            )
+        if defer_evidence:
+            return completed
+        return self.ensure_daily_learning_evidence(attempt_id)
+
+    def complete_custom_attempt(
+        self, attempt_id: str, answers: Sequence[int], timed_seconds: float, *,
+        completed_at: datetime | None = None, attempt_record: AttemptRecord | None = None,
+        defer_evidence: bool = False,
+    ) -> AttemptRecord:
+        """Complete an alternate Daily, optionally deferring secondary evidence."""
+        attempt = attempt_record or self.get_attempt(attempt_id)
+        if attempt.daily_mode == "Multiplication":
+            raise ValueError("Multiplication Daily attempts must use complete_full_attempt().")
+        completed = attempt
+        if attempt.completed_at is None:
+            completed = self.persist_custom_attempt_completion(
+                attempt, answers, timed_seconds, completed_at=completed_at,
+            )
+        if defer_evidence:
+            return completed
+        return self.ensure_daily_learning_evidence(attempt_id)
 
     def ensure_daily_learning_evidence(self, attempt_id: str) -> AttemptRecord:
         """Apply or repair Daily mastery/progress evidence exactly once in effect.

@@ -405,6 +405,11 @@ def get_store() -> SupabaseFactStore | None:
     if not database_configured():
         return None
     try:
+        # A student recovery retry must not be forced through the same cached
+        # HTTP connection that just failed.  Build a one-run fresh client when
+        # requested, without clearing the shared classroom cache for everyone.
+        if bool(st.session_state.pop("tdfc_force_fresh_store_once", False)):
+            return SupabaseFactStore.from_secrets(st.secrets)
         store = load_store(APP_VERSION)
         # Defensive recovery for any stale pre-v2.10 resource that survives a
         # deployment despite the versioned cache key. Rebuild before rendering
@@ -1617,6 +1622,7 @@ def render_classroom_connection_retry(exc: Exception, *, key: str = "classroom_r
         st.error("This part of the finished screen hit an unexpected display error. Your completed Daily is still saved.")
         st.caption("Refresh once and try again. If it keeps happening, your teacher can report it without redoing the Daily 10.")
     if st.button("Try again", use_container_width=True, type="primary", key=key):
+        st.session_state["tdfc_force_fresh_store_once"] = True
         st.rerun()
     if str(st.query_params.get("dbcheck", "0")) == "1":
         st.exception(exc)
@@ -1627,6 +1633,7 @@ def render_daily_load_retry(exc: Exception) -> None:
     st.warning("Having trouble reaching today's Daily 10.")
     st.caption("Your sign-in and any completed Igniter work are safe. Tap Try Again to retry without signing out.")
     if st.button("🔄 Try Again", use_container_width=True, type="primary", key="retry_daily_load"):
+        st.session_state["tdfc_force_fresh_store_once"] = True
         st.rerun()
     if str(st.query_params.get("dbcheck", "0")) == "1":
         st.exception(exc)
