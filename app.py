@@ -39,7 +39,13 @@ from persistent_login import REMEMBER_DAYS, issue_student_token, peek_student_id
 from ui_helpers import format_seconds, strategy_tip
 from student_igniter_ui import render_quick_warmup
 from student_recognition import build_public_daily_recognition
-from student_daily_save_recovery import clear_pending_daily_payload, pending_daily_payload, save_multiplication_daily
+from student_daily_save_recovery import (
+    clear_pending_daily_payload,
+    daily_component_attempt_key,
+    pending_daily_payload,
+    reconcile_pending_daily_attempt,
+    save_multiplication_daily,
+)
 from daily_modes import configured_daily_mode, questions_for_mode
 from student_alt_daily_ui import render_alternate_daily
 from teacher_daily_setup_ui import render_teacher_daily_setup
@@ -1709,6 +1715,7 @@ def render_daily(store: SupabaseFactStore | None) -> None:
 
     try:
         day, facts, challenge, attempt = load_student_daily_context(store)
+        attempt = reconcile_pending_daily_attempt(store, attempt)
     except Exception as exc:
         render_daily_load_retry(exc)
         return
@@ -1746,7 +1753,9 @@ def render_daily(store: SupabaseFactStore | None) -> None:
         # TDFC-DAILY-v1 challenge generator are intentionally unchanged.
         component_result = pending_daily_payload(attempt.attempt_id) or DAILY_SPRINT_COMPONENT(
             facts=[{"a": fact.a, "b": fact.b} for fact in facts],
-            attempt_key=f"{st.session_state.student_id}:{challenge.challenge_id}:{attempt.attempt_id}",
+            attempt_key=daily_component_attempt_key(
+                st.session_state.student_id, challenge.challenge_id, attempt.attempt_id
+            ),
             challenge_version=CHALLENGE_VERSION, default=None, key=f"daily_sprint_{attempt.attempt_id}",
         )
         if isinstance(component_result, dict) and component_result.get("status") == "complete":

@@ -1,17 +1,16 @@
-Teal's Daily Fact Challenge v2.20.2 — Browser-only GitHub install
+Teal's Daily Fact Challenge v2.20.3 — Browser GitHub Install
 
-Upload these 4 .py files to the ROOT of your existing GitHub repository:
+Upload these 4 files to the ROOT of the GitHub repository:
 - app.py
 - fact_engine.py
+- student_alt_daily_ui.py
 - student_daily_save_recovery.py
-- supabase_fact_store.py
 
-Allow GitHub to replace the current versions, then commit directly to main and let Streamlit redeploy.
-Confirm the teacher footer shows v2.20.2.
+They replace the existing files with the same names.
+
+Commit message:
+v2.20.3 - self-heal stale Daily save state and add device restart escape
 
 No Supabase SQL.
-No Streamlit Secrets changes.
-No AWTRIX changes.
-
-Suggested commit message:
-v2.20.2 - harden Daily save recovery and fresh-connection retry
+No Secrets changes.
+No AWTRIX reinstall.

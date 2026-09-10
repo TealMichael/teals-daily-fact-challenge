@@ -19,7 +19,12 @@ from alternate_focus import ALT_FOCUS_SESSION_LENGTH, build_alternate_focus_plan
 from fact_store import utc_now
 from supabase_fact_store import SupabaseFactStore
 from student_recognition import build_public_daily_recognition
-from student_daily_save_recovery import clear_pending_daily_payload, pending_daily_payload, save_alternate_daily
+from student_daily_save_recovery import (
+    clear_pending_daily_payload,
+    daily_component_attempt_key,
+    pending_daily_payload,
+    save_alternate_daily,
+)
 
 ALT_DAILY_COMPONENT = components.declare_component(
     "tdfc_alt_daily_v2195", path=str(Path(__file__).with_name("daily_alt_component"))
@@ -285,7 +290,9 @@ def render_alternate_daily(store: SupabaseFactStore, day, challenge, attempt, *,
     )
     result = pending_daily_payload(attempt.attempt_id) or ALT_DAILY_COMPONENT(
         questions=[{"prompt": str(item.get("prompt") or "")} for item in questions],
-        attempt_key=f"{st.session_state.student_id}:{challenge.challenge_id}:{attempt.attempt_id}",
+        attempt_key=daily_component_attempt_key(
+            st.session_state.student_id, challenge.challenge_id, attempt.attempt_id
+        ),
         daily_version=f"{ALT_DAILY_VERSION}:{attempt.daily_mode}", default=None, key=f"alt_daily_{attempt.attempt_id}",
     )
     if isinstance(result, dict) and result.get("status") == "complete":
