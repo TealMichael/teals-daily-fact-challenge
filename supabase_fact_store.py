@@ -54,6 +54,8 @@ from fact_store import (
     StudentRecord,
     WarmupSetRecord,
     WarmupAnswerRecord,
+    WeeklyQuizSetRecord,
+    WeeklyQuizAnswerRecord,
     generate_class_code,
     hash_pin,
     normalize_name,
@@ -369,6 +371,38 @@ def _warmup_answer(row: Mapping) -> WarmupAnswerRecord:
         student_answer=str(row.get("student_answer") or ""),
         correct_answer=str(row.get("correct_answer") or ""),
         correct=bool(row.get("correct", False)),
+        answered_at=_dt(row.get("answered_at")) or utc_now(),
+    )
+
+
+def _weekly_quiz_set(row: Mapping) -> WeeklyQuizSetRecord:
+    return WeeklyQuizSetRecord(
+        quiz_id=str(row["quiz_id"]),
+        class_id=str(row["class_id"]),
+        quiz_date=str(row["quiz_date"]),
+        assignment_name=str(row.get("assignment_name") or "Quiz of the Week"),
+        category_code=str(row.get("category_code") or "SUMM"),
+        max_score=float(row.get("max_score") or 5),
+        questions=tuple(dict(item) for item in (row.get("questions") or [])),
+        created_at=_dt(row.get("created_at")) or utc_now(),
+        updated_at=_dt(row.get("updated_at")) or utc_now(),
+    )
+
+
+def _weekly_quiz_answer(row: Mapping) -> WeeklyQuizAnswerRecord:
+    return WeeklyQuizAnswerRecord(
+        quiz_answer_id=str(row["quiz_answer_id"]),
+        quiz_id=str(row["quiz_id"]),
+        student_id=str(row["student_id"]),
+        class_id=str(row["class_id"]),
+        quiz_date=str(row["quiz_date"]),
+        question_slot=int(row["question_slot"]),
+        question_type=str(row.get("question_type") or "Number"),
+        prompt=str(row.get("prompt") or ""),
+        student_response=str(row.get("student_response") or ""),
+        correct=bool(row.get("correct", False)),
+        number_correct=bool(row.get("number_correct", False)),
+        label_correct=bool(row.get("label_correct", True)),
         answered_at=_dt(row.get("answered_at")) or utc_now(),
     )
 
@@ -2242,6 +2276,135 @@ class SupabaseFactStore:
             .eq("student_id", str(student_id)).execute()
         )
         return {"attempts": len(rows), "correct": sum(bool(row.get("correct")) for row in rows)}
+
+    # ----- Quiz of the Week -----
+    def get_weekly_quiz_set(self, class_id: str, quiz_date: date | str) -> WeeklyQuizSetRecord | None:
+        date_key = quiz_date.isoformat() if isinstance(quiz_date, date) else str(quiz_date)
+        row = _first(_retry_transient(lambda: self.client.table("weekly_quiz_sets")
+            .select("*").eq("class_id", str(class_id)).eq("quiz_date", date_key).limit(1).execute()))
+        return None if row is None else _weekly_quiz_set(row)
+
+    def weekly_quiz_locked(self, quiz_id: str) -> bool:
+        rows = _rows(_retry_transient(lambda: self.client.table("weekly_quiz_answers")
+            .select("student_id").eq("quiz_id", str(quiz_id)).execute()))
+        if not rows:
+            return False
+        student_ids = sorted({str(row["student_id"]) for row in rows})
+        real_rows = _rows(_retry_transient(lambda: self.client.table("students")
+            .select("student_id").in_("student_id", student_ids).eq("is_test", False).limit(1).execute()))
+        return bool(real_rows)
+
+    def save_weekly_quiz_set(
+        self, class_id: str, quiz_date: date | str, *, assignment_name: str, category_code: str,
+        max_score: float, questions: Sequence[Mapping],
+    ) -> WeeklyQuizSetRecord:
+        saved = self.save_weekly_quiz_sets_bulk(
+            [str(class_id)], quiz_date, assignment_name=assignment_name, category_code=category_code,
+            max_score=max_score, questions=questions,
+        )
+        if not saved:
+            raise FactStoreError("Could not save the Quiz of the Week.")
+        return saved[0]
+
+    def save_weekly_quiz_sets_bulk(
+        self, class_ids: Sequence[str], quiz_date: date | str, *, assignment_name: str, category_code: str,
+        max_score: float, questions: Sequence[Mapping],
+    ) -> list[WeeklyQuizSetRecord]:
+        from weekly_quiz import QUIZ_CATEGORIES, validate_quiz_questions
+        ids = list(dict.fromkeys(str(class_id) for class_id in class_ids if str(class_id)))
+        if not ids:
+            return []
+        date_key = quiz_date.isoformat() if isinstance(quiz_date, date) else str(quiz_date)
+        prepared = [dict(item) for item in validate_quiz_questions(questions)]
+        name = str(assignment_name or "").strip()
+        if not name:
+            raise ValueError("Assignment name is required.")
+        category = str(category_code or "").strip().upper()
+        if category not in QUIZ_CATEGORIES:
+            raise ValueError("Quiz category must be SUMM or FORM.")
+        score = float(max_score)
+        if not (0 < score <= 100):
+            raise ValueError("Max score must be greater than 0 and no more than 100.")
+
+        existing_rows = _rows(_retry_transient(lambda: self.client.table("weekly_quiz_sets")
+            .select("*").in_("class_id", ids).eq("quiz_date", date_key).execute()))
+        existing_ids = [str(row["quiz_id"]) for row in existing_rows]
+        if existing_ids:
+            answer_rows = _rows(_retry_transient(lambda: self.client.table("weekly_quiz_answers")
+                .select("quiz_id,student_id").in_("quiz_id", existing_ids).execute()))
+            if answer_rows:
+                test_ids = self._test_student_ids()
+                locked_ids = {
+                    str(row["quiz_id"]) for row in answer_rows
+                    if str(row.get("student_id") or "") not in test_ids
+                }
+                if locked_ids:
+                    raise FactStoreError("Cannot replace a Quiz of the Week that students already started.")
+                _retry_transient(lambda: self.client.table("weekly_quiz_answers")
+                    .delete().in_("quiz_id", existing_ids).execute())
+
+        now = utc_now().isoformat()
+        payloads = [{
+            "class_id": class_id,
+            "quiz_date": date_key,
+            "assignment_name": name,
+            "category_code": category,
+            "max_score": score,
+            "questions": prepared,
+            "updated_at": now,
+        } for class_id in ids]
+        _retry_transient(lambda: self.client.table("weekly_quiz_sets")
+            .upsert(payloads, on_conflict="class_id,quiz_date").execute())
+        saved_rows = _rows(_retry_transient(lambda: self.client.table("weekly_quiz_sets")
+            .select("*").in_("class_id", ids).eq("quiz_date", date_key).execute()))
+        by_class = {str(row["class_id"]): _weekly_quiz_set(row) for row in saved_rows}
+        if len(by_class) != len(ids):
+            raise FactStoreError("Could not load all saved Quiz of the Week records.")
+        return [by_class[class_id] for class_id in ids]
+
+    def delete_weekly_quiz_set(self, class_id: str, quiz_date: date | str) -> None:
+        date_key = quiz_date.isoformat() if isinstance(quiz_date, date) else str(quiz_date)
+        existing = self.get_weekly_quiz_set(class_id, date_key)
+        if existing is None:
+            return
+        if self.weekly_quiz_locked(existing.quiz_id):
+            raise FactStoreError("This Quiz of the Week is locked because a student has already answered it.")
+        _retry_transient(lambda: self.client.table("weekly_quiz_sets").delete()
+            .eq("quiz_id", existing.quiz_id).execute())
+
+    def get_weekly_quiz_answers(self, student_id: str, quiz_id: str) -> list[WeeklyQuizAnswerRecord]:
+        rows = _rows(_retry_transient(lambda: self.client.table("weekly_quiz_answers").select("*")
+            .eq("student_id", str(student_id)).eq("quiz_id", str(quiz_id))
+            .order("question_slot").execute()))
+        return [_weekly_quiz_answer(row) for row in rows]
+
+    def list_weekly_quiz_answers(self, quiz_id: str) -> list[WeeklyQuizAnswerRecord]:
+        rows = _rows(_retry_transient(lambda: self.client.table("weekly_quiz_answers").select("*")
+            .eq("quiz_id", str(quiz_id)).order("student_id").order("question_slot").execute()))
+        return [_weekly_quiz_answer(row) for row in rows]
+
+    def record_weekly_quiz_answer(
+        self, *, quiz_id: str, student_id: str, class_id: str, quiz_date: date | str, question_slot: int,
+        question_type: str, prompt: str, student_response: str, correct: bool, number_correct: bool, label_correct: bool,
+    ) -> WeeklyQuizAnswerRecord:
+        date_key = quiz_date.isoformat() if isinstance(quiz_date, date) else str(quiz_date)
+        payload = {
+            "quiz_id": str(quiz_id), "student_id": str(student_id), "class_id": str(class_id),
+            "quiz_date": date_key, "question_slot": int(question_slot), "question_type": str(question_type),
+            "prompt": str(prompt), "student_response": str(student_response), "correct": bool(correct),
+            "number_correct": bool(number_correct), "label_correct": bool(label_correct),
+        }
+        try:
+            row = _first(_execute_returning(self.client.table("weekly_quiz_answers").insert(payload)))
+        except Exception as exc:
+            if not _is_unique(exc):
+                raise
+            row = _first(_retry_transient(lambda: self.client.table("weekly_quiz_answers").select("*")
+                .eq("student_id", str(student_id)).eq("quiz_id", str(quiz_id))
+                .eq("question_slot", int(question_slot)).limit(1).execute()))
+        if row is None:
+            raise FactStoreError("Could not save the Quiz of the Week answer.")
+        return _weekly_quiz_answer(row)
 
     @staticmethod
     def _normalize_override(family: int | None) -> int | None:

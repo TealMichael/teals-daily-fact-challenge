@@ -249,3 +249,28 @@ v2.19.4 is a narrow reliability/correctness pass over the alternate student path
 - The multiplication Daily component, Guided Practice, answer pad, adaptive/mastery engine, Fact Coach, Weekly Mystery engine, requirements, and AWTRIX script retain the embedded known-good SHA-256 fingerprints.
 
 The dedicated regression is `v2_19_4_classroom_hardening_tests.py`.
+
+## v2.20.1 Daily save recovery protections
+
+- A student who finishes all 10 questions must never be stranded on a save-error screen with no action available.
+- Before the first Daily completion mutation, the completed browser payload is mirrored into attempt-scoped Streamlit session state.
+- If that mutation fails, the student sees a visible **Try saving again** button and is not asked to redo the Daily 10.
+- Retrying reuses the exact completed payload and remains safe if the first mutation partly succeeded; existing idempotent completion/evidence repair rules remain authoritative.
+- The browser component's existing localStorage completion payload remains a second recovery layer after a hard page refresh or a new Streamlit session on the same device.
+- These protections apply to Multiplication and alternate Daily modes without changing either keypad component, challenge generation, scoring, timing rules, Fix/Focus teaching, Mystery, or AWTRIX behavior.
+
+## v2.21.0 Quiz of the Week protections
+
+- v2.20.3 remains the literal behavioral baseline for every existing student and teacher workflow outside the new Quiz of the Week feature.
+- Monday–Thursday student Igniters remain unchanged. On Friday, a saved Quiz of the Week replaces the Igniter for that class/date; if no quiz is saved, the existing Igniter remains the fallback.
+- A Friday quiz contains exactly five questions and is completed before the existing Daily 10 path. After the quiz, the student is handed back to the proven Daily 10 → Fix Your Misses / Focus Practice → Mystery routine without rewriting those systems.
+- Quiz question types are isolated from the existing Daily/Warm-Up engines: Number, Fraction, Multiple choice, and Number + Label.
+- Numeric/fraction grading uses exact rational comparison, so mathematically equivalent representations can match without float-rounding errors.
+- Number + Label requires both answer components for full correctness while retaining number-correct and label-correct evidence for teacher analysis.
+- A real student's first quiz answer locks that class/date quiz against replacement or deletion. Test Student answers remain sandbox-only and do not lock teacher editing.
+- Quiz storage must not introduce first name, last name, Skyward student number, email, roster uploads, or other new roster PII. The app uses the existing random student UUID internally and a derived meaningless Student Key for local export.
+- Anonymous Skyward exports contain only Student Key, Assignment Name, Due Date, Category, Max Score, and Score. Only completed quizzes are exported; unfinished/absent students are omitted instead of receiving zeros.
+- Real-name/Skyward matching happens only in the separate local Excel bridge. The app must never ingest the completed private roster workbook.
+- `weekly_quiz_sets` and `weekly_quiz_answers` have RLS enabled and no anon/authenticated browser policies.
+- Multiplication Daily, alternate Daily, Guided Practice, alternate Fix/Focus components, Fact Coach, adaptive/mastery logic, Weekly Mystery, persistent login, Perfect Score Club/Top 10, AWTRIX, and requirements remain protected from unrelated redesign.
+- The dedicated regression is `v2_21_0_quiz_of_week_tests.py`.
