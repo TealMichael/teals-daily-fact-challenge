@@ -294,7 +294,12 @@ def _render_results(store: SupabaseFactStore, classes) -> None:
     st.dataframe(pd.DataFrame(display_rows), use_container_width=True, hide_index=True)
 
     st.markdown("#### Question check")
-    answer_rows = store.list_weekly_quiz_answers(quiz.quiz_id)
+    # Keep Test Student completely out of real-class item analysis.  A teacher
+    # may preview Friday's quiz before students arrive; those sandbox answers
+    # must never change the real class percentages shown here.
+    all_answer_rows = store.list_weekly_quiz_answers(quiz.quiz_id)
+    real_student_ids = {str(row["student"].student_id) for row in rows}
+    answer_rows = [row for row in all_answer_rows if str(row.student_id) in real_student_ids]
     for slot in range(1, QUIZ_QUESTION_COUNT + 1):
         slot_rows = [row for row in answer_rows if int(row.question_slot) == slot]
         correct = sum(bool(row.correct) for row in slot_rows)
@@ -305,6 +310,44 @@ def _render_results(store: SupabaseFactStore, classes) -> None:
             label_ok = sum(bool(row.label_correct) for row in slot_rows)
             text += f" · number {number_ok}/{len(slot_rows)} · label {label_ok}/{len(slot_rows)}"
         st.caption(text)
+
+    # Test Student gets a separate verification area.  It is intentionally
+    # excluded from Finished/Average, the real Question check above, Student
+    # Keys, and the production anonymous Skyward export below.
+    test_student = store.get_test_student(class_record.class_id)
+    test_rows = [] if test_student is None else [
+        row for row in all_answer_rows if str(row.student_id) == str(test_student.student_id)
+    ]
+    if test_rows:
+        test_slots = {int(item.question_slot) for item in test_rows}
+        test_completed = len(test_slots) >= QUIZ_QUESTION_COUNT
+        test_correct = sum(
+            bool(item.correct) for item in test_rows
+            if int(item.question_slot) in range(1, QUIZ_QUESTION_COUNT + 1)
+        )
+        st.markdown("#### 🧪 Test Student verification")
+        st.caption("Sandbox only — never included in class averages, real item analysis, Student Keys, or the production Skyward export.")
+        t1, t2, t3 = st.columns(3)
+        t1.metric("Status", "Complete" if test_completed else f"{len(test_slots)}/5 answered")
+        t2.metric("Raw Score", f"{test_correct}/5" if test_completed else "—")
+        t3.metric("Skyward Score", skyward_score(test_correct, quiz.max_score) if test_completed else "—")
+        if test_completed:
+            test_export_rows = [{
+                "Student Key": student_export_key(test_student.student_id),
+                "Assignment Name": quiz.assignment_name,
+                "Due Date": target.strftime("%m%d%Y"),
+                "Category": quiz.category_code,
+                "Max Score": int(quiz.max_score) if float(quiz.max_score).is_integer() else quiz.max_score,
+                "Score": skyward_score(test_correct, quiz.max_score),
+            }]
+            test_columns = ["Student Key", "Assignment Name", "Due Date", "Category", "Max Score", "Score"]
+            st.download_button(
+                "⬇ Download TEST anonymous quiz score",
+                data=_csv_bytes(test_export_rows, test_columns),
+                file_name=f"Quiz_of_the_Week_{target.isoformat()}_{class_record.class_name.replace(' ', '_')}_TEST_ONLY.csv",
+                mime="text/csv",
+                use_container_width=True,
+            )
 
     export_rows = []
     for row in completed:
