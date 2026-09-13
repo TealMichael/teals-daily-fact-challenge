@@ -11,6 +11,7 @@ from teacher_insights import BAND_HELP, BAND_LEARNING, BAND_SLOW, teacher_fact_b
 
 ROOT = Path(__file__).resolve().parent
 APP = (ROOT / "app.py").read_text(encoding="utf-8")
+SAVE_RECOVERY = (ROOT / "student_daily_save_recovery.py").read_text(encoding="utf-8")
 COMPONENT = (ROOT / "daily_sprint_component" / "index.html").read_text(encoding="utf-8")
 SUPABASE = (ROOT / "supabase_fact_store.py").read_text(encoding="utf-8")
 SCHEMA = (ROOT / "SUPABASE_SCHEMA.sql").read_text(encoding="utf-8")
@@ -82,10 +83,13 @@ def run():
         "if(firstSubmission){ current.firstAnswers[current.index]=value; }",
         "first_answers:current.firstAnswers",
     ])
-    checks["app passes first answers to store"] = all(token in APP for token in [
-        'raw_first_answers = component_result.get("first_answers")',
-        "first_answers=list(zip(facts, first_values))",
-    ])
+    checks["app passes first answers to store"] = (
+        "save_multiplication_daily(store, attempt, facts, component_result)" in APP
+        and all(token in SAVE_RECOVERY for token in [
+            'raw_first_answers = payload.get("first_answers")',
+            "first_answers=list(zip(facts, first_values))",
+        ])
+    )
 
     store, student, challenge, attempt, facts = _daily_fixture()
     final_answers = [(fact, fact.product) for fact in facts]

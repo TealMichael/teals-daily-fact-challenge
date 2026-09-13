@@ -29,7 +29,7 @@ def check(name: str, condition: bool) -> None:
     checks.append(name)
 
 
-check("v2.16.0 version", APP_VERSION == "2.19.9")
+check("v2.16.0 version", APP_VERSION == "2.21.0")
 check("multiplication challenge untouched", CHALLENGE_VERSION == "TDFC-DAILY-v1")
 check("v2.14 requires no SQL migration", not (ROOT / "RUN_THIS_ONCE_IN_SUPABASE_v2_14.sql").exists())
 
@@ -97,7 +97,7 @@ check("4x30 attendance settings remain class-scoped", all(len(load_absent_studen
 check("attendance settings never deactivate students", all(len(scale_store.list_students(item.class_id)) == 30 for item in scale_classes))
 
 # Navigation grouping keeps daily tools prominent while retaining every old teacher destination.
-check("primary teacher nav keeps everyday tools one tap away", '["📊 Today", "🧠 Warm-Up", "📈 Learning", "🕵️ Weekly Mystery", "⚙️ Manage"]' in APP)
+check("primary teacher nav keeps everyday tools one tap away", '["📊 Today", "🧠 Warm-Up", "📝 Quiz of the Week", "📈 Learning", "🕵️ Weekly Mystery", "⚙️ Manage"]' in APP)
 check("learning tools are grouped", all(label in APP for label in ["📈 Learning Data", "🛠️ Student Support"]))
 check("administrative tools are grouped", '["👥 Classes & Rosters", "🖥️ Clock", "🧪 Test Student"]' in APP)
 check("daily setup remains tucked with classes", '["👥 Rosters", "🎯 Daily 10 Setup"]' in APP)
@@ -131,7 +131,7 @@ for relative, expected in protected_files.items():
 
 # app.py mixes teacher and student routing, so protect the current critical student functions independently.
 student_function_hashes = {
-    "render_daily": "897c6a8d249543a6ea22d4f8a6143fc3a1de8c71fccd3f97dcaf0dafb654898a",
+    "render_daily": "1d0fd4f8f740d0658a5d87eb15dc9a4ecb50a6a4a05c20c39bb208007872133a",
     "handle_persistent_student_login": "2a71443811fa5ca321b1da2c573f8d7c489b136d8ce786164988ef0b5d5ce00d",
     "render_header": "209effe42c82db72f5593b1037669399f853c4e96dc47fc0eac0ed1a70d2d8a3",
 }

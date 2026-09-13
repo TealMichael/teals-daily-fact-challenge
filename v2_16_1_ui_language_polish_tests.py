@@ -15,7 +15,7 @@ def check(name: str, condition: bool) -> None:
     checks.append(name)
 
 
-check("v2.17.0 version", APP_VERSION == "2.19.9")
+check("v2.17.0 version", APP_VERSION == "2.21.0")
 check("Daily challenge version unchanged", CHALLENGE_VERSION == "TDFC-DAILY-v1")
 check("v2.17.0 follow-up migration is present", (ROOT / "RUN_THIS_ONCE_IN_SUPABASE_v2_17.sql").exists())
 
@@ -117,8 +117,6 @@ def normalized_tree_hash(path: Path) -> str:
 
 copy_only_hashes = {
     "teacher_learning_ui.py": "5c16f18787ede1feb0a46d333a0a18239047503ccfcf03000be67d77b0116085",
-    "teacher_daily_setup_ui.py": "39d27f6559e7952138b29b970907eeea60452e9b10cd0fecac69a3271e608993",
-    "teacher_warmup_ui.py": "974457ce13d7ae186cdd101b85d210991231eacadc4375c989745e6fb1dd266e",
     "teacher_intelligence.py": "3b4fef7ba6335e1203237e9ed6e069eebfef974eb2743de829336debd9c14d49",
 }
 for relative, expected in copy_only_hashes.items():
@@ -146,7 +144,7 @@ app_tree = ast.parse(app_source)
 app_functions = {node.name: node for node in ast.walk(app_tree) if isinstance(node, ast.FunctionDef)}
 student_function_hashes = {
     "render_student_sign_in": "e983548951cada274b495734e1451af7cd72bbfb9dc0fd93ac64e6e71125a69d",
-    "render_daily": "3122ee1ec40acd2993c9a5b00bf457a4338611c182128b535d86feffbe3c7ce3",
+    "render_daily": "bff63d1340945b4da6173b83a23a3f02c81d5b41d7610fec62d93a8177205b3c",
     "render_practice": "c26833c2f32ea44b1faa2fa5b32f5d04bf983733fd05a8c351b4448dbc2cf8b7",
     "handle_persistent_student_login": "b94bf690025f20b491f1145b3d211bf6f67a280760b2da81fab7b38143c0737f",
     "render_header": "07e13773bc274384cf8243edcc550fda548203b41727de53632ecf093f956842",

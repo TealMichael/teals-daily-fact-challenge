@@ -17,7 +17,7 @@ def check(label: str, condition: bool) -> None:
     CHECKS += 1
 
 
-check("v2.19.9 version", APP_VERSION == "2.19.9")
+check("v2.19.9 version", APP_VERSION == "2.21.0")
 
 # Shared recognition logic: Top 10 remains exactly the ranked input order; the
 # second club includes only 10/10 students outside Top 10 and alphabetizes them.

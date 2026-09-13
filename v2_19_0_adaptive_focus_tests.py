@@ -22,7 +22,7 @@ def check(label: str, value) -> None:
     checks.append(label)
 
 
-check("v2.19 version", APP_VERSION == "2.19.9")
+check("v2.19 version", APP_VERSION == "2.21.0")
 check("multiplication challenge unchanged", CHALLENGE_VERSION == "TDFC-DAILY-v1")
 check("alternate Focus matches multiplication length", ALT_FOCUS_SESSION_LENGTH == 8)
 

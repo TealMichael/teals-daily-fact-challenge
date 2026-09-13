@@ -36,7 +36,7 @@ def section(source: str, start_name: str, next_name: str) -> str:
     return source[start:min(candidates)]
 
 
-check("v2.19.9 version", APP_VERSION == "2.19.9")
+check("v2.19.9 version", APP_VERSION == "2.21.0")
 
 app = (ROOT / "app.py").read_text(encoding="utf-8")
 alt_ui = (ROOT / "student_alt_daily_ui.py").read_text(encoding="utf-8")
@@ -92,7 +92,7 @@ check("Focus-complete write has no immediate read-back", mark_focus.count("get_o
 check("Fix batch no longer reruns full Daily evidence repair", "ensure_alternate_followup_state" not in record_fix)
 check("Focus batch loads saved Focus rows only once", record_focus.count("alternate_learning_activity_rows") == 1)
 check("Focus batch combines existing + returned upsert rows", "rows = list(existing) + list(saved)" in record_focus)
-check("alternate Daily completion reuses in-hand attempt", "completed_attempt = replace(" in complete_custom and "_ensure_alternate_followup_for_attempt(completed_attempt, repair_fix=False)" in complete_custom)
+check("alternate Daily completion reuses in-hand attempt", "attempt = attempt_record or self.get_attempt(attempt_id)" in complete_custom and "persist_custom_attempt_completion" in complete_custom)
 
 # 6) Test Student no longer reloads class list + sandbox student on every rerun.
 test_mode = section(app, "render_teacher_test_student_mode", "render_teacher")

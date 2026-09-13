@@ -13,7 +13,7 @@ def check(name, condition):
     assert condition, name
     checks.append(name)
 
-check("v2.16.0 version", APP_VERSION == "2.19.9")
+check("v2.16.0 version", APP_VERSION == "2.21.0")
 check("Daily challenge contract unchanged", CHALLENGE_VERSION == "TDFC-DAILY-v1")
 
 # Isolate the Weekly Mystery teacher renderer so ordering assertions do not
@@ -35,7 +35,7 @@ check("next week planner remains collapsed", 'with st.expander(f"🔒 Plan Next 
 check("prior saved winners still render after final draw", "if previous_pending or previous_saved:" in MYSTERY_RENDER)
 
 # Top navigation requested by the teacher.
-check("top navigation has five destinations in requested order", '["📊 Today", "🧠 Warm-Up", "📈 Learning", "🕵️ Weekly Mystery", "⚙️ Manage"]' in APP)
+check("top navigation has five destinations in requested order", '["📊 Today", "🧠 Warm-Up", "📝 Quiz of the Week", "📈 Learning", "🕵️ Weekly Mystery", "⚙️ Manage"]' in APP)
 check("Weekly Mystery routes directly to top nav", '"Weekly Mystery": ("🕵️ Weekly Mystery", None, None)' in APP)
 check("Weekly Mystery has direct render branch", 'elif primary == "🕵️ Weekly Mystery":\n        render_teacher_weekly_mystery(store)' in APP)
 check("Manage now contains only administrative destinations", '["👥 Classes & Rosters", "🖥️ Clock", "🧪 Test Student"]' in APP)
