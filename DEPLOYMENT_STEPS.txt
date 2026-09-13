@@ -1,27 +1,34 @@
-Teal's Daily Fact Challenge v2.19.9 — Perfect Score Club
+Teal's Daily Fact Challenge v2.21.0 — Quiz of the Week
 
-Browser-only GitHub install over v2.19.8
+DO THESE IN ORDER:
 
-1. Upload the v2.19.9 changed GitHub files to the ROOT of the existing repository and allow replacements.
-2. Commit and push. Streamlit will redeploy automatically.
-3. In Supabase → SQL Editor, run RUN_THIS_ONCE_IN_SUPABASE_v2_19_9.sql exactly ONCE.
-4. No Streamlit Secret changes are needed.
-5. Do NOT reinstall or edit AWTRIX_FactTop10.berry. The existing clock script is intentionally unchanged.
+1. SUPABASE FIRST
+   - Open Supabase → SQL Editor.
+   - Open RUN_THIS_ONCE_IN_SUPABASE_v2_21.sql from this package.
+   - Run the entire file once.
+   - Confirm it completes successfully before changing GitHub.
 
-What students will see:
-- The existing Top 10 remains unchanged: accuracy first, time only as the private tiebreaker.
-- After the Top 10, a Perfect Score Club appears only when one or more 10/10 students are outside the Top 10.
-- Students already shown in the Top 10 are not repeated.
-- Perfect Score Club names are alphabetical, not ranked by speed.
+2. GITHUB
+   - Upload the contents of UPLOAD_TO_GITHUB to the ROOT of the existing repository, preserving folders.
+   - Commit directly to main using:
+     v2.21.0 - add Friday Quiz of the Week and anonymous Skyward bridge
 
-What the classroom clock will do:
-- The existing Top 10 scrolls first.
-- If there are additional 10/10 students outside the Top 10, the same notification then scrolls PERFECT SCORE CLUB! followed by those nicknames alphabetically.
-- If there are no additional perfect scores, the clock behaves exactly as before.
-- The full combined sequence still repeats twice using the existing AWTRIX script.
+3. STREAMLIT
+   - Let Streamlit redeploy.
+   - Confirm the app footer/version shows v2.21.0.
 
-Important test note:
-The Teacher Test Student remains excluded from public Top 10 / Perfect Score Club results by design, so it cannot be used to add a public club name to the clock.
+4. TEACHER TEST BEFORE FRIDAY
+   - Teacher → Quiz of the Week → Build.
+   - Create a five-question test for a Friday/class and use Test Student.
+   - Confirm Quiz → Daily 10 transition.
+   - Teacher → Quiz of the Week → Results & Export to confirm the anonymous result appears.
+   - Test Student responses do not lock the quiz; delete or replace the test quiz as needed.
 
-Suggested commit:
-v2.19.9 - add Perfect Score Club after Top 10
+5. LOCAL SKYWARD BRIDGE
+   - Keep Teals_Daily_Fact_Challenge_Skyward_Bridge.xlsx local.
+   - Teacher → Quiz of the Week → Student Keys to download anonymous key setup files.
+   - Add real Last Name / First Name only inside your local workbook.
+   - Never upload the completed roster workbook back to the app or an AI service.
+
+No Streamlit Secret change is required.
+No AWTRIX reinstall is required.

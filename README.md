@@ -1,48 +1,83 @@
-# Teal's Daily Fact Challenge v2.19.9 — Perfect Score Club
+# Teal's Daily Fact Challenge v2.21.0 — Quiz of the Week
 
-v2.19.9 adds the student-requested **Perfect Score Club** without changing the existing Top 10 ranking.
+v2.21.0 adds a Friday-only **Quiz of the Week** while preserving the verified v2.20.3 classroom app everywhere else.
 
-## Recognition rules
+## Friday student flow
 
-- **Top 10 is unchanged.** Accuracy ranks first; time remains the private tiebreaker.
-- **Perfect Score Club = 10/10 students who are not already in the Top 10.**
-- Top 10 students are not duplicated in the club.
-- Club names are shown alphabetically so the club does not become a second speed leaderboard.
-- The club is omitted entirely when there are no additional perfect scorers.
-- Test students and inactive students remain excluded from public recognition.
+When a teacher has saved a quiz for that class/date:
 
-## Student finish screen
+1. **Quiz of the Week** replaces the Friday Igniter.
+2. The student completes exactly **5 quiz questions**.
+3. The student continues into the existing **Daily 10** flow.
+4. The existing Fix Your Misses / Focus Practice / Friday Mystery flow continues unchanged.
 
-The final student screen now shows the existing Current Top 10 first, followed by **⭐ Perfect Score Club** when applicable. A student who earned 10/10 but missed the Top 10 receives a positive Perfect Score Club message instead of only seeing the generic lower-rank privacy message.
+Monday–Thursday Igniters are unchanged. If no Quiz of the Week is assigned on a Friday, the existing Igniter remains the fallback.
 
-Multiplication and alternate Daily modes use the same new `student_recognition.py` helper so recognition rules cannot drift between fact areas. Raw class scores and times are still stripped from the student-facing context; only Top 10 rank/nickname plus public 10/10 club membership are retained.
+## Quiz question types
 
-## AWTRIX classroom ticker
+The teacher can mix five questions using:
 
-The existing AWTRIX script is **not changed and does not need to be reinstalled**. The v2.19.9 Supabase helper keeps the current Top 10 text exactly first, then appends:
+- Number
+- Fraction
+- Multiple choice
+- Number + Label / Unit
 
-`PERFECT SCORE CLUB!   Nickname   Nickname ...`
+Number and fraction grading uses exact rational comparison rather than string matching. Examples such as `3`, `3.0`, and `3.00` are equal, and equivalent fractions such as `3/4` and `6/8` are equal. Mixed numbers such as `2 1/3` are supported. Number + Label questions require both parts to be correct while preserving component-level results for teacher analysis.
 
-only when additional 10/10 students exist outside the Top 10. Because it is appended to the existing payload, manual and automatic clock displays both get the feature and the full sequence still repeats twice.
+## Teacher tools
+
+A new **Quiz of the Week** teacher section includes:
+
+- five-question Friday quiz builder
+- copy-to-multiple-classes support
+- real-student lock after a quiz begins
+- Test Student preview that does not lock the quiz
+- completion and question-level results
+- anonymous Skyward bridge export
+- local Student Key setup download
+
+Only completed quizzes are included in the anonymous grade export; unfinished/absent students are omitted instead of receiving automatic zeros.
+
+## Privacy / Skyward architecture
+
+The app does **not** add or store student first names, last names, Skyward student numbers, email addresses, or roster files.
+
+Quiz results remain associated with the app's existing random student UUID. For local grade transfer, the app derives a stable, meaningless Student Key and exports only:
+
+- Student Key
+- Assignment Name
+- Due Date (`MMDDYYYY`)
+- Category (`SUMM` or `FORM`)
+- Max Score
+- Score
+
+The separate local Excel bridge performs the Student Key → real-name match on Michael's computer. Real roster information never needs to enter this app or an AI service.
+
+## Database / deployment
+
+**One new Supabase migration is required before deploying the app files:**
+
+`RUN_THIS_ONCE_IN_SUPABASE_v2_21.sql`
+
+It adds `weekly_quiz_sets` and `weekly_quiz_answers`. Both tables have RLS enabled and intentionally receive no anon/authenticated browser policies. No Streamlit Secret change is required. No AWTRIX reinstall is required.
 
 ## What did NOT change
 
-- Daily question generation or scoring
-- Top 10 ranking order
-- Timer behavior
-- Multiplication Daily component
-- Multiplication Guided Practice / Fix / Focus component
-- Fact Coach or adaptive/mastery engine
-- Alternate Daily keypad
-- Alternate WATCH / REPLAY / TRY AGAIN components
-- Weekly Mystery
-- AWTRIX Berry script, connection token, or schedule windows
-- Streamlit dependencies or secrets
+The v2.20.3 production behavior remains the source of truth outside the new Quiz of the Week path. In particular, this release does not redesign or replace:
 
-## Installation
-
-Deploy the GitHub files over v2.19.8, then run `RUN_THIS_ONCE_IN_SUPABASE_v2_19_9.sql` once in Supabase SQL Editor. No other SQL or clock setup is required.
+- Multiplication Daily browser component/keypad
+- Alternate Daily browser component/keypad
+- Daily question generation, scoring, hidden timer, or first-answer evidence
+- Multiplication Guided Practice / Fix / Focus
+- Alternate Fix Your Misses / Focus Practice teaching components
+- Fact Coach or adaptive/mastery logic
+- Perfect Score Club / Top 10
+- Weekly Mystery engine
+- student login / persistent login
+- teacher recovery tools
+- AWTRIX
+- existing Warm-Up / Igniter data or Monday–Thursday behavior
 
 ## Verification
 
-See `TEST_RESULTS_v2_19_9.txt`. The release includes a dedicated Perfect Score Club regression suite plus the full historical test inventory.
+The release includes a dedicated `v2_21_0_quiz_of_week_tests.py` suite covering numeric/fraction equivalence, compound answers, five-question validation, anonymous keys, score scaling, quiz locking, Friday routing, database privacy, and byte-for-byte protection of high-risk student components. Existing critical regression suites were also rechecked against the intentional v2.21 routing addition.

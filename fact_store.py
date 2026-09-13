@@ -221,6 +221,36 @@ class WarmupAnswerRecord:
     answered_at: datetime
 
 
+@dataclass(frozen=True)
+class WeeklyQuizSetRecord:
+    quiz_id: str
+    class_id: str
+    quiz_date: str
+    assignment_name: str
+    category_code: str
+    max_score: float
+    questions: tuple[dict, ...]
+    created_at: datetime
+    updated_at: datetime
+
+
+@dataclass(frozen=True)
+class WeeklyQuizAnswerRecord:
+    quiz_answer_id: str
+    quiz_id: str
+    student_id: str
+    class_id: str
+    quiz_date: str
+    question_slot: int
+    question_type: str
+    prompt: str
+    student_response: str
+    correct: bool
+    number_correct: bool
+    label_correct: bool
+    answered_at: datetime
+
+
 def utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
@@ -311,6 +341,8 @@ class InMemoryFactStore:
         self.mystery_guesses: dict[tuple[str, str, int], MysteryGuessRecord] = {}
         self.warmup_sets: dict[tuple[str, str], WarmupSetRecord] = {}
         self.warmup_answers: dict[tuple[str, str, int], WarmupAnswerRecord] = {}
+        self.weekly_quiz_sets: dict[tuple[str, str], WeeklyQuizSetRecord] = {}
+        self.weekly_quiz_answers: dict[tuple[str, str, int], WeeklyQuizAnswerRecord] = {}
 
     # ----- Classes -----
     def create_class(self, class_name: str, class_code: str | None = None) -> ClassRecord:
@@ -522,6 +554,7 @@ class InMemoryFactStore:
         self.mystery_unlocks = {key: row for key, row in self.mystery_unlocks.items() if key[0] not in id_set}
         self.mystery_guesses = {key: row for key, row in self.mystery_guesses.items() if key[0] not in id_set}
         self.warmup_answers = {key: row for key, row in self.warmup_answers.items() if row.student_id not in id_set}
+        self.weekly_quiz_answers = {key: row for key, row in self.weekly_quiz_answers.items() if row.student_id not in id_set}
         for student_id in id_set:
             self.students.pop(student_id, None)
         return len(id_set)
@@ -1602,6 +1635,109 @@ class InMemoryFactStore:
             "requested_at": utc_now(),
         })
         return self._awtrix_command_id
+
+    # ----- Quiz of the Week -----
+    def get_weekly_quiz_set(self, class_id: str, quiz_date: date | str) -> WeeklyQuizSetRecord | None:
+        key = (str(class_id), _as_date_key(quiz_date))
+        return self.weekly_quiz_sets.get(key)
+
+    def weekly_quiz_locked(self, quiz_id: str) -> bool:
+        test_ids = {sid for sid, row in self.students.items() if row["record"].is_test}
+        return any(
+            row.quiz_id == str(quiz_id) and row.student_id not in test_ids
+            for row in self.weekly_quiz_answers.values()
+        )
+
+    def save_weekly_quiz_set(
+        self, class_id: str, quiz_date: date | str, *, assignment_name: str, category_code: str,
+        max_score: float, questions: Sequence[Mapping],
+    ) -> WeeklyQuizSetRecord:
+        from weekly_quiz import QUIZ_CATEGORIES, validate_quiz_questions
+        class_id = str(class_id)
+        if class_id not in self.classes:
+            raise NotFound("Class not found.")
+        date_key = _as_date_key(quiz_date)
+        prepared = validate_quiz_questions(questions)
+        name = str(assignment_name or "").strip()
+        if not name:
+            raise ValueError("Assignment name is required.")
+        category = str(category_code or "").strip().upper()
+        if category not in QUIZ_CATEGORIES:
+            raise ValueError("Quiz category must be SUMM or FORM.")
+        score = float(max_score)
+        if not (0 < score <= 100):
+            raise ValueError("Max score must be greater than 0 and no more than 100.")
+        existing = self.get_weekly_quiz_set(class_id, date_key)
+        if existing is not None and self.weekly_quiz_locked(existing.quiz_id):
+            raise FactStoreError("This Quiz of the Week is locked because a student has already answered it.")
+        if existing is not None:
+            self.weekly_quiz_answers = {
+                key: row for key, row in self.weekly_quiz_answers.items() if row.quiz_id != existing.quiz_id
+            }
+        now = utc_now()
+        record = WeeklyQuizSetRecord(
+            existing.quiz_id if existing else _uuid(), class_id, date_key, name, category, score,
+            tuple(dict(item) for item in prepared), existing.created_at if existing else now, now,
+        )
+        self.weekly_quiz_sets[(class_id, date_key)] = record
+        return record
+
+    def save_weekly_quiz_sets_bulk(
+        self, class_ids: Sequence[str], quiz_date: date | str, *, assignment_name: str, category_code: str,
+        max_score: float, questions: Sequence[Mapping],
+    ) -> list[WeeklyQuizSetRecord]:
+        ids = list(dict.fromkeys(str(class_id) for class_id in class_ids if str(class_id)))
+        if not ids:
+            return []
+        existing = [self.get_weekly_quiz_set(class_id, quiz_date) for class_id in ids]
+        if any(item is not None and self.weekly_quiz_locked(item.quiz_id) for item in existing):
+            raise FactStoreError("Cannot replace a Quiz of the Week that students already started.")
+        return [
+            self.save_weekly_quiz_set(
+                class_id, quiz_date, assignment_name=assignment_name, category_code=category_code,
+                max_score=max_score, questions=questions,
+            )
+            for class_id in ids
+        ]
+
+    def delete_weekly_quiz_set(self, class_id: str, quiz_date: date | str) -> None:
+        key = (str(class_id), _as_date_key(quiz_date))
+        existing = self.weekly_quiz_sets.get(key)
+        if existing is None:
+            return
+        if self.weekly_quiz_locked(existing.quiz_id):
+            raise FactStoreError("This Quiz of the Week is locked because a student has already answered it.")
+        self.weekly_quiz_answers = {k: row for k, row in self.weekly_quiz_answers.items() if row.quiz_id != existing.quiz_id}
+        self.weekly_quiz_sets.pop(key, None)
+
+    def get_weekly_quiz_answers(self, student_id: str, quiz_id: str) -> list[WeeklyQuizAnswerRecord]:
+        return sorted(
+            [row for row in self.weekly_quiz_answers.values() if row.student_id == str(student_id) and row.quiz_id == str(quiz_id)],
+            key=lambda row: row.question_slot,
+        )
+
+    def list_weekly_quiz_answers(self, quiz_id: str) -> list[WeeklyQuizAnswerRecord]:
+        return sorted(
+            [row for row in self.weekly_quiz_answers.values() if row.quiz_id == str(quiz_id)],
+            key=lambda row: (row.student_id, row.question_slot),
+        )
+
+    def record_weekly_quiz_answer(
+        self, *, quiz_id: str, student_id: str, class_id: str, quiz_date: date | str, question_slot: int,
+        question_type: str, prompt: str, student_response: str, correct: bool, number_correct: bool, label_correct: bool,
+    ) -> WeeklyQuizAnswerRecord:
+        self.get_student(student_id)
+        slot = int(question_slot)
+        key = (str(student_id), str(quiz_id), slot)
+        if key in self.weekly_quiz_answers:
+            return self.weekly_quiz_answers[key]
+        record = WeeklyQuizAnswerRecord(
+            _uuid(), str(quiz_id), str(student_id), str(class_id), _as_date_key(quiz_date), slot,
+            str(question_type), str(prompt), str(student_response), bool(correct), bool(number_correct),
+            bool(label_correct), utc_now(),
+        )
+        self.weekly_quiz_answers[key] = record
+        return record
 
     # ----- Private app settings (reference backend) -----
     def get_app_setting(self, setting_key: str):

@@ -38,6 +38,7 @@ from supabase_fact_store import SupabaseFactStore
 from persistent_login import REMEMBER_DAYS, issue_student_token, peek_student_id, verify_student_token
 from ui_helpers import format_seconds, strategy_tip
 from student_igniter_ui import render_quick_warmup
+from student_weekly_quiz_ui import render_friday_quiz
 from student_recognition import build_public_daily_recognition
 from student_daily_save_recovery import (
     clear_pending_daily_payload,
@@ -53,6 +54,7 @@ from teacher_learning_ui import render_teacher_mastery_focus, _override_label, _
 from teacher_intelligence_ui import render_teacher_next_steps, render_teacher_weekly_recap, render_student_learning_snapshot
 from teacher_class_history_ui import render_teacher_class_history
 from teacher_warmup_ui import render_teacher_warmup as _render_teacher_warmup_module
+from teacher_weekly_quiz_ui import render_teacher_weekly_quiz
 from teacher_clock_ui import render_teacher_clock
 from teacher_today_ui import render_teacher_today_command_center as _render_teacher_today_command_center
 from teacher_recovery_ui import render_class_recovery_tools
@@ -1710,7 +1712,13 @@ def render_daily(store: SupabaseFactStore | None) -> None:
     assert store is not None
 
     day = current_daily_date()
-    if not render_quick_warmup(store, day):
+    # v2.21 Friday-only insertion point. A saved Quiz of the Week replaces the
+    # Igniter for that class/date. Monday–Thursday and Fridays with no saved quiz
+    # continue through the proven Igniter path unchanged.
+    weekly_quiz_state = render_friday_quiz(store, day)
+    if weekly_quiz_state == "blocked":
+        return
+    if weekly_quiz_state != "complete" and not render_quick_warmup(store, day):
         return
 
     try:
@@ -1970,6 +1978,7 @@ def _go_teacher_tool(tool: str, class_name: str | None = None) -> None:
     routes = {
         "Today": ("📊 Today", None, None),
         "Warm-Up": ("🧠 Warm-Up", None, None),
+        "Quiz of the Week": ("📝 Quiz of the Week", None, None),
         "Next Steps": ("📈 Learning", "🧭 Next Steps", None),
         "Learning Data": ("📈 Learning", "📈 Learning Data", None),
         "Student Support": ("📈 Learning", "🛠️ Student Support", None),
@@ -2895,7 +2904,7 @@ def render_teacher(store: SupabaseFactStore | None) -> None:
             st.session_state["teacher_projector_mode"] = False
             st.rerun()
 
-    teacher_primary_sections = ["📊 Today", "🧠 Warm-Up", "📈 Learning", "🕵️ Weekly Mystery", "⚙️ Manage"]
+    teacher_primary_sections = ["📊 Today", "🧠 Warm-Up", "📝 Quiz of the Week", "📈 Learning", "🕵️ Weekly Mystery", "⚙️ Manage"]
     current_primary = st.session_state.get("teacher_primary_section")
     if current_primary not in teacher_primary_sections:
         st.session_state["teacher_primary_section"] = "📊 Today"
@@ -2908,6 +2917,8 @@ def render_teacher(store: SupabaseFactStore | None) -> None:
         render_teacher_today(store)
     elif primary == "🧠 Warm-Up":
         render_teacher_warmup(store)
+    elif primary == "📝 Quiz of the Week":
+        render_teacher_weekly_quiz(store)
     elif primary == "📈 Learning":
         learning_sections = ["🧭 Next Steps", "📈 Learning Data", "🛠️ Student Support", "📅 Weekly Recap"] + ["🗓️ Class History"]
         if st.session_state.get("teacher_learning_section") not in learning_sections:

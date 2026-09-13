@@ -44,6 +44,8 @@ CRITICAL_SUITES = [
     "v2_19_4_classroom_hardening_tests.py",
     "v2_19_8_student_speed_pass_tests.py",
     "v2_19_9_perfect_score_club_tests.py",
+    "v2_20_0_teacher_efficiency_recovery_tests.py",
+    "v2_21_0_quiz_of_week_tests.py",
     "runtime_name_guard_tests.py",
     "v2_11_2_final_top10_restore_tests.py",
     "v2_12_0_awtrix_top10_tests.py",
