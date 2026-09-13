@@ -17,7 +17,6 @@ from fact_engine import (
     CHALLENGE_VERSION,
     DAILY_TIMEZONE,
     Fact,
-    current_daily_date,
     daily_facts_for_date,
     fact_family_options,
     practice_fact,
@@ -58,6 +57,7 @@ from teacher_weekly_quiz_ui import render_teacher_weekly_quiz
 from teacher_clock_ui import render_teacher_clock
 from teacher_today_ui import render_teacher_today_command_center as _render_teacher_today_command_center
 from teacher_recovery_ui import render_class_recovery_tools
+from test_student_date_preview import effective_student_date as current_daily_date, render_test_student_date_selector
 from teacher_mystery_raffle import (
     mystery_raffle_snapshot as _mystery_raffle_snapshot,
     mystery_raffle_has_pending_draw as _bulk_mystery_raffle_has_pending_draw,
@@ -2824,7 +2824,7 @@ def render_teacher_warmup(store: SupabaseFactStore) -> None:
 
 def render_teacher_test_student_launcher(store: SupabaseFactStore) -> None:
     st.markdown("### 🧪 Test Student")
-    st.caption("Try the student experience as many times as you want without affecting class results or raffles.")
+    render_test_student_date_selector()
     classes = store.list_classes()
     if not classes:
         st.info("Create a class first, then choose which class you want to preview.")
@@ -2875,7 +2875,7 @@ def render_teacher_test_student_mode(store: SupabaseFactStore) -> None:
             st.session_state["teacher_test_student_record"] = student
             _set_student_session(student, class_record)
             st.rerun()
-    st.warning("🧪 **TEST STUDENT** · This practice account stays separate from class results and raffles.")
+    render_test_student_date_selector(active=True)
     render_daily(store)
 
 def render_teacher(store: SupabaseFactStore | None) -> None:
