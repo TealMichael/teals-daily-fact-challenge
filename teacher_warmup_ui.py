@@ -561,11 +561,11 @@ def render_teacher_warmup(store: SupabaseFactStore, *, refresh_control, finish_r
     key_prefix = f"warmup_plan_{selected.class_id}_{target_date.isoformat()}"
     recent_standards = _recent_warmup_standards(store)
     st.caption("Indiana Math standards from Grades 4–7 are built in. Type a code or skill word in the standard box to search; recently used standards float to the top.")
-    with st.form(f"{key_prefix}_form"):
+    with st.container():
         q1_values = _warmup_form_question(q1_existing, 1, key_prefix, recent_standards)
         q2_values = _warmup_form_question(q2_existing, 2, key_prefix, recent_standards)
         copy_all = st.checkbox("Also copy this Warm-Up to every class", value=False, key=f"{key_prefix}_copy")
-        save = st.form_submit_button("Save Warm-Up", type="primary", use_container_width=True, disabled=locked)
+        save = st.button("Save Warm-Up", type="primary", use_container_width=True, disabled=locked, key=f"{key_prefix}_save")
     if save:
         try:
             q1 = prepare_warmup_question(slot=1, **q1_values)

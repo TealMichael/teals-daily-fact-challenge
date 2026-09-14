@@ -1,16 +1,14 @@
-Teal's Daily Fact Challenge v2.20.3 — Browser GitHub Install
+Teal's Daily Fact Challenge v2.20.4 — Browser GitHub install
 
-Upload these 4 files to the ROOT of the GitHub repository:
-- app.py
+Upload ONLY these two .py files to the ROOT of your GitHub repository:
+- teacher_warmup_ui.py
 - fact_engine.py
-- student_alt_daily_ui.py
-- student_daily_save_recovery.py
 
 They replace the existing files with the same names.
 
-Commit message:
-v2.20.3 - self-heal stale Daily save state and add device restart escape
-
 No Supabase SQL.
 No Secrets changes.
-No AWTRIX reinstall.
+No AWTRIX changes.
+
+GitHub commit message:
+v2.20.4 - fix live Igniter answer-type fields
