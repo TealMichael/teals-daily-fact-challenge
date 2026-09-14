@@ -8,80 +8,31 @@ an irreversible, deterministic display key derived from that UUID.
 """
 
 from datetime import date
-from fractions import Fraction
 import hashlib
 import json
-import re
 from typing import Mapping, Sequence
 
-QUIZ_QUESTION_COUNT = 5
-QUIZ_QUESTION_TYPES = (
-    "Number",
-    "Fraction",
-    "Multiple choice",
-    "Number + Label",
+from curriculum_question_types import (
+    COMMON_QUESTION_TYPES,
+    clean_alternate_lines,
+    clean_text,
+    numeric_answers_match,
+    numeric_value,
+    text_answers_match,
 )
+
+QUIZ_QUESTION_COUNT = 5
+QUIZ_QUESTION_TYPES = COMMON_QUESTION_TYPES
 QUIZ_CATEGORIES = ("SUMM", "FORM")
 
 
-def _clean_text(value: str) -> str:
-    return re.sub(r"\s+", " ", str(value or "").strip()).casefold()
+# Backward-compatible aliases kept here because tests and callers already import
+# these names from weekly_quiz. The implementations live in the shared
+# curriculum_question_types module so Igniter and Friday Quiz grade the same.
+_clean_text = clean_text
 
-
-def numeric_value(value: str) -> Fraction | None:
-    """Parse whole numbers, decimals, fractions, and mixed numbers exactly.
-
-    Examples accepted: 3, 3.0, 6/8, 2 1/3, -2 1/3.
-    Exact Fraction arithmetic avoids float-rounding grading errors.
-    """
-    text = str(value or "").strip().replace(",", "")
-    if not text:
-        return None
-    text = re.sub(r"\s*/\s*", "/", text)
-    mixed = re.fullmatch(r"([+-]?\d+)\s+(\d+)\/(\d+)", text)
-    if mixed:
-        whole = int(mixed.group(1))
-        numerator = int(mixed.group(2))
-        denominator = int(mixed.group(3))
-        if denominator == 0:
-            return None
-        frac = Fraction(numerator, denominator)
-        return Fraction(whole, 1) - frac if whole < 0 else Fraction(whole, 1) + frac
-    try:
-        return Fraction(text)
-    except (ValueError, ZeroDivisionError):
-        return None
-
-
-def numeric_answers_match(student_answer: str, correct_answer: str, accepted_answers: Sequence[str] = ()) -> bool:
-    student = numeric_value(student_answer)
-    if student is None:
-        return False
-    for candidate in [str(correct_answer or "")] + [str(item or "") for item in accepted_answers]:
-        parsed = numeric_value(candidate)
-        if parsed is not None and parsed == student:
-            return True
-    return False
-
-
-def text_answers_match(student_answer: str, correct_answer: str, accepted_answers: Sequence[str] = ()) -> bool:
-    student = _clean_text(student_answer)
-    if not student:
-        return False
-    candidates = [correct_answer, *accepted_answers]
-    return any(student == _clean_text(candidate) for candidate in candidates if _clean_text(candidate))
-
-
-def _clean_lines(values: Sequence[str], *, primary: str = "") -> list[str]:
-    seen = {_clean_text(primary)} if primary else set()
-    result: list[str] = []
-    for raw in values:
-        value = str(raw or "").strip()
-        key = _clean_text(value)
-        if value and key and key not in seen:
-            result.append(value)
-            seen.add(key)
-    return result
+def _clean_lines(values, *, primary=""):
+    return clean_alternate_lines(values, primary=primary)
 
 
 def prepare_quiz_question(

@@ -1,1 +1,1 @@
-v2.21.0 - add Friday Quiz of the Week and anonymous Skyward bridge
+v2.21.1 - unify Igniter and Friday Quiz question behavior

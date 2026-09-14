@@ -1,14 +1,29 @@
-Teal's Daily Fact Challenge v2.20.4 — Browser GitHub install
+Teal's Daily Fact Challenge v2.21.1 — Browser-only GitHub install
 
-Upload ONLY these two .py files to the ROOT of your GitHub repository:
-- teacher_warmup_ui.py
+Upload ALL 8 .py files in this folder to the ROOT of the GitHub repository.
+
+Two are NEW files and must appear in the repo after upload:
+- curriculum_question_types.py
+- teacher_question_editor.py
+
+Six REPLACE existing files:
 - fact_engine.py
+- weekly_quiz.py
+- warmup.py
+- teacher_warmup_ui.py
+- teacher_weekly_quiz_ui.py
+- student_igniter_ui.py
 
-They replace the existing files with the same names.
+Commit message:
+v2.21.1 - unify Igniter and Friday Quiz question behavior
 
 No Supabase SQL.
 No Secrets changes.
 No AWTRIX changes.
 
-GitHub commit message:
-v2.20.4 - fix live Igniter answer-type fields
+After Streamlit redeploys, confirm the footer shows v2.21.1.
+Then test Teacher > Warm-Up:
+1. Change Answer type to Multi-Part — 2 answers. Part 2 must appear immediately.
+2. Change Answer type to Number + Label. Label/unit fields must appear immediately.
+3. Save and preview with Test Student.
+4. Confirm Friday Quiz builder still works normally.

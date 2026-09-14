@@ -12,6 +12,7 @@ import streamlit as st
 
 from fact_engine import current_daily_date
 from supabase_fact_store import SupabaseFactStore
+from teacher_question_editor import render_answer_editor
 from weekly_quiz import (
     QUIZ_CATEGORIES,
     QUIZ_QUESTION_COUNT,
@@ -53,61 +54,11 @@ def _question_editor(existing: dict, slot: int, prefix: str) -> dict:
         "Question", value=str(existing.get("prompt") or ""),
         key=f"{prefix}_prompt_{slot}", height=88,
     )
-    current_type = str(existing.get("question_type") or "Number")
-    if current_type not in QUIZ_QUESTION_TYPES:
-        current_type = "Number"
-    qtype = st.selectbox(
-        "Answer type", list(QUIZ_QUESTION_TYPES),
-        index=list(QUIZ_QUESTION_TYPES).index(current_type),
-        key=f"{prefix}_type_{slot}",
+    answer_values = render_answer_editor(
+        existing, slot=slot, prefix=prefix,
+        question_types=QUIZ_QUESTION_TYPES, default_type="Number",
     )
-
-    correct = st.text_input(
-        "Correct answer", value=str(existing.get("correct_answer") or ""),
-        key=f"{prefix}_correct_{slot}",
-        help="For numeric questions, equivalent values are graded mathematically. Example: 3 and 3.0 match; 3/4 and 6/8 match.",
-    )
-    alternates = ""
-    options = ""
-    labels = ""
-    correct_label = ""
-
-    if qtype == "Multiple choice":
-        options = st.text_area(
-            "Choices — one per line", value="\n".join(str(item) for item in (existing.get("options") or [])),
-            key=f"{prefix}_options_{slot}", height=90,
-        )
-        st.caption("Type the correct answer above exactly as it appears in the choices.")
-    else:
-        alternates = st.text_area(
-            "Accepted alternate answers — optional, one per line",
-            value="\n".join(str(item) for item in (existing.get("accepted_answers") or [])),
-            key=f"{prefix}_alternates_{slot}", height=64,
-        )
-        if qtype == "Fraction":
-            st.caption("Students can type fractions and mixed numbers, such as 3/4 or 2 1/3. Equivalent values are accepted.")
-        if qtype == "Number + Label":
-            labels = st.text_area(
-                "Label / unit choices — one per line",
-                value="\n".join(str(item) for item in (existing.get("label_options") or [])),
-                key=f"{prefix}_labels_{slot}", height=82,
-                placeholder="feet\nsquare feet\nyards\nsquare yards",
-            )
-            correct_label = st.text_input(
-                "Correct label / unit", value=str(existing.get("correct_label") or ""),
-                key=f"{prefix}_correct_label_{slot}",
-            )
-            st.caption("The question counts correct only when both the numerical answer and label are correct.")
-
-    return {
-        "prompt": prompt,
-        "question_type": qtype,
-        "correct_answer": correct,
-        "accepted_answers": _lines(alternates),
-        "options": _lines(options),
-        "label_options": _lines(labels),
-        "correct_label": correct_label,
-    }
+    return {"prompt": prompt, **answer_values}
 
 
 def _csv_bytes(rows: list[dict], columns: list[str]) -> bytes:

@@ -18,6 +18,7 @@ from fact_engine import current_daily_date
 from fact_store import FactStoreError
 from supabase_fact_store import SupabaseFactStore
 from warmup import QUESTION_TYPES, display_student_response, prepare_question as prepare_warmup_question, question_for_slot
+from teacher_question_editor import render_answer_editor
 from teacher_warmup_settings import (
     warmup_email_recipients as _warmup_email_recipients,
     save_warmup_email_recipients as _save_warmup_email_recipients,
@@ -57,6 +58,9 @@ def _render_warmup_student_preview(warmup) -> None:
                 st.write(" · ".join(str(option) for option in options))
         elif qtype == "Multi-Part — 2 answers":
             st.caption("Students see two answer boxes.")
+        elif qtype == "Number + Label":
+            labels = list(question.get("label_options") or [])
+            st.caption("Students enter a number and choose a label / unit." + (f" Choices: {' · '.join(str(x) for x in labels)}" if labels else ""))
 
 
 
@@ -112,44 +116,10 @@ def _warmup_form_question(existing: dict, slot: int, key_prefix: str, recent_cod
         "Question", value=str(existing.get("prompt") or ""),
         key=f"{key_prefix}_prompt_{slot}", height=90,
     )
-    current_type = str(existing.get("question_type") or "Short answer")
-    qtype = st.selectbox(
-        "Answer type", list(QUESTION_TYPES),
-        index=list(QUESTION_TYPES).index(current_type) if current_type in QUESTION_TYPES else 0,
-        key=f"{key_prefix}_type_{slot}",
+    answer_values = render_answer_editor(
+        existing, slot=slot, prefix=key_prefix,
+        question_types=QUESTION_TYPES, default_type="Short answer",
     )
-    correct_label = "Correct answer — Part 1" if qtype == "Multi-Part — 2 answers" else "Correct answer"
-    correct = st.text_input(
-        correct_label, value=str(existing.get("correct_answer") or ""),
-        key=f"{key_prefix}_correct_{slot}",
-    )
-    correct_two = ""
-    if qtype == "Multi-Part — 2 answers":
-        correct_two = st.text_input(
-            "Correct answer — Part 2", value=str(existing.get("correct_answer_two") or ""),
-            key=f"{key_prefix}_correct_two_{slot}",
-        )
-    if qtype == "Expanded Form":
-        st.caption("Students must show the actual place-value sum. A numerically equal standard-form number will not count.")
-    options = ""
-    if qtype == "Multiple choice":
-        options = st.text_area(
-            "Multiple-choice options — one per line",
-            value="\n".join(str(value) for value in (existing.get("options") or [])),
-            key=f"{key_prefix}_options_{slot}", height=90,
-        )
-    alternates = st.text_area(
-        "Accepted alternate answers — optional, one per line",
-        value="\n".join(str(value) for value in (existing.get("accepted_answers") or [])),
-        key=f"{key_prefix}_alternates_{slot}", height=70,
-    )
-    alternates_two = ""
-    if qtype == "Multi-Part — 2 answers":
-        alternates_two = st.text_area(
-            "Accepted Part 2 alternate answers — optional, one per line",
-            value="\n".join(str(value) for value in (existing.get("accepted_answers_two") or [])),
-            key=f"{key_prefix}_alternates_two_{slot}", height=70,
-        )
 
     recent_codes = [code for code in recent_codes if code in INDIANA_STANDARD_BY_CODE]
     standard_options = ordered_standard_codes(recent_codes) + [CUSTOM_STANDARD_CODE]
@@ -187,12 +157,12 @@ def _warmup_form_question(existing: dict, slot: int, key_prefix: str, recent_cod
         st.caption(f"**{selected_standard.domain}** · {selected_standard.description}")
 
     return {
-        "prompt": prompt, "question_type": qtype, "correct_answer": correct,
-        "correct_answer_two": correct_two,
-        "options": _lines(options), "accepted_answers": _lines(alternates),
-        "accepted_answers_two": _lines(alternates_two),
-        "standard_code": standard, "standard_description": description,
+        "prompt": prompt,
+        **answer_values,
+        "standard_code": standard,
+        "standard_description": description,
     }
+
 
 
 def _warmup_name_list(student_ids, name_by_id: dict[str, str]) -> list[str]:
@@ -561,11 +531,14 @@ def render_teacher_warmup(store: SupabaseFactStore, *, refresh_control, finish_r
     key_prefix = f"warmup_plan_{selected.class_id}_{target_date.isoformat()}"
     recent_standards = _recent_warmup_standards(store)
     st.caption("Indiana Math standards from Grades 4–7 are built in. Type a code or skill word in the standard box to search; recently used standards float to the top.")
-    with st.container():
-        q1_values = _warmup_form_question(q1_existing, 1, key_prefix, recent_standards)
-        q2_values = _warmup_form_question(q2_existing, 2, key_prefix, recent_standards)
-        copy_all = st.checkbox("Also copy this Warm-Up to every class", value=False, key=f"{key_prefix}_copy")
-        save = st.button("Save Warm-Up", type="primary", use_container_width=True, disabled=locked, key=f"{key_prefix}_save")
+    # Keep the editor live, matching the Friday Quiz builder. Streamlit forms
+    # intentionally delay selectbox changes until submit; that made answer-type
+    # fields such as Multi-Part and Number + Label look broken. Only the Save
+    # button writes to Supabase.
+    q1_values = _warmup_form_question(q1_existing, 1, key_prefix, recent_standards)
+    q2_values = _warmup_form_question(q2_existing, 2, key_prefix, recent_standards)
+    copy_all = st.checkbox("Also copy this Warm-Up to every class", value=False, key=f"{key_prefix}_copy")
+    save = st.button("Save Warm-Up", type="primary", use_container_width=True, disabled=locked, key=f"{key_prefix}_save")
     if save:
         try:
             q1 = prepare_warmup_question(slot=1, **q1_values)

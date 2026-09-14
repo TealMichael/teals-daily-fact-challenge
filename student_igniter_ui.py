@@ -107,23 +107,50 @@ def render_quick_warmup(store: SupabaseFactStore, day: date) -> bool:
     with st.form(form_key, clear_on_submit=False):
         if qtype == "Multiple choice":
             options = [str(value) for value in (question.get("options") or [])]
-            response = st.radio("Choose your answer", options, key=f"warmup_choice_{warmup.warmup_set_id}_{slot}") if options else ""
+            response = st.radio(
+                "Choose your answer", options, index=None,
+                key=f"warmup_choice_{warmup.warmup_set_id}_{slot}",
+            ) if options else ""
+        elif qtype == "Number + Label":
+            left, right = st.columns([1.15, 1])
+            with left:
+                response = st.text_input(
+                    "Number", key=f"warmup_number_{warmup.warmup_set_id}_{slot}",
+                    placeholder="Type the number",
+                )
+            with right:
+                labels = [str(item) for item in (question.get("label_options") or [])]
+                response_two = st.selectbox(
+                    "Label / unit", labels, index=None, placeholder="Choose a label",
+                    key=f"warmup_label_{warmup.warmup_set_id}_{slot}",
+                ) if labels else ""
         elif qtype == "Multi-Part — 2 answers":
             response = st.text_input("Part 1", key=f"warmup_text_{warmup.warmup_set_id}_{slot}_1", placeholder="First answer")
             response_two = st.text_input("Part 2", key=f"warmup_text_{warmup.warmup_set_id}_{slot}_2", placeholder="Second answer")
         else:
-            placeholder = "Type the expanded form" if qtype == "Expanded Form" else "Type your answer"
+            if qtype == "Expanded Form":
+                placeholder = "Type the expanded form"
+            elif qtype == "Fraction":
+                placeholder = "Example: 3/4 or 2 1/3"
+            else:
+                placeholder = "Type your answer"
             response = st.text_input("Your answer", key=f"warmup_text_{warmup.warmup_set_id}_{slot}", placeholder=placeholder)
+            if qtype in {"Number", "Fraction"}:
+                st.caption("Equivalent numerical values count the same when mathematically equal (for example, 3 and 3.0).")
         submitted = st.form_submit_button("Check answer →", type="primary", use_container_width=True)
 
     if submitted:
         response = str(response or "").strip()
         response_two = str(response_two or "").strip()
-        if not response or (qtype == "Multi-Part — 2 answers" and not response_two):
-            st.warning("Enter both answers first." if qtype == "Multi-Part — 2 answers" else "Enter an answer first.")
+        compound = qtype in {"Multi-Part — 2 answers", "Number + Label"}
+        if not response or (compound and not response_two):
+            if qtype == "Number + Label" and response and not response_two:
+                st.warning("Choose the label or unit before submitting.")
+            else:
+                st.warning("Enter both answers first." if compound else "Enter an answer first.")
             return False
         correct = grade_question(question, response, response_two)
-        stored_response = pack_multi_part_response(response, response_two) if qtype == "Multi-Part — 2 answers" else response
+        stored_response = pack_multi_part_response(response, response_two) if compound else response
         correct_answer = correct_answer_for_storage(question)
         try:
             store.record_warmup_answer(
