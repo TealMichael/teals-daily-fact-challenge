@@ -19,6 +19,7 @@ from fact_store import FactStoreError
 from supabase_fact_store import SupabaseFactStore
 from warmup import QUESTION_TYPES, display_student_response, prepare_question as prepare_warmup_question, question_for_slot
 from teacher_question_editor import render_answer_editor
+from question_images import maybe_cleanup_question_images, signed_question_image_url, upload_question_image
 from teacher_warmup_settings import (
     warmup_email_recipients as _warmup_email_recipients,
     save_warmup_email_recipients as _save_warmup_email_recipients,
@@ -44,12 +45,17 @@ def _next_school_day(value: date) -> date:
     return result
 
 
-def _render_warmup_student_preview(warmup) -> None:
+def _render_warmup_student_preview(store, warmup) -> None:
     st.caption("Student preview. Correct answers stay hidden.")
     for slot, question in ((1, warmup.question_one), (2, warmup.question_two)):
         label = "Spiral Review" if slot == 1 else "Yesterday Check"
         st.markdown(f"**{slot}. {label}**")
         st.write(str(question.get("prompt") or ""))
+        image_path = str(question.get("image_path") or "")
+        if image_path:
+            image_url = signed_question_image_url(store, image_path)
+            if image_url:
+                st.image(image_url, width=460)
         qtype = str(question.get("question_type") or "Short answer")
         st.caption(f"Answer type: {qtype}")
         if qtype == "Multiple choice":
@@ -424,6 +430,7 @@ def _warmup_export_frame(store: SupabaseFactStore, start_date: date, end_date: d
 
 
 def render_teacher_warmup(store: SupabaseFactStore, *, refresh_control, finish_refresh) -> None:
+    maybe_cleanup_question_images(store, current_daily_date())
     header_left, header_right = st.columns([4.2, 1.4])
     with header_left:
         st.markdown("### 🧠 Warm-Up")
@@ -508,7 +515,7 @@ def render_teacher_warmup(store: SupabaseFactStore, *, refresh_control, finish_r
                     st.error(str(exc))
 
             with st.expander("👀 Preview student view", expanded=False):
-                _render_warmup_student_preview(existing)
+                _render_warmup_student_preview(store, existing)
 
         templates = _warmup_templates(store)
         if templates:
@@ -541,8 +548,19 @@ def render_teacher_warmup(store: SupabaseFactStore, *, refresh_control, finish_r
     save = st.button("Save Warm-Up", type="primary", use_container_width=True, disabled=locked, key=f"{key_prefix}_save")
     if save:
         try:
-            q1 = prepare_warmup_question(slot=1, **q1_values)
-            q2 = prepare_warmup_question(slot=2, **q2_values)
+            image_ready = []
+            for slot_number, values in ((1, q1_values), (2, q2_values)):
+                values = dict(values)
+                if values.pop("_remove_image", False):
+                    values["image_path"] = ""
+                upload = values.pop("_image_upload", None)
+                if upload is not None:
+                    values["image_path"] = upload_question_image(
+                        store, upload, question_date=target_date, kind="igniter", slot=slot_number
+                    )
+                image_ready.append(values)
+            q1 = prepare_warmup_question(slot=1, **image_ready[0])
+            q2 = prepare_warmup_question(slot=2, **image_ready[1])
             targets = classes if copy_all else [selected]
             if copy_all and callable(getattr(store, "save_warmup_sets_bulk", None)):
                 store.save_warmup_sets_bulk(

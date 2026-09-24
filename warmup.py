@@ -165,6 +165,8 @@ def prepare_question(
     accepted_answers_two: Sequence[str] = (),
     label_options: Sequence[str] = (),
     correct_label: str = "",
+    image_path: str = "",
+    image_alt: str = "",
 ) -> dict:
     slot = int(slot)
     if slot not in (1, 2):
@@ -238,6 +240,8 @@ def prepare_question(
         "correct_label": correct_label,
         "standard_code": standard,
         "standard_description": str(standard_description or "").strip(),
+        "image_path": str(image_path or "").strip(),
+        "image_alt": str(image_alt or "Question diagram").strip() or "Question diagram",
     }
 
 
@@ -256,6 +260,8 @@ def question_from_mapping(value: Mapping | None, slot: int) -> dict:
         accepted_answers_two=value.get("accepted_answers_two") or (),
         label_options=value.get("label_options") or (),
         correct_label=value.get("correct_label", ""),
+        image_path=value.get("image_path", ""),
+        image_alt=value.get("image_alt", "Question diagram"),
     )
 
 

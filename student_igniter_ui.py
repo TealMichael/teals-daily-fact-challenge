@@ -13,6 +13,7 @@ import re
 import streamlit as st
 
 from supabase_fact_store import SupabaseFactStore
+from question_images import signed_question_image_url
 from warmup import (correct_answer_for_storage, display_student_response, grade_question, pack_multi_part_response, question_for_slot)
 
 def render_quick_warmup(store: SupabaseFactStore, day: date) -> bool:
@@ -100,6 +101,13 @@ def render_quick_warmup(store: SupabaseFactStore, day: date) -> bool:
         f"<div style='font-size:1.35rem;font-weight:700;line-height:1.45;margin:0.35rem 0 1rem 0;'>{prompt_html}</div>",
         unsafe_allow_html=True,
     )
+    image_path = str(question.get("image_path") or "")
+    if image_path:
+        image_url = signed_question_image_url(store, image_path)
+        if image_url:
+            st.image(image_url, width=620)
+        else:
+            st.caption("The question image is no longer available. Show your teacher before answering.")
 
     form_key = f"warmup_answer_{warmup.warmup_set_id}_{student_id}_{slot}"
     qtype = str(question.get("question_type") or "Short answer")

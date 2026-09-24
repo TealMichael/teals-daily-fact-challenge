@@ -94,6 +94,32 @@ def render_answer_editor(
             key=f"{prefix}_alternates_two_{slot}", height=70,
         )
 
+    st.caption("Optional question image · PNG/JPG/WEBP · auto-deletes after scheduled date + 7 days")
+    existing_image_path = str(existing.get("image_path") or "")
+    if existing_image_path:
+        st.caption("An image is currently attached. Upload a replacement or check Remove image.")
+    uploader = getattr(st, "file_uploader", None)
+    image_upload = uploader(
+        "Upload PNG, JPG, or WEBP",
+        type=["png", "jpg", "jpeg", "webp"],
+        key=f"{prefix}_image_{slot}",
+        help="Images are resized automatically and deleted after the question date + 7 days.",
+    ) if callable(uploader) else None
+    checkbox = getattr(st, "checkbox", None)
+    if image_upload is not None and hasattr(st, "image"):
+        st.image(image_upload, width=420)
+    remove_image = checkbox(
+        "Remove image", value=False, key=f"{prefix}_remove_image_{slot}",
+        disabled=not bool(existing_image_path),
+    ) if callable(checkbox) else False
+    image_alt = st.text_input(
+        "Image description · optional",
+        value=str(existing.get("image_alt") or "Question diagram"),
+        key=f"{prefix}_image_alt_{slot}",
+        help="Short description for accessibility, e.g. Rectangular prism labeled 8, 4, and 3 units.",
+    )
+    st.caption("Image files are temporary: automatically deleted 7 days after the scheduled question date.")
+
     if qtype == "Fraction":
         st.caption("Students can type fractions and mixed numbers, such as 3/4 or 2 1/3. Equivalent values are accepted.")
     elif qtype == "Number":
@@ -110,4 +136,8 @@ def render_answer_editor(
         "options": _lines(options),
         "label_options": _lines(labels),
         "correct_label": correct_label,
+        "image_path": existing_image_path,
+        "image_alt": image_alt,
+        "_image_upload": image_upload,
+        "_remove_image": remove_image,
     }

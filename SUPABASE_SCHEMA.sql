@@ -635,3 +635,21 @@ revoke all on function public.awtrix_top10(integer) from public;
 revoke all on function public.awtrix_poll(bigint) from public;
 grant execute on function public.awtrix_top10(integer) to anon, authenticated;
 grant execute on function public.awtrix_poll(bigint) to anon, authenticated;
+
+
+-- v2.21.2 temporary curriculum question images
+create table if not exists public.question_images (
+  image_id uuid primary key default gen_random_uuid(),
+  storage_path text not null unique,
+  question_date date not null,
+  expires_on date not null,
+  created_at timestamptz not null default now()
+);
+alter table public.question_images enable row level security;
+
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('question-images','question-images',false,2097152,array['image/png','image/jpeg','image/webp'])
+on conflict (id) do update set
+  public = excluded.public,
+  file_size_limit = excluded.file_size_limit,
+  allowed_mime_types = excluded.allowed_mime_types;

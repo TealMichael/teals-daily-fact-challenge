@@ -13,6 +13,7 @@ import streamlit as st
 from fact_engine import current_daily_date
 from supabase_fact_store import SupabaseFactStore
 from teacher_question_editor import render_answer_editor
+from question_images import maybe_cleanup_question_images, signed_question_image_url, upload_question_image
 from weekly_quiz import (
     QUIZ_CATEGORIES,
     QUIZ_QUESTION_COUNT,
@@ -71,6 +72,7 @@ def _csv_bytes(rows: list[dict], columns: list[str]) -> bytes:
 
 
 def _render_builder(store: SupabaseFactStore, classes) -> None:
+    maybe_cleanup_question_images(store, current_daily_date())
     st.markdown("### Build Friday's Quiz")
     st.caption("Exactly 5 questions. Saving here does not change Daily 10, practice, Mystery, or Monday–Thursday Igniters.")
 
@@ -136,6 +138,17 @@ def _render_builder(store: SupabaseFactStore, classes) -> None:
             st.error("Choose at least one class.")
             return
         try:
+            image_ready = []
+            for index, item in enumerate(edited, start=1):
+                item = dict(item)
+                if item.pop("_remove_image", False):
+                    item["image_path"] = ""
+                upload = item.pop("_image_upload", None)
+                if upload is not None:
+                    item["image_path"] = upload_question_image(
+                        store, upload, question_date=target, kind="quiz", slot=index
+                    )
+                image_ready.append(item)
             prepared = [
                 prepare_quiz_question(
                     slot=index,
@@ -146,8 +159,10 @@ def _render_builder(store: SupabaseFactStore, classes) -> None:
                     accepted_answers=item.get("accepted_answers") or (),
                     label_options=item.get("label_options") or (),
                     correct_label=item.get("correct_label") or "",
+                    image_path=item.get("image_path") or "",
+                    image_alt=item.get("image_alt") or "Question diagram",
                 )
-                for index, item in enumerate(edited, start=1)
+                for index, item in enumerate(image_ready, start=1)
             ]
             store.save_weekly_quiz_sets_bulk(
                 [by_name[name].class_id for name in target_names], target,

@@ -13,6 +13,7 @@ import re
 import streamlit as st
 
 from supabase_fact_store import SupabaseFactStore
+from question_images import signed_question_image_url
 from weekly_quiz import (
     QUIZ_QUESTION_COUNT,
     grade_quiz_response,
@@ -96,6 +97,13 @@ def render_friday_quiz(store: SupabaseFactStore, day: date) -> str:
         f"<div style='font-size:1.35rem;font-weight:750;line-height:1.45;margin:0.45rem 0 1rem 0;'>{prompt_html}</div>",
         unsafe_allow_html=True,
     )
+    image_path = str(question.get("image_path") or "")
+    if image_path:
+        image_url = signed_question_image_url(store, image_path)
+        if image_url:
+            st.image(image_url, width=620)
+        else:
+            st.caption("The question image is no longer available. Show your teacher before answering.")
 
     form_key = f"weekly_quiz_answer_{quiz.quiz_id}_{student_id}_{slot}"
     response = ""

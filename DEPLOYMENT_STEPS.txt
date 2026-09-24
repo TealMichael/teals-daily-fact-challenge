@@ -1,34 +1,31 @@
-Teal's Daily Fact Challenge v2.21.0 — Quiz of the Week
+Teal's Daily Fact Challenge v2.21.2 — Temporary Question Images
 
-DO THESE IN ORDER:
+IMPORTANT
+- v2.21.1 FULL CURRENT APP is the source this release was built from.
+- This release adds optional images only to Igniter and Quiz of the Week questions.
+- Daily 10, Fix Your Misses, Focus, teaching models, Mystery, Top 10, Perfect Score Club, AWTRIX, login/session, and Skyward privacy architecture are intentionally unchanged.
 
-1. SUPABASE FIRST
-   - Open Supabase → SQL Editor.
-   - Open RUN_THIS_ONCE_IN_SUPABASE_v2_21.sql from this package.
-   - Run the entire file once.
-   - Confirm it completes successfully before changing GitHub.
+INSTALL
+1. In the existing Daily Fact Challenge Supabase project, open SQL Editor.
+2. Run RUN_THIS_ONCE_IN_SUPABASE_v2_21_2.sql exactly once.
+   This creates a PRIVATE question-images Storage bucket and a tiny private metadata table used only for image expiration.
+3. Upload/replace the v2.21.2 files from this package to the repository root, preserving folders.
+4. Commit with:
+   v2.21.2 - add temporary question images for Igniter and Quiz of the Week
+5. Let Streamlit redeploy. No Secrets changes are required.
+6. Confirm the app footer shows v2.21.2.
 
-2. GITHUB
-   - Upload the contents of UPLOAD_TO_GITHUB to the ROOT of the existing repository, preserving folders.
-   - Commit directly to main using:
-     v2.21.0 - add Friday Quiz of the Week and anonymous Skyward bridge
+TEACHER USE
+- In either Igniter or Quiz of the Week, each question now has an optional PNG/JPG/WEBP uploader.
+- Uploads are resized/compressed before storage.
+- Saved images are private and served to students with short-lived signed URLs.
+- Image files are automatically eligible for deletion 7 days after the scheduled question date.
+- Cleanup runs from teacher curriculum pages and never blocks classroom use if cleanup temporarily fails.
+- Old question text, answer keys, scores, and history remain intact after the image itself expires.
 
-3. STREAMLIT
-   - Let Streamlit redeploy.
-   - Confirm the app footer/version shows v2.21.0.
-
-4. TEACHER TEST BEFORE FRIDAY
-   - Teacher → Quiz of the Week → Build.
-   - Create a five-question test for a Friday/class and use Test Student.
-   - Confirm Quiz → Daily 10 transition.
-   - Teacher → Quiz of the Week → Results & Export to confirm the anonymous result appears.
-   - Test Student responses do not lock the quiz; delete or replace the test quiz as needed.
-
-5. LOCAL SKYWARD BRIDGE
-   - Keep Teals_Daily_Fact_Challenge_Skyward_Bridge.xlsx local.
-   - Teacher → Quiz of the Week → Student Keys to download anonymous key setup files.
-   - Add real Last Name / First Name only inside your local workbook.
-   - Never upload the completed roster workbook back to the app or an AI service.
-
-No Streamlit Secret change is required.
-No AWTRIX reinstall is required.
+QUICK TOMORROW TEST
+1. Build tomorrow's Quiz of the Week.
+2. Attach one rectangular-prism image to a question and Save.
+3. Re-open the quiz and expand Student preview; confirm the saved image appears.
+4. Use Test Student with tomorrow's date and confirm the image appears above the answer input.
+5. Do not put student names or roster data in images.
