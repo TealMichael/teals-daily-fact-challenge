@@ -18,6 +18,7 @@ from weekly_quiz import (
     QUIZ_QUESTION_COUNT,
     grade_quiz_response,
     pack_response,
+    unpack_response,
     question_for_slot,
     quiz_is_friday,
 )
@@ -62,9 +63,11 @@ def render_friday_quiz(store: SupabaseFactStore, day: date) -> str:
             st.exception(exc)
         return "blocked"
 
-    answered_slots = {int(row.question_slot) for row in answers}
+    answers_by_slot = {int(row.question_slot): row for row in answers}
+    answered_slots = set(answers_by_slot)
     completed = len(answered_slots) >= QUIZ_QUESTION_COUNT
     just_completed_key = f"weekly_quiz_just_completed::{quiz.quiz_id}"
+    slot_state_key = f"weekly_quiz_slot::{student_id}::{quiz.quiz_id}"
 
     if completed:
         if st.session_state.get(just_completed_key):
@@ -77,14 +80,29 @@ def render_friday_quiz(store: SupabaseFactStore, day: date) -> str:
             ):
                 st.session_state[just_completed_key] = False
                 st.session_state[complete_cache_key] = True
+                st.session_state.pop(slot_state_key, None)
                 st.rerun()
             return "blocked"
         st.session_state[complete_cache_key] = True
+        st.session_state.pop(slot_state_key, None)
         return "complete"
 
-    slot = next(index for index in range(1, QUIZ_QUESTION_COUNT + 1) if index not in answered_slots)
+    # Start on the first unanswered item. During this browser session the
+    # explicit slot state allows students to move backward and revise saved
+    # answers before the fifth question is finally submitted.
+    first_unanswered = next(
+        (index for index in range(1, QUIZ_QUESTION_COUNT + 1) if index not in answered_slots),
+        QUIZ_QUESTION_COUNT,
+    )
+    slot = int(st.session_state.get(slot_state_key) or first_unanswered)
+    if not 1 <= slot <= QUIZ_QUESTION_COUNT:
+        slot = first_unanswered
+    st.session_state[slot_state_key] = slot
+
     question = question_for_slot(quiz, slot)
     qtype = str(question.get("question_type") or "Number")
+    saved_row = answers_by_slot.get(slot)
+    saved_answer, saved_label = unpack_response(saved_row.student_response) if saved_row else ("", "")
 
     st.markdown("## 📝 Quiz of the Week")
     st.caption(f"Question {slot} of {QUIZ_QUESTION_COUNT} · Take your time and show your work on paper when needed.")
@@ -101,7 +119,7 @@ def render_friday_quiz(store: SupabaseFactStore, day: date) -> str:
     if image_path:
         image_url = signed_question_image_url(store, image_path)
         if image_url:
-            st.image(image_url, width=620)
+            st.image(image_url, width=460)
         else:
             st.caption("The question image is no longer available. Show your teacher before answering.")
 
@@ -111,25 +129,52 @@ def render_friday_quiz(store: SupabaseFactStore, day: date) -> str:
     with st.form(form_key, clear_on_submit=False):
         if qtype == "Multiple choice":
             options = [str(item) for item in (question.get("options") or [])]
-            response = st.radio("Choose your answer", options, index=None, key=f"quiz_choice_{quiz.quiz_id}_{slot}") if options else ""
+            choice_key = f"quiz_choice_{quiz.quiz_id}_{slot}"
+            if choice_key not in st.session_state and saved_answer in options:
+                st.session_state[choice_key] = saved_answer
+            response = st.radio("Choose your answer", options, index=None, key=choice_key) if options else ""
         elif qtype == "Number + Label":
             left, right = st.columns([1.15, 1])
+            number_key = f"quiz_number_{quiz.quiz_id}_{slot}"
+            label_key = f"quiz_label_{quiz.quiz_id}_{slot}"
+            if number_key not in st.session_state:
+                st.session_state[number_key] = saved_answer
             with left:
                 response = st.text_input(
-                    "Number", key=f"quiz_number_{quiz.quiz_id}_{slot}", placeholder="Type the number",
+                    "Number", key=number_key, placeholder="Type the number",
                 )
             with right:
                 labels = [str(item) for item in (question.get("label_options") or [])]
+                if label_key not in st.session_state and saved_label in labels:
+                    st.session_state[label_key] = saved_label
                 label = st.selectbox(
                     "Label / unit", labels, index=None, placeholder="Choose a label",
-                    key=f"quiz_label_{quiz.quiz_id}_{slot}",
+                    key=label_key,
                 ) if labels else ""
         else:
             placeholder = "Example: 3/4 or 2 1/3" if qtype == "Fraction" else "Type your answer"
-            response = st.text_input("Your answer", key=f"quiz_text_{quiz.quiz_id}_{slot}", placeholder=placeholder)
+            text_key = f"quiz_text_{quiz.quiz_id}_{slot}"
+            if text_key not in st.session_state:
+                st.session_state[text_key] = saved_answer
+            response = st.text_input("Your answer", key=text_key, placeholder=placeholder)
             if qtype in {"Number", "Fraction"}:
                 st.caption("Equivalent numerical values count the same when mathematically equal (for example, 3 and 3.0).")
-        submitted = st.form_submit_button("Submit answer →", type="primary", use_container_width=True)
+
+        if slot > 1:
+            back_col, next_col = st.columns([0.85, 1.4])
+            with back_col:
+                went_back = st.form_submit_button("← Back", use_container_width=True)
+            with next_col:
+                next_label = "Submit Quiz →" if slot == QUIZ_QUESTION_COUNT else "Save & Next →"
+                submitted = st.form_submit_button(next_label, type="primary", use_container_width=True)
+        else:
+            went_back = False
+            next_label = "Submit Quiz →" if slot == QUIZ_QUESTION_COUNT else "Save & Next →"
+            submitted = st.form_submit_button(next_label, type="primary", use_container_width=True)
+
+    if went_back:
+        st.session_state[slot_state_key] = max(1, slot - 1)
+        st.rerun()
 
     if submitted:
         response = str(response or "").strip()
@@ -156,12 +201,14 @@ def render_friday_quiz(store: SupabaseFactStore, day: date) -> str:
                 label_correct=result["label_correct"],
             )
         except Exception as exc:
-            st.error("That answer did not save. Tap Submit answer again; your earlier quiz answers are still saved.")
+            st.error("That answer did not save. Tap the save button again; your earlier quiz answers are still saved.")
             if str(st.query_params.get("dbcheck", "0")) == "1":
                 st.exception(exc)
             return "blocked"
         if slot == QUIZ_QUESTION_COUNT:
             st.session_state[just_completed_key] = True
+        else:
+            st.session_state[slot_state_key] = min(QUIZ_QUESTION_COUNT, slot + 1)
         st.rerun()
 
     return "blocked"

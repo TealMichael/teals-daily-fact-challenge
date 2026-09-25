@@ -1,1 +1,1 @@
-v2.21.2 - add temporary question images for Igniter and Quiz of the Week
+v2.21.3 - add Quiz back/edit navigation and compact question images

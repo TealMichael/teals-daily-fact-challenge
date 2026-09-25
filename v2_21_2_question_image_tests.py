@@ -18,7 +18,7 @@ def check(name, condition):
     assert condition, name
     checks.append(name)
 
-check("v2.21.2 version", APP_VERSION == "2.21.2")
+check("current version", APP_VERSION == "2.21.3")
 check("7-day retention", RETENTION_DAYS == 7)
 
 q = prepare_quiz_question(
@@ -51,5 +51,6 @@ student_i = (ROOT / "student_igniter_ui.py").read_text(encoding="utf-8")
 check("Teacher uploader exposed", "file_uploader" in teacher and "auto-deletes" in teacher)
 check("Quiz student image display", "signed_question_image_url" in student_q and "st.image" in student_q)
 check("Igniter student image display", "signed_question_image_url" in student_i and "st.image" in student_i)
+check("Student images use compact 460px display", "width=460" in student_q and "width=460" in student_i)
 
 print(f"v2_21_2_question_image_tests: PASS ({len(checks)}/{len(checks)})")

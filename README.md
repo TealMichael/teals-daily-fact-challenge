@@ -1,20 +1,18 @@
-# Teal's Daily Fact Challenge v2.21.2 — Temporary Question Images
+# Teal's Daily Fact Challenge v2.21.3 — Quiz Navigation + Compact Images
 
-This cumulative release is built directly from the validated v2.21.1 FULL CURRENT APP.
+This cumulative release is built directly from the validated v2.21.2 FULL CURRENT APP.
 
-## New in v2.21.2
-- Optional image upload on every Igniter question.
-- Optional image upload on every Quiz of the Week question.
-- PNG, JPG/JPEG, and WEBP accepted.
-- Images are automatically resized/compressed and stored as WEBP.
-- Private Supabase Storage bucket; students receive only short-lived signed image URLs.
-- Image metadata contains no student data.
-- Images expire automatically after the scheduled question date + 7 days.
-- Expired image cleanup is best-effort and cannot block the normal classroom workflow.
-- Existing question text/answers/results stay available after the temporary image is gone.
+## New in v2.21.3
+- Quiz of the Week now supports **Back** navigation before final submission.
+- Previously saved answers are restored when students revisit a question.
+- Students can revise an answer; the existing anonymous answer row is updated in place.
+- Questions 1-4 use **Save & Next** and Question 5 uses **Submit Quiz**.
+- Student question images in both Quiz of the Week and Igniter are reduced from 620 px to 460 px for a better Chromebook/iPad layout.
+
+## Unchanged
+- The Friday sequence remains Quiz of the Week → Daily 10 → normal Friday routine → final Weekly Mystery guess.
+- Quiz scoring, numeric/fraction equivalence, Number + Label grading, image expiration, anonymous Skyward export, and local-only PII bridge are unchanged.
+- No new Supabase migration is required.
 
 ## Privacy
-The established privacy architecture is unchanged. No student first/last names, Skyward IDs, or roster files belong in the app or AI. The local Excel Skyward bridge remains the only identity mapping.
-
-## Install
-Run `RUN_THIS_ONCE_IN_SUPABASE_v2_21_2.sql` once, then deploy the files. See `DEPLOYMENT_STEPS.txt`.
+No student first/last names, Skyward IDs, or roster files belong in the app or AI. The local Excel Skyward bridge remains the only identity mapping.

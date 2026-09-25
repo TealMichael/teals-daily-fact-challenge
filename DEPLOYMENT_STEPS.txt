@@ -1,31 +1,28 @@
-Teal's Daily Fact Challenge v2.21.2 — Temporary Question Images
+Teal's Daily Fact Challenge v2.21.3 — Quiz Navigation + Compact Images
 
 IMPORTANT
-- v2.21.1 FULL CURRENT APP is the source this release was built from.
-- This release adds optional images only to Igniter and Quiz of the Week questions.
-- Daily 10, Fix Your Misses, Focus, teaching models, Mystery, Top 10, Perfect Score Club, AWTRIX, login/session, and Skyward privacy architecture are intentionally unchanged.
+- Built directly from the validated v2.21.2 FULL CURRENT APP.
+- No new Supabase SQL is required for this update.
+- Daily 10, Igniter grading, Fix Your Misses, Focus, Mystery, Top 10, Perfect Score Club, AWTRIX, login/session, and Skyward privacy architecture remain unchanged.
 
 INSTALL
-1. In the existing Daily Fact Challenge Supabase project, open SQL Editor.
-2. Run RUN_THIS_ONCE_IN_SUPABASE_v2_21_2.sql exactly once.
-   This creates a PRIVATE question-images Storage bucket and a tiny private metadata table used only for image expiration.
-3. Upload/replace the v2.21.2 files from this package to the repository root, preserving folders.
-4. Commit with:
-   v2.21.2 - add temporary question images for Igniter and Quiz of the Week
-5. Let Streamlit redeploy. No Secrets changes are required.
-6. Confirm the app footer shows v2.21.2.
+1. Upload/replace the files from this package in the existing teals-daily-fact-challenge GitHub repository, preserving folders.
+2. Commit with:
+   v2.21.3 - add Quiz back/edit navigation and compact question images
+3. Let Streamlit redeploy. No Secrets or Supabase changes are required.
+4. Confirm the app footer shows v2.21.3.
 
-TEACHER USE
-- In either Igniter or Quiz of the Week, each question now has an optional PNG/JPG/WEBP uploader.
-- Uploads are resized/compressed before storage.
-- Saved images are private and served to students with short-lived signed URLs.
-- Image files are automatically eligible for deletion 7 days after the scheduled question date.
-- Cleanup runs from teacher curriculum pages and never blocks classroom use if cleanup temporarily fails.
-- Old question text, answer keys, scores, and history remain intact after the image itself expires.
+WHAT CHANGED
+- Student question images on Igniter and Quiz of the Week now display at 460 px instead of 620 px.
+- Quiz Questions 2-5 have a Back button.
+- Questions 1-4 use Save & Next; Question 5 uses Submit Quiz.
+- Previously saved answers refill when a student returns to a question.
+- Saving a revised answer updates that same quiz/question record rather than duplicating or ignoring it.
+- Final quiz submission still locks the student flow and continues to Daily 10, then the normal Friday routine/Mystery.
 
-QUICK TOMORROW TEST
-1. Build tomorrow's Quiz of the Week.
-2. Attach one rectangular-prism image to a question and Save.
-3. Re-open the quiz and expand Student preview; confirm the saved image appears.
-4. Use Test Student with tomorrow's date and confirm the image appears above the answer input.
-5. Do not put student names or roster data in images.
+QUICK TEST
+1. Use Test Student on a Friday quiz.
+2. Answer Q1 and Q2, then use Back on Q3.
+3. Change Q2, save it, move forward, and verify the revised response remains selected/filled.
+4. Confirm images are visibly smaller but readable.
+5. Finish Q5 with Submit Quiz and confirm the existing Daily 10 handoff.

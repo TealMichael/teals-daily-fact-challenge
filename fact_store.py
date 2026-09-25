@@ -1729,10 +1729,10 @@ class InMemoryFactStore:
         self.get_student(student_id)
         slot = int(question_slot)
         key = (str(student_id), str(quiz_id), slot)
-        if key in self.weekly_quiz_answers:
-            return self.weekly_quiz_answers[key]
+        existing = self.weekly_quiz_answers.get(key)
         record = WeeklyQuizAnswerRecord(
-            _uuid(), str(quiz_id), str(student_id), str(class_id), _as_date_key(quiz_date), slot,
+            existing.quiz_answer_id if existing is not None else _uuid(),
+            str(quiz_id), str(student_id), str(class_id), _as_date_key(quiz_date), slot,
             str(question_type), str(prompt), str(student_response), bool(correct), bool(number_correct),
             bool(label_correct), utc_now(),
         )

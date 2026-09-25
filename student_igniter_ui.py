@@ -105,7 +105,7 @@ def render_quick_warmup(store: SupabaseFactStore, day: date) -> bool:
     if image_path:
         image_url = signed_question_image_url(store, image_path)
         if image_url:
-            st.image(image_url, width=620)
+            st.image(image_url, width=460)
         else:
             st.caption("The question image is no longer available. Show your teacher before answering.")
 

@@ -2394,14 +2394,12 @@ class SupabaseFactStore:
             "prompt": str(prompt), "student_response": str(student_response), "correct": bool(correct),
             "number_correct": bool(number_correct), "label_correct": bool(label_correct),
         }
-        try:
-            row = _first(_execute_returning(self.client.table("weekly_quiz_answers").insert(payload)))
-        except Exception as exc:
-            if not _is_unique(exc):
-                raise
-            row = _first(_retry_transient(lambda: self.client.table("weekly_quiz_answers").select("*")
-                .eq("student_id", str(student_id)).eq("quiz_id", str(quiz_id))
-                .eq("question_slot", int(question_slot)).limit(1).execute()))
+        payload["answered_at"] = utc_now().isoformat()
+        row = _first(_execute_returning(
+            self.client.table("weekly_quiz_answers").upsert(
+                payload, on_conflict="student_id,quiz_id,question_slot"
+            )
+        ))
         if row is None:
             raise FactStoreError("Could not save the Quiz of the Week answer.")
         return _weekly_quiz_answer(row)
