@@ -30,7 +30,7 @@ def check(name: str, condition: bool):
     checks.append(name)
 
 rows = all_questions()
-check("current version", APP_VERSION == "2.22.1")
+check("current version", APP_VERSION == "2.22.2")
 check("750 questions", len(rows) == EXPECTED_QUESTION_COUNT == 750)
 check("unique ids", len({row["id"] for row in rows}) == 750)
 

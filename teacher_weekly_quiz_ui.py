@@ -15,6 +15,10 @@ from supabase_fact_store import SupabaseFactStore
 from teacher_question_editor import render_answer_editor
 from question_images import maybe_cleanup_question_images, signed_question_image_url, upload_question_image
 from indiana_question_bank import resolve_bank_image_path, seed_editor_state
+try:
+    from teacher_question_bank_ui import render_inline_question_bank_picker
+except ImportError:  # mixed/partial GitHub deploy: keep the core builder available
+    render_inline_question_bank_picker = None
 from weekly_quiz import (
     QUIZ_CATEGORIES,
     QUIZ_QUESTION_COUNT,
@@ -56,6 +60,10 @@ def _question_editor(existing: dict, slot: int, prefix: str) -> dict:
         existing["image_path"] = ""
         existing["image_alt"] = "Question diagram"
     st.markdown(f"#### Question {slot}")
+    if callable(render_inline_question_bank_picker):
+        render_inline_question_bank_picker(
+            existing, prefix=prefix, slot=slot, include_standard=False, disabled=False,
+        )
     prompt = st.text_area(
         "Question", value=str(existing.get("prompt") or ""),
         key=f"{prefix}_prompt_{slot}", height=88,

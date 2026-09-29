@@ -13,9 +13,113 @@ from indiana_question_bank import (
     questions_for_standard,
     is_essential_standard,
     resolve_bank_image_path,
+    seed_editor_state,
     standard_codes_for,
     standard_label,
 )
+
+
+def _default_bank_grade(existing: dict | None) -> int:
+    code = str((existing or {}).get("standard_code") or "").strip()
+    try:
+        grade = int(code.split(".", 1)[0])
+    except (ValueError, IndexError):
+        grade = 5
+    return grade if grade in BANK_GRADES else 5
+
+
+def _current_draft_prompt(existing: dict | None, *, prefix: str, slot: int) -> str:
+    key = f"{prefix}_prompt_{int(slot)}"
+    return str(st.session_state.get(key, (existing or {}).get("prompt") or "") or "").strip()
+
+
+def render_inline_question_bank_picker(
+    existing: dict | None,
+    *,
+    prefix: str,
+    slot: int,
+    include_standard: bool,
+    disabled: bool = False,
+) -> None:
+    """Compact Grade → Standard → Question picker for one editor slot.
+
+    It renders before the slot's normal widgets. Loading therefore seeds only
+    that slot's widget state and reruns before the editor widgets are created,
+    preserving draft work in every other slot. The surrounding builder's normal
+    Save button remains the only action that writes the question set.
+    """
+    slot = int(slot)
+    with st.expander("📚 Add from Indiana Question Bank", expanded=False):
+        default_grade = _default_bank_grade(existing)
+        grade = st.selectbox(
+            "Grade",
+            BANK_GRADES,
+            index=BANK_GRADES.index(default_grade),
+            format_func=lambda value: f"Grade {value}",
+            key=f"{prefix}_bank_grade_{slot}",
+            disabled=disabled,
+        )
+
+        codes = list(standard_codes_for(grade))
+        if not codes:
+            st.info("No Question Bank standards are available for this grade.")
+            return
+
+        existing_code = str((existing or {}).get("standard_code") or "").strip()
+        default_code = existing_code if existing_code in codes else codes[0]
+        standard_code = st.selectbox(
+            "Standard",
+            codes,
+            index=codes.index(default_code),
+            format_func=standard_label,
+            key=f"{prefix}_bank_standard_{slot}_{grade}",
+            disabled=disabled,
+        )
+
+        questions = list(questions_for_standard(standard_code))
+        if not questions:
+            st.info("No questions are available for this standard.")
+            return
+
+        choices = [str(index) for index in range(1, len(questions) + 1)] + ["Random"]
+        choice = st.selectbox(
+            "Question",
+            choices,
+            key=f"{prefix}_bank_question_{slot}_{standard_code}",
+            disabled=disabled,
+        )
+
+        selected = None
+        if choice == "Random":
+            st.caption("Random chooses one of this standard's 10 questions when you press Load.")
+        else:
+            selected = questions[int(choice) - 1]
+            image_note = " · 🖼 diagram" if selected.get("bank_image_path") else ""
+            st.caption(
+                f"{selected.get('question_type', 'Number')}{image_note} · "
+                f"{str(selected.get('prompt') or '')}"
+            )
+
+        has_draft = bool(_current_draft_prompt(existing, prefix=prefix, slot=slot))
+        button_label = "Replace current question" if has_draft else "Load into this question"
+        st.caption("Loading changes only this question slot. Other draft questions stay in place.")
+        if st.button(
+            button_label,
+            type="primary",
+            use_container_width=True,
+            disabled=disabled,
+            key=f"{prefix}_bank_load_{slot}_{standard_code}_{choice}",
+        ):
+            if choice == "Random":
+                selected = random.SystemRandom().choice(questions)
+            seed_editor_state(
+                st.session_state,
+                prefix=prefix,
+                slot=slot,
+                question=selected,
+                include_standard=include_standard,
+            )
+            st.rerun()
 
 
 def _queue_question(question: dict, destination: str) -> None:
@@ -62,6 +166,7 @@ def render_teacher_question_bank(store=None) -> None:
     summary = bank_summary()
     st.markdown("### 📚 Indiana Standards Question Bank")
     st.caption("Ready-to-use Grade 5–7 questions aligned to the 2023 Indiana Academic Standards. Built-in bank content contains no student data and does not use Supabase storage.")
+    st.caption("Fastest multi-question workflow: open Igniter or Quiz of the Week and use the inline Question Bank picker inside each question slot.")
 
     a, b, c = st.columns(3)
     a.metric("Questions", summary["questions"])

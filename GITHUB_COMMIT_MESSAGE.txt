@@ -1,1 +1,1 @@
-v2.22.1 - fix Question Bank startup import error
+v2.22.2 - add inline Question Bank pickers to Igniter and Quiz

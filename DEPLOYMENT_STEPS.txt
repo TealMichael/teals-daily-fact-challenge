@@ -1,13 +1,13 @@
-Teal's Daily Fact Challenge v2.22.1 — Question Bank Startup Hotfix
+Teal's Daily Fact Challenge v2.22.2 — Inline Question Bank Picker
 
 1. Open the normal teals-daily-fact-challenge GitHub repository.
 2. Upload/replace the files from this package's UPLOAD_TO_GITHUB folder.
 3. Commit with:
-   v2.22.1 - fix Question Bank startup import error
+   v2.22.2 - add inline Question Bank pickers to Igniter and Quiz
 4. Wait for Streamlit to redeploy.
-5. Confirm the app loads normally and the footer shows v2.22.1.
-6. Open Teacher → Question Bank and verify Grade 5 → Measurement → 5.M.5 loads.
+5. Confirm the footer shows v2.22.2.
+6. Open Teacher → Warm-Up and expand “📚 Add from Indiana Question Bank” under each Igniter slot.
+7. Open Teacher → Quiz of the Week and confirm the same picker appears inside all five question slots.
+8. Test loading two different bank questions into two different slots before saving; both drafts should remain in place.
 
 No Supabase SQL migration or Secrets change is required.
-
-This hotfix only removes the fragile startup dependency on new Essential-standard exports. The 750-question bank and existing v2.22.0 features remain unchanged.

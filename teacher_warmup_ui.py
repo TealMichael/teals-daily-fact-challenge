@@ -21,6 +21,10 @@ from warmup import QUESTION_TYPES, display_student_response, prepare_question as
 from teacher_question_editor import render_answer_editor
 from question_images import maybe_cleanup_question_images, signed_question_image_url, upload_question_image
 from indiana_question_bank import resolve_bank_image_path, seed_editor_state
+try:
+    from teacher_question_bank_ui import render_inline_question_bank_picker
+except ImportError:  # mixed/partial GitHub deploy: keep the core builder available
+    render_inline_question_bank_picker = None
 from teacher_warmup_settings import (
     warmup_email_recipients as _warmup_email_recipients,
     save_warmup_email_recipients as _save_warmup_email_recipients,
@@ -122,13 +126,17 @@ def _remember_warmup_standards_safely(store: SupabaseFactStore, codes) -> bool:
         return False
 
 
-def _warmup_form_question(existing: dict, slot: int, key_prefix: str, recent_codes=()) -> dict:
+def _warmup_form_question(existing: dict, slot: int, key_prefix: str, recent_codes=(), *, disabled: bool = False) -> dict:
     existing = dict(existing or {})
     if st.session_state.pop(f"{key_prefix}_clear_existing_image_once_{slot}", False):
         existing["image_path"] = ""
         existing["image_alt"] = "Question diagram"
     label = "Spiral Review" if slot == 1 else "Yesterday Check"
     st.markdown(f"#### {slot}. {label}")
+    if callable(render_inline_question_bank_picker):
+        render_inline_question_bank_picker(
+            existing, prefix=key_prefix, slot=slot, include_standard=True, disabled=disabled,
+        )
     prompt = st.text_area(
         "Question", value=str(existing.get("prompt") or ""),
         key=f"{key_prefix}_prompt_{slot}", height=90,
@@ -577,8 +585,8 @@ def render_teacher_warmup(store: SupabaseFactStore, *, refresh_control, finish_r
     # intentionally delay selectbox changes until submit; that made answer-type
     # fields such as Multi-Part and Number + Label look broken. Only the Save
     # button writes to Supabase.
-    q1_values = _warmup_form_question(q1_existing, 1, key_prefix, recent_standards)
-    q2_values = _warmup_form_question(q2_existing, 2, key_prefix, recent_standards)
+    q1_values = _warmup_form_question(q1_existing, 1, key_prefix, recent_standards, disabled=locked)
+    q2_values = _warmup_form_question(q2_existing, 2, key_prefix, recent_standards, disabled=locked)
     copy_all = st.checkbox("Also copy this Warm-Up to every class", value=False, key=f"{key_prefix}_copy")
     save = st.button("Save Warm-Up", type="primary", use_container_width=True, disabled=locked, key=f"{key_prefix}_save")
     if save:

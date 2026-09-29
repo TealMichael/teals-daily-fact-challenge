@@ -1,34 +1,27 @@
-# Teal's Daily Fact Challenge v2.22.1 — Question Bank Startup Hotfix
+# Teal's Daily Fact Challenge v2.22.2 — Inline Question Bank Picker
 
-This cumulative release is built directly from the validated v2.21.3 FULL CURRENT APP.
+This cumulative release is built directly from the working v2.22.1 FULL CURRENT APP.
 
-## v2.22.1 hotfix
+## New in v2.22.2
+- Adds **📚 Add from Indiana Question Bank** directly inside every Igniter question editor and every Quiz of the Week question editor.
+- Choose **Grade 5 / 6 / 7 → Standard → Question 1–10 or Random** without leaving the builder.
+- Loading affects only the selected question slot. Other unsaved question drafts remain intact.
+- The selected bank question is copied into the normal editor, where wording, answers, choices, units, standards, and images can still be edited.
+- Nothing is published merely by loading from the bank. The normal **Save Warm-Up** / **Save Quiz of the Week** action remains required.
+- If a slot already has draft text, the picker clearly uses **Replace current question** for that slot.
+- The standalone Question Bank browser remains available for browsing all 750 questions.
+- Includes a mixed/partial-deployment guard so the core builders continue loading if the inline picker is temporarily unavailable during a GitHub file rollout.
 
-- Prevents the Indiana Standards Question Bank from crashing app startup if GitHub temporarily has the pre-v2.22 `indiana_math_standards.py` during deployment.
-- Essential-standard metadata is now read directly from the packaged question-bank data.
-- No Supabase SQL or Secrets changes.
-
-## New in v2.22.0
-- Adds a permanent **Indiana Standards Question Bank** to Teacher Tools.
-- Includes **750 ready-to-use questions**: exactly 10 for each of the 75 Grade 5, 6, and 7 Indiana math standards represented in the app.
-- Grade totals: 260 Grade 5 questions, 250 Grade 6 questions, and 240 Grade 7 questions.
-- Marks the 42 Essential standards and supports an Essential-only filter.
-- Browse by Grade → Domain → Standard, then move Previous / Random / Next or open all 10 questions for a standard.
-- One-click handoff sends a bank question into either **Igniter** or **Quiz of the Week**.
-- Bank questions are copied into the normal editor, so the teacher can revise wording, numbers, answer choices, labels, or images before saving.
-- Includes lightweight permanent built-in diagrams for selected visual questions. These files live in the app package and do not use Supabase Storage or the 7-day temporary-image system.
-- Supports the existing shared answer types: Number, Fraction, Multiple choice, and Number + Label.
-
-## Important behavior
-- Choosing a bank question does **not** immediately publish it. The question is loaded into the existing Igniter/Quiz editor and still requires the normal Save action.
-- A bank question is copied, not linked. Editing a copied question never changes the permanent bank and later bank updates cannot alter previously saved student work.
-- Teacher-uploaded images still use the existing private Supabase temporary-image flow and 7-day post-question-date cleanup.
-- The Question Bank itself is static app content and does not store student information or require Supabase reads/writes.
+## Indiana Standards Question Bank
+- **750 ready-to-use questions**: 10 for each of 75 Grade 5, 6, and 7 Indiana math standards represented in the app.
+- Grade totals: 260 Grade 5, 250 Grade 6, 240 Grade 7.
+- 42 Essential standards / 420 Essential questions.
+- Permanent built-in diagrams do not use Supabase Storage or the temporary-image quota.
+- Supported shared types: Number, Fraction, Multiple choice, and Number + Label.
 
 ## Unchanged
-- Daily 10, Fix Your Misses, Focus Practice, teaching models, Weekly Mystery, Top 10, Perfect Score Club, AWTRIX, login/session behavior, Friday Quiz flow, anonymous Skyward export, and the local-only identity bridge remain unchanged.
-- Quiz Back/edit navigation from v2.21.3 remains intact.
-- Temporary question-image behavior from v2.21.2 remains intact.
+- Daily 10, Fix Your Misses, Focus Practice, teaching models, Weekly Mystery, Top 10, Perfect Score Club, AWTRIX, login/session behavior, Friday Quiz grading/navigation, anonymous Skyward export, and the local-only identity bridge remain unchanged.
+- Teacher-uploaded question images still use the existing private Supabase temporary-image flow and 7-day post-question-date cleanup.
 - No new Supabase migration or Secrets change is required.
 
 ## Privacy
