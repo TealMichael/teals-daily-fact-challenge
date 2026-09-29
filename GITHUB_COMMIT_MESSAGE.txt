@@ -1,1 +1,1 @@
-v2.22.2 - add inline Question Bank pickers to Igniter and Quiz
+v2.23.0 - add Monday Standards Recovery and mastery evidence

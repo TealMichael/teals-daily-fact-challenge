@@ -24,6 +24,7 @@ from teacher_insights import (
     common_fact_needs, pull_reason, rank_students_to_pull,
     standard_student_history, summarize_student_fluency, teacher_fact_band,
 )
+from standards_recovery import combine_standards_evidence, mastery_evidence_status
 from ui_helpers import format_seconds, strategy_tip
 
 def _override_label(value: int | None) -> str:
@@ -325,32 +326,56 @@ def _render_teacher_fact_fluency(store: SupabaseFactStore, selected, students) -
 
 
 def _render_teacher_standards_tracker(store: SupabaseFactStore, selected, students) -> None:
-    st.markdown("#### 📚 Warm-Up Standards Tracker")
-    st.caption("Choose a standard to see how students have performed on your Warm-Up questions over time. This is a history view, not an automatic score.")
+    st.markdown("#### 📚 Standards Mastery Tracker")
+    st.caption(
+        "Combines Indiana-standard evidence from Igniters, Quiz of the Week, and Monday Recovery. "
+        "Statuses summarize classroom evidence; they are not automatic report-card grades."
+    )
 
     today = current_daily_date()
     start_date = _school_year_start(today)
     try:
-        rows = store.list_warmup_answers(start_date, today, class_id=selected.class_id)
+        warmup_rows = store.list_warmup_answers(start_date, today, class_id=selected.class_id)
+        quiz_sets = store.list_weekly_quiz_sets(start_date, today, class_id=selected.class_id)
+        quiz_rows = store.list_weekly_quiz_answers_range(start_date, today, class_id=selected.class_id)
     except Exception as exc:
-        st.error("Igniter history could not be loaded. Try Refresh data and open this view again.")
+        st.error("Standards history could not be loaded. Try Refresh data and open this view again.")
         if str(st.query_params.get("dbcheck", "0")) == "1":
             st.exception(exc)
         return
 
-    student_ids = {student.student_id for student in students}
-    rows = [row for row in rows if row.student_id in student_ids and str(row.standard_code or "").strip()]
-    if not rows:
-        st.info("No Warm-Up results with standards have been recorded for this class yet.")
+    try:
+        recovery_rows = store.list_standard_recovery_answers(start_date, today, class_id=selected.class_id)
+    except Exception as exc:
+        # Recovery is additive. Keep the pre-existing tracker available if the
+        # new migration has not been applied yet or the supplemental table has
+        # a temporary connection issue.
+        recovery_rows = []
+        st.caption("Monday Recovery evidence is temporarily unavailable; Igniter and Quiz evidence are still shown.")
+        if str(st.query_params.get("dbcheck", "0")) == "1":
+            st.exception(exc)
+
+    student_ids = {str(student.student_id) for student in students}
+    evidence = [
+        row for row in combine_standards_evidence(
+            warmup_rows=warmup_rows, quiz_sets=quiz_sets, quiz_answers=quiz_rows, recovery_rows=recovery_rows
+        )
+        if str(row.student_id) in student_ids
+    ]
+    if not evidence:
+        st.info("No Indiana-standard results have been recorded for this class yet.")
         return
 
     latest_by_code = {}
-    for row in rows:
-        code = str(row.standard_code or "").strip()
-        current = latest_by_code.get(code)
-        if current is None or (str(row.warmup_date), row.answered_at) > (str(current.warmup_date), current.answered_at):
-            latest_by_code[code] = row
-    codes = sorted(latest_by_code, key=lambda code: (str(latest_by_code[code].warmup_date), latest_by_code[code].answered_at), reverse=True)
+    for row in evidence:
+        current = latest_by_code.get(row.standard_code)
+        if current is None or (row.activity_date, row.answered_at) > (current.activity_date, current.answered_at):
+            latest_by_code[row.standard_code] = row
+    codes = sorted(
+        latest_by_code,
+        key=lambda code: (latest_by_code[code].activity_date, latest_by_code[code].answered_at),
+        reverse=True,
+    )
 
     def standard_label(code: str) -> str:
         row = latest_by_code[code]
@@ -362,62 +387,96 @@ def _render_teacher_standards_tracker(store: SupabaseFactStore, selected, studen
         codes,
         format_func=standard_label,
         key=f"teacher_standard_tracker_{selected.class_id}",
-        help="Type a standard code or skill word to search standards used in your Warm-Ups.",
+        help="Type a standard code or skill word to search standards used in Igniters and Quiz of the Week.",
     )
-    matching = [row for row in rows if str(row.standard_code or "").strip() == selected_code]
+    matching = [row for row in evidence if row.standard_code == selected_code]
     latest = latest_by_code[selected_code]
     if latest.standard_description:
         st.caption(str(latest.standard_description))
 
-    history = standard_student_history(students, rows, selected_code)
-    checked = [item for item in history if item["checks"] > 0]
+    by_student = {str(student.student_id): [] for student in students}
+    for row in matching:
+        by_student.setdefault(str(row.student_id), []).append(row)
+
+    checked_ids = [student_id for student_id, rows in by_student.items() if rows]
     total_checks = len(matching)
     total_correct = sum(bool(row.correct) for row in matching)
     accuracy = (total_correct / total_checks * 100) if total_checks else None
-    last_date = max(str(row.warmup_date) for row in matching) if matching else None
+    last_date = max(row.activity_date for row in matching) if matching else None
 
     t1, t2, t3, t4 = st.columns(4)
-    t1.metric("Students checked", f"{len(checked)}/{len(students)}")
-    t2.metric("Warm-Up checks", total_checks)
+    t1.metric("Students checked", f"{len(checked_ids)}/{len(students)}")
+    t2.metric("Evidence checks", total_checks)
     t3.metric("Correct", "—" if accuracy is None else f"{accuracy:.0f}%")
     t4.metric("Last checked", "—" if not last_date else date.fromisoformat(last_date).strftime("%b %d"))
 
+    source_counts = {source: sum(row.source == source for row in matching) for source in ("Igniter", "Quiz", "Recovery")}
+    st.caption(
+        f"Evidence sources · Igniter {source_counts['Igniter']} · Quiz {source_counts['Quiz']} · Recovery {source_counts['Recovery']}"
+    )
+
     st.markdown("#### Student History")
-    st.caption("History is shown oldest → newest. Students with the least information appear first; students with no results are listed last.")
-    history_frame = pd.DataFrame([
-        {
-            "Student": item["nickname"],
-            "Checks": item["checks"],
-            "Correct": "—" if item["checks"] == 0 else f"{item['correct']}/{item['checks']} ({item['accuracy'] * 100:.0f}%)",
-            "History": item["history"],
-        }
-        for item in history
-    ])
-    st.dataframe(history_frame, hide_index=True, use_container_width=True)
+    history_rows = []
+    for student in students:
+        rows = sorted(by_student.get(str(student.student_id), []), key=lambda row: (row.activity_date, row.answered_at))
+        checks = len(rows)
+        correct = sum(bool(row.correct) for row in rows)
+        accuracy_value = (correct / checks) if checks else None
+        recent = rows[-6:]
+        history_text = " · ".join(
+            f"{date.fromisoformat(row.activity_date).strftime('%b %d')} {row.source[0]}{'✅' if row.correct else '❌'}"
+            for row in recent
+        ) if recent else "—"
+        sources = ", ".join(sorted({row.source for row in rows})) if rows else "—"
+        history_rows.append({
+            "Student": student.nickname,
+            "Evidence status": mastery_evidence_status(rows),
+            "Checks": checks,
+            "Correct": "—" if not checks else f"{correct}/{checks} ({accuracy_value * 100:.0f}%)",
+            "Sources": sources,
+            "Recent history": history_text,
+        })
+    status_rank = {"Developing": 0, "Proficient": 1, "Strong": 2, "Not Yet Assessed": 3}
+    history_rows.sort(key=lambda item: (status_rank.get(item["Evidence status"], 9), item["Student"].casefold()))
+    st.dataframe(pd.DataFrame(history_rows), hide_index=True, use_container_width=True)
 
     st.markdown("#### One Student's History")
-    student_options = [item["nickname"] for item in history]
-    detail_name = st.selectbox("Student", student_options, key=f"teacher_standard_student_{selected.class_id}_{selected_code}")
-    detail = next(item for item in history if item["nickname"] == detail_name)
-    if not detail["rows"]:
-        st.info(f"No Warm-Up results for {selected_code} have been recorded for this student yet.")
+    student_by_name = {student.nickname: student for student in students}
+    detail_name = st.selectbox(
+        "Student", list(student_by_name), key=f"teacher_standard_student_{selected.class_id}_{selected_code}"
+    )
+    detail_student = student_by_name[detail_name]
+    detail_rows = sorted(
+        by_student.get(str(detail_student.student_id), []), key=lambda row: (row.activity_date, row.answered_at), reverse=True
+    )
+    if not detail_rows:
+        st.info(f"No results for {selected_code} have been recorded for this student yet.")
     else:
+        st.metric("Evidence status", mastery_evidence_status(detail_rows))
         detail_frame = pd.DataFrame([
             {
-                "Date": date.fromisoformat(str(row.warmup_date)).strftime("%b %d, %Y"),
-                "Warm-Up": f"Question {int(row.question_slot)}",
+                "Date": date.fromisoformat(row.activity_date).strftime("%b %d, %Y"),
+                "Source": row.source,
                 "Question": re.sub(r"\s+", " ", str(row.prompt or "")).strip(),
                 "Result": "✅ Correct" if row.correct else "❌ Needs review",
             }
-            for row in reversed(detail["rows"])
+            for row in detail_rows
         ])
         st.dataframe(detail_frame, hide_index=True, use_container_width=True)
+
+    with st.expander("How the standards evidence status works", expanded=False):
+        st.markdown("**Developing** — fewer than 3 checks, or the evidence is not yet consistently correct.")
+        st.markdown("**Proficient** — at least 3 checks, at least 75% correct overall, and the two most recent checks are correct.")
+        st.markdown("**Strong** — at least 5 checks, at least 85% correct overall, and the three most recent checks are correct.")
+        st.caption(
+            "A single correct Monday Recovery question adds positive evidence, but it cannot by itself move a standard to Proficient or Strong."
+        )
     st.caption(f"History shown from {start_date.strftime('%b %d, %Y')} through {today.strftime('%b %d, %Y')}.")
 
 
 def render_teacher_mastery_focus(store: SupabaseFactStore) -> None:
     st.markdown("### 📈 Learning Data")
-    st.caption("A simple view of multiplication fact fluency plus Warm-Up results by standard.")
+    st.caption("A simple view of multiplication fact fluency plus Indiana-standard evidence from Igniters, Quiz of the Week, and Recovery.")
     classes = store.list_classes()
     if not classes:
         st.info("Create a class first.")

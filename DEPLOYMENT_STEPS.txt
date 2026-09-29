@@ -1,13 +1,16 @@
-Teal's Daily Fact Challenge v2.22.2 — Inline Question Bank Picker
+Teal's Daily Fact Challenge v2.23.0 — Monday Standards Recovery
 
-1. Open the normal teals-daily-fact-challenge GitHub repository.
-2. Upload/replace the files from this package's UPLOAD_TO_GITHUB folder.
-3. Commit with:
-   v2.22.2 - add inline Question Bank pickers to Igniter and Quiz
-4. Wait for Streamlit to redeploy.
-5. Confirm the footer shows v2.22.2.
-6. Open Teacher → Warm-Up and expand “📚 Add from Indiana Question Bank” under each Igniter slot.
-7. Open Teacher → Quiz of the Week and confirm the same picker appears inside all five question slots.
-8. Test loading two different bank questions into two different slots before saving; both drafts should remain in place.
+1. In the normal Daily Fact Challenge Supabase project, open SQL Editor.
+2. Run RUN_THIS_ONCE_IN_SUPABASE_v2_23.sql one time.
+3. Confirm Supabase reports Success.
+4. Open the normal teals-daily-fact-challenge GitHub repository.
+5. Upload/replace the files from this package's UPLOAD_TO_GITHUB folder.
+6. Commit with:
+   v2.23.0 - add Monday Standards Recovery and mastery evidence
+7. Wait for Streamlit to redeploy.
+8. Confirm the footer shows v2.23.0.
+9. In Teacher → Quiz of the Week, confirm each question has an optional Indiana Math standard · Monday Recovery selector.
+10. For a quick Test Student check: simulate a Friday, intentionally miss one tagged Quiz question, then simulate the following Monday. After the Monday Igniter, one Recovery question for that standard should appear before Daily 10.
+11. Open Teacher → Learning → Standards Tracker and confirm Igniter, Quiz, and Recovery appear as evidence sources.
 
-No Supabase SQL migration or Secrets change is required.
+No Secrets change is required.

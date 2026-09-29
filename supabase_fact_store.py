@@ -56,6 +56,7 @@ from fact_store import (
     WarmupAnswerRecord,
     WeeklyQuizSetRecord,
     WeeklyQuizAnswerRecord,
+    StandardRecoveryAnswerRecord,
     generate_class_code,
     hash_pin,
     normalize_name,
@@ -397,6 +398,27 @@ def _weekly_quiz_answer(row: Mapping) -> WeeklyQuizAnswerRecord:
         class_id=str(row["class_id"]),
         quiz_date=str(row["quiz_date"]),
         question_slot=int(row["question_slot"]),
+        question_type=str(row.get("question_type") or "Number"),
+        prompt=str(row.get("prompt") or ""),
+        student_response=str(row.get("student_response") or ""),
+        correct=bool(row.get("correct", False)),
+        number_correct=bool(row.get("number_correct", False)),
+        label_correct=bool(row.get("label_correct", True)),
+        answered_at=_dt(row.get("answered_at")) or utc_now(),
+    )
+
+
+def _standard_recovery_answer(row: Mapping) -> StandardRecoveryAnswerRecord:
+    return StandardRecoveryAnswerRecord(
+        recovery_answer_id=str(row["recovery_answer_id"]),
+        source_quiz_id=str(row["source_quiz_id"]),
+        student_id=str(row["student_id"]),
+        class_id=str(row["class_id"]),
+        recovery_date=str(row["recovery_date"]),
+        source_quiz_date=str(row["source_quiz_date"]),
+        standard_code=str(row.get("standard_code") or ""),
+        standard_description=str(row.get("standard_description") or ""),
+        bank_question_id=str(row.get("bank_question_id") or ""),
         question_type=str(row.get("question_type") or "Number"),
         prompt=str(row.get("prompt") or ""),
         student_response=str(row.get("student_response") or ""),
@@ -2342,6 +2364,13 @@ class SupabaseFactStore:
                     raise FactStoreError("Cannot replace a Quiz of the Week that students already started.")
                 _retry_transient(lambda: self.client.table("weekly_quiz_answers")
                     .delete().in_("quiz_id", existing_ids).execute())
+            try:
+                _retry_transient(lambda: self.client.table("standard_recovery_answers")
+                    .delete().in_("source_quiz_id", existing_ids).execute())
+            except Exception:
+                # Recovery is additive. A partial deploy without the v2.23 table
+                # must not break the proven Quiz builder.
+                pass
 
         now = utc_now().isoformat()
         payloads = [{
@@ -2403,6 +2432,102 @@ class SupabaseFactStore:
         if row is None:
             raise FactStoreError("Could not save the Quiz of the Week answer.")
         return _weekly_quiz_answer(row)
+
+    def list_weekly_quiz_sets(
+        self, start_date: date | str, end_date: date | str, *, class_id: str | None = None
+    ) -> list[WeeklyQuizSetRecord]:
+        start_key = start_date.isoformat() if isinstance(start_date, date) else str(start_date)
+        end_key = end_date.isoformat() if isinstance(end_date, date) else str(end_date)
+        query = self.client.table("weekly_quiz_sets").select("*").gte("quiz_date", start_key).lte("quiz_date", end_key)
+        if class_id is not None:
+            query = query.eq("class_id", str(class_id))
+        rows = _rows(_retry_transient(lambda: query.order("quiz_date").execute()))
+        return [_weekly_quiz_set(row) for row in rows]
+
+    def list_weekly_quiz_answers_range(
+        self, start_date: date | str, end_date: date | str, *, class_id: str | None = None, include_test: bool = False
+    ) -> list[WeeklyQuizAnswerRecord]:
+        start_key = start_date.isoformat() if isinstance(start_date, date) else str(start_date)
+        end_key = end_date.isoformat() if isinstance(end_date, date) else str(end_date)
+        page_size, offset, rows = 1000, 0, []
+        while True:
+            def fetch_page():
+                query = self.client.table("weekly_quiz_answers").select("*").gte("quiz_date", start_key).lte("quiz_date", end_key)
+                if class_id is not None:
+                    query = query.eq("class_id", str(class_id))
+                return query.order("quiz_date").order("question_slot").range(offset, offset + page_size - 1).execute()
+            page = _rows(_retry_transient(fetch_page))
+            rows.extend(page)
+            if len(page) < page_size:
+                break
+            offset += page_size
+        records = [_weekly_quiz_answer(row) for row in rows]
+        if include_test or not records:
+            return records
+        student_ids = sorted({row.student_id for row in records})
+        test_rows = _rows(_retry_transient(lambda: self.client.table("students").select("student_id")
+            .in_("student_id", student_ids).eq("is_test", True).range(0, 9999).execute()))
+        test_ids = {str(row["student_id"]) for row in test_rows}
+        return [row for row in records if row.student_id not in test_ids]
+
+    # ----- Monday Standards Recovery -----
+    def get_standard_recovery_answers(self, student_id: str, source_quiz_id: str) -> list[StandardRecoveryAnswerRecord]:
+        rows = _rows(_retry_transient(lambda: self.client.table("standard_recovery_answers").select("*")
+            .eq("student_id", str(student_id)).eq("source_quiz_id", str(source_quiz_id))
+            .order("answered_at").execute()))
+        return [_standard_recovery_answer(row) for row in rows]
+
+    def list_standard_recovery_answers(
+        self, start_date: date | str, end_date: date | str, *, class_id: str | None = None, include_test: bool = False
+    ) -> list[StandardRecoveryAnswerRecord]:
+        start_key = start_date.isoformat() if isinstance(start_date, date) else str(start_date)
+        end_key = end_date.isoformat() if isinstance(end_date, date) else str(end_date)
+        page_size, offset, rows = 1000, 0, []
+        while True:
+            def fetch_page():
+                query = self.client.table("standard_recovery_answers").select("*").gte("recovery_date", start_key).lte("recovery_date", end_key)
+                if class_id is not None:
+                    query = query.eq("class_id", str(class_id))
+                return query.order("recovery_date").order("standard_code").range(offset, offset + page_size - 1).execute()
+            page = _rows(_retry_transient(fetch_page))
+            rows.extend(page)
+            if len(page) < page_size:
+                break
+            offset += page_size
+        records = [_standard_recovery_answer(row) for row in rows]
+        if include_test or not records:
+            return records
+        student_ids = sorted({row.student_id for row in records})
+        test_rows = _rows(_retry_transient(lambda: self.client.table("students").select("student_id")
+            .in_("student_id", student_ids).eq("is_test", True).range(0, 9999).execute()))
+        test_ids = {str(row["student_id"]) for row in test_rows}
+        return [row for row in records if row.student_id not in test_ids]
+
+    def record_standard_recovery_answer(
+        self, *, source_quiz_id: str, student_id: str, class_id: str, recovery_date: date | str,
+        source_quiz_date: date | str, standard_code: str, standard_description: str, bank_question_id: str,
+        question_type: str, prompt: str, student_response: str, correct: bool, number_correct: bool, label_correct: bool,
+    ) -> StandardRecoveryAnswerRecord:
+        recovery_key = recovery_date.isoformat() if isinstance(recovery_date, date) else str(recovery_date)
+        source_key = source_quiz_date.isoformat() if isinstance(source_quiz_date, date) else str(source_quiz_date)
+        payload = {
+            "source_quiz_id": str(source_quiz_id), "student_id": str(student_id), "class_id": str(class_id),
+            "recovery_date": recovery_key, "source_quiz_date": source_key,
+            "standard_code": str(standard_code or "").strip(),
+            "standard_description": str(standard_description or ""),
+            "bank_question_id": str(bank_question_id or ""), "question_type": str(question_type),
+            "prompt": str(prompt), "student_response": str(student_response), "correct": bool(correct),
+            "number_correct": bool(number_correct), "label_correct": bool(label_correct),
+            "answered_at": utc_now().isoformat(),
+        }
+        row = _first(_execute_returning(
+            self.client.table("standard_recovery_answers").upsert(
+                payload, on_conflict="student_id,source_quiz_id,standard_code"
+            )
+        ))
+        if row is None:
+            raise FactStoreError("Could not save the Recovery answer.")
+        return _standard_recovery_answer(row)
 
     @staticmethod
     def _normalize_override(family: int | None) -> int | None:

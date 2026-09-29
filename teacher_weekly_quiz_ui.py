@@ -14,7 +14,8 @@ from fact_engine import current_daily_date
 from supabase_fact_store import SupabaseFactStore
 from teacher_question_editor import render_answer_editor
 from question_images import maybe_cleanup_question_images, signed_question_image_url, upload_question_image
-from indiana_question_bank import resolve_bank_image_path, seed_editor_state
+from indiana_question_bank import resolve_bank_image_path, seed_editor_state, question_by_id
+from indiana_math_standards import BY_CODE as INDIANA_STANDARD_BY_CODE
 try:
     from teacher_question_bank_ui import render_inline_question_bank_picker
 except ImportError:  # mixed/partial GitHub deploy: keep the core builder available
@@ -27,6 +28,19 @@ from weekly_quiz import (
     skyward_score,
     student_export_key,
 )
+
+
+RECOVERY_STANDARD_CODES = tuple(
+    code for code, standard in INDIANA_STANDARD_BY_CODE.items() if int(standard.grade) in {5, 6, 7}
+)
+NO_RECOVERY_STANDARD = ""
+
+
+def _quiz_standard_label(code: str) -> str:
+    if not code:
+        return "No standard · no Monday Recovery"
+    standard = INDIANA_STANDARD_BY_CODE.get(str(code))
+    return standard.label if standard is not None else str(code)
 
 
 def _next_or_same_friday(value: date) -> date:
@@ -51,6 +65,8 @@ def _blank_question(slot: int) -> dict:
         "options": [],
         "label_options": [],
         "correct_label": "",
+        "standard_code": "",
+        "standard_description": "",
     }
 
 
@@ -62,17 +78,45 @@ def _question_editor(existing: dict, slot: int, prefix: str) -> dict:
     st.markdown(f"#### Question {slot}")
     if callable(render_inline_question_bank_picker):
         render_inline_question_bank_picker(
-            existing, prefix=prefix, slot=slot, include_standard=False, disabled=False,
+            existing, prefix=prefix, slot=slot, include_standard=True, disabled=False,
         )
     prompt = st.text_area(
         "Question", value=str(existing.get("prompt") or ""),
         key=f"{prefix}_prompt_{slot}", height=88,
     )
+
+    existing_code = str(existing.get("standard_code") or "").strip()
+    if not existing_code:
+        bank_row = question_by_id(str(existing.get("bank_question_id") or ""))
+        if bank_row is not None:
+            existing_code = str(bank_row.get("standard_code") or "").strip()
+    if existing_code not in RECOVERY_STANDARD_CODES:
+        existing_code = NO_RECOVERY_STANDARD
+    standard_options = [NO_RECOVERY_STANDARD, *RECOVERY_STANDARD_CODES]
+    standard_choice = st.selectbox(
+        "Indiana Math standard · Monday Recovery",
+        standard_options,
+        index=standard_options.index(existing_code),
+        format_func=_quiz_standard_label,
+        key=f"{prefix}_standard_choice_{slot}",
+        help="Tag the skill this question checks. A missed tagged standard can create one short Monday Recovery question.",
+    )
+    standard_description = ""
+    if standard_choice:
+        matched_standard = INDIANA_STANDARD_BY_CODE[standard_choice]
+        standard_description = matched_standard.description
+        st.caption(f"**{matched_standard.domain}** · {matched_standard.description}")
+
     answer_values = render_answer_editor(
         existing, slot=slot, prefix=prefix,
         question_types=QUIZ_QUESTION_TYPES, default_type="Number",
     )
-    return {"prompt": prompt, **answer_values}
+    return {
+        "prompt": prompt,
+        **answer_values,
+        "standard_code": standard_choice,
+        "standard_description": standard_description,
+    }
 
 
 def _csv_bytes(rows: list[dict], columns: list[str]) -> bytes:
@@ -134,7 +178,7 @@ def _render_builder(store: SupabaseFactStore, classes) -> None:
             for slot_number, col in enumerate(cols, start=1):
                 with col:
                     if st.button(f"Q{slot_number}", use_container_width=True, key=f"{prefix}_bank_slot_{slot_number}"):
-                        seed_editor_state(st.session_state, prefix=prefix, slot=slot_number, question=pending, include_standard=False)
+                        seed_editor_state(st.session_state, prefix=prefix, slot=slot_number, question=pending, include_standard=True)
                         st.session_state.pop("question_bank_pending", None)
                         st.session_state.pop("question_bank_destination", None)
                         st.rerun()
@@ -191,6 +235,8 @@ def _render_builder(store: SupabaseFactStore, classes) -> None:
                     accepted_answers=item.get("accepted_answers") or (),
                     label_options=item.get("label_options") or (),
                     correct_label=item.get("correct_label") or "",
+                    standard_code=item.get("standard_code") or "",
+                    standard_description=item.get("standard_description") or "",
                     image_path=item.get("image_path") or "",
                     image_alt=item.get("image_alt") or "Question diagram",
                     bank_image_path=item.get("bank_image_path") or "",
@@ -235,6 +281,8 @@ def _render_builder(store: SupabaseFactStore, classes) -> None:
                     bank_image = resolve_bank_image_path(question.get("bank_image_path") or "")
                     if bank_image:
                         st.image(bank_image, width=460)
+                if str(question.get("standard_code") or "").strip():
+                    st.caption(f"Indiana standard: {question.get('standard_code')}")
                 st.caption(str(question.get("question_type") or "Number"))
                 if str(question.get("question_type")) == "Multiple choice":
                     st.write(" · ".join(str(item) for item in (question.get("options") or [])))

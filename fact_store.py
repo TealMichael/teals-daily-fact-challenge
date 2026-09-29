@@ -251,6 +251,26 @@ class WeeklyQuizAnswerRecord:
     answered_at: datetime
 
 
+@dataclass(frozen=True)
+class StandardRecoveryAnswerRecord:
+    recovery_answer_id: str
+    source_quiz_id: str
+    student_id: str
+    class_id: str
+    recovery_date: str
+    source_quiz_date: str
+    standard_code: str
+    standard_description: str
+    bank_question_id: str
+    question_type: str
+    prompt: str
+    student_response: str
+    correct: bool
+    number_correct: bool
+    label_correct: bool
+    answered_at: datetime
+
+
 def utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
@@ -343,6 +363,7 @@ class InMemoryFactStore:
         self.warmup_answers: dict[tuple[str, str, int], WarmupAnswerRecord] = {}
         self.weekly_quiz_sets: dict[tuple[str, str], WeeklyQuizSetRecord] = {}
         self.weekly_quiz_answers: dict[tuple[str, str, int], WeeklyQuizAnswerRecord] = {}
+        self.standard_recovery_answers: dict[tuple[str, str, str], StandardRecoveryAnswerRecord] = {}
 
     # ----- Classes -----
     def create_class(self, class_name: str, class_code: str | None = None) -> ClassRecord:
@@ -1674,6 +1695,9 @@ class InMemoryFactStore:
             self.weekly_quiz_answers = {
                 key: row for key, row in self.weekly_quiz_answers.items() if row.quiz_id != existing.quiz_id
             }
+            self.standard_recovery_answers = {
+                key: row for key, row in self.standard_recovery_answers.items() if row.source_quiz_id != existing.quiz_id
+            }
         now = utc_now()
         record = WeeklyQuizSetRecord(
             existing.quiz_id if existing else _uuid(), class_id, date_key, name, category, score,
@@ -1708,6 +1732,9 @@ class InMemoryFactStore:
         if self.weekly_quiz_locked(existing.quiz_id):
             raise FactStoreError("This Quiz of the Week is locked because a student has already answered it.")
         self.weekly_quiz_answers = {k: row for k, row in self.weekly_quiz_answers.items() if row.quiz_id != existing.quiz_id}
+        self.standard_recovery_answers = {
+            k: row for k, row in self.standard_recovery_answers.items() if row.source_quiz_id != existing.quiz_id
+        }
         self.weekly_quiz_sets.pop(key, None)
 
     def get_weekly_quiz_answers(self, student_id: str, quiz_id: str) -> list[WeeklyQuizAnswerRecord]:
@@ -1737,6 +1764,67 @@ class InMemoryFactStore:
             bool(label_correct), utc_now(),
         )
         self.weekly_quiz_answers[key] = record
+        return record
+
+    def list_weekly_quiz_sets(
+        self, start_date: date | str, end_date: date | str, *, class_id: str | None = None
+    ) -> list[WeeklyQuizSetRecord]:
+        start_key, end_key = _as_date_key(start_date), _as_date_key(end_date)
+        rows = [row for row in self.weekly_quiz_sets.values() if start_key <= row.quiz_date <= end_key]
+        if class_id is not None:
+            rows = [row for row in rows if row.class_id == str(class_id)]
+        return sorted(rows, key=lambda row: (row.quiz_date, row.class_id))
+
+    def list_weekly_quiz_answers_range(
+        self, start_date: date | str, end_date: date | str, *, class_id: str | None = None, include_test: bool = False
+    ) -> list[WeeklyQuizAnswerRecord]:
+        start_key, end_key = _as_date_key(start_date), _as_date_key(end_date)
+        test_ids = {sid for sid, row in self.students.items() if row["record"].is_test}
+        rows = [row for row in self.weekly_quiz_answers.values() if start_key <= row.quiz_date <= end_key]
+        if class_id is not None:
+            rows = [row for row in rows if row.class_id == str(class_id)]
+        if not include_test:
+            rows = [row for row in rows if row.student_id not in test_ids]
+        return sorted(rows, key=lambda row: (row.quiz_date, row.class_id, row.student_id, row.question_slot))
+
+    # ----- Monday Standards Recovery -----
+    def get_standard_recovery_answers(self, student_id: str, source_quiz_id: str) -> list[StandardRecoveryAnswerRecord]:
+        rows = [
+            row for row in self.standard_recovery_answers.values()
+            if row.student_id == str(student_id) and row.source_quiz_id == str(source_quiz_id)
+        ]
+        return sorted(rows, key=lambda row: (row.answered_at, row.standard_code))
+
+    def list_standard_recovery_answers(
+        self, start_date: date | str, end_date: date | str, *, class_id: str | None = None, include_test: bool = False
+    ) -> list[StandardRecoveryAnswerRecord]:
+        start_key, end_key = _as_date_key(start_date), _as_date_key(end_date)
+        test_ids = {sid for sid, row in self.students.items() if row["record"].is_test}
+        rows = [row for row in self.standard_recovery_answers.values() if start_key <= row.recovery_date <= end_key]
+        if class_id is not None:
+            rows = [row for row in rows if row.class_id == str(class_id)]
+        if not include_test:
+            rows = [row for row in rows if row.student_id not in test_ids]
+        return sorted(rows, key=lambda row: (row.recovery_date, row.class_id, row.student_id, row.standard_code))
+
+    def record_standard_recovery_answer(
+        self, *, source_quiz_id: str, student_id: str, class_id: str, recovery_date: date | str,
+        source_quiz_date: date | str, standard_code: str, standard_description: str, bank_question_id: str,
+        question_type: str, prompt: str, student_response: str, correct: bool, number_correct: bool, label_correct: bool,
+    ) -> StandardRecoveryAnswerRecord:
+        self.get_student(student_id)
+        code = str(standard_code or "").strip()
+        if not code:
+            raise ValueError("Recovery standard is required.")
+        key = (str(student_id), str(source_quiz_id), code)
+        existing = self.standard_recovery_answers.get(key)
+        record = StandardRecoveryAnswerRecord(
+            existing.recovery_answer_id if existing else _uuid(), str(source_quiz_id), str(student_id), str(class_id),
+            _as_date_key(recovery_date), _as_date_key(source_quiz_date), code, str(standard_description or ""),
+            str(bank_question_id or ""), str(question_type), str(prompt), str(student_response), bool(correct),
+            bool(number_correct), bool(label_correct), utc_now(),
+        )
+        self.standard_recovery_answers[key] = record
         return record
 
     # ----- Private app settings (reference backend) -----

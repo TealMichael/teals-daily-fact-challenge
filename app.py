@@ -38,6 +38,7 @@ from persistent_login import REMEMBER_DAYS, issue_student_token, peek_student_id
 from ui_helpers import format_seconds, strategy_tip
 from student_igniter_ui import render_quick_warmup
 from student_weekly_quiz_ui import render_friday_quiz
+from student_recovery_ui import render_monday_recovery
 from student_recognition import build_public_daily_recognition
 from student_daily_save_recovery import (
     clear_pending_daily_payload,
@@ -1720,6 +1721,14 @@ def render_daily(store: SupabaseFactStore | None) -> None:
     if weekly_quiz_state == "blocked":
         return
     if weekly_quiz_state != "complete" and not render_quick_warmup(store, day):
+        return
+
+    # v2.23 Monday-only standards Recovery. It appears after Igniter and before
+    # Daily 10, using one built-in bank question per distinct missed Friday
+    # standard (maximum three). Supplemental Recovery fails open so a temporary
+    # issue can never strand the class before Daily 10.
+    recovery_state = render_monday_recovery(store, day)
+    if recovery_state == "blocked":
         return
 
     try:

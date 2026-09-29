@@ -12,6 +12,8 @@ import hashlib
 import json
 from typing import Mapping, Sequence
 
+from indiana_math_standards import BY_CODE as INDIANA_STANDARD_BY_CODE
+
 from curriculum_question_types import (
     COMMON_QUESTION_TYPES,
     clean_alternate_lines,
@@ -45,6 +47,8 @@ def prepare_quiz_question(
     accepted_answers: Sequence[str] = (),
     label_options: Sequence[str] = (),
     correct_label: str = "",
+    standard_code: str = "",
+    standard_description: str = "",
     image_path: str = "",
     image_alt: str = "",
     bank_image_path: str = "",
@@ -63,6 +67,14 @@ def prepare_quiz_question(
     correct = str(correct_answer or "").strip()
     if not correct:
         raise ValueError(f"Question {slot} needs a correct answer.")
+
+    standard = str(standard_code or "").strip()
+    description = str(standard_description or "").strip()
+    if standard:
+        matched = INDIANA_STANDARD_BY_CODE.get(standard)
+        if matched is None or int(matched.grade) not in {5, 6, 7}:
+            raise ValueError(f"Question {slot}'s Recovery standard must be a Grade 5, 6, or 7 Indiana Math standard.")
+        description = matched.description
 
     cleaned_options = [str(item).strip() for item in options if str(item).strip()]
     cleaned_labels = [str(item).strip() for item in label_options if str(item).strip()]
@@ -96,6 +108,8 @@ def prepare_quiz_question(
         "options": cleaned_options,
         "label_options": cleaned_labels,
         "correct_label": label,
+        "standard_code": standard,
+        "standard_description": description,
         "image_path": str(image_path or "").strip(),
         "image_alt": str(image_alt or "Question diagram").strip() or "Question diagram",
         "bank_image_path": str(bank_image_path or "").strip(),
@@ -119,6 +133,8 @@ def validate_quiz_questions(questions: Sequence[Mapping]) -> tuple[dict, ...]:
             accepted_answers=raw.get("accepted_answers") or (),
             label_options=raw.get("label_options") or (),
             correct_label=raw.get("correct_label", ""),
+            standard_code=raw.get("standard_code", ""),
+            standard_description=raw.get("standard_description", ""),
             image_path=raw.get("image_path", ""),
             image_alt=raw.get("image_alt", "Question diagram"),
             bank_image_path=raw.get("bank_image_path", ""),

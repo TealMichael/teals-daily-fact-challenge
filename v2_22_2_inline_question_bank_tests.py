@@ -9,7 +9,7 @@ ROOT = Path(__file__).resolve().parent
 
 
 def test_release_version():
-    assert APP_VERSION == "2.22.2"
+    assert APP_VERSION == "2.23.0"
 
 
 def test_inline_picker_is_available_in_both_builders():
@@ -67,7 +67,7 @@ def test_loading_one_slot_does_not_overwrite_other_draft_slots():
     assert state["demo_type_2"] == "Number"
 
 
-def test_quiz_load_can_seed_without_standard_widget_state():
+def test_quiz_load_can_seed_recovery_standard_widget_state():
     question = question_by_id("6.NS.1-Q01")
     assert question is not None
 
@@ -77,12 +77,12 @@ def test_quiz_load_can_seed_without_standard_widget_state():
         prefix="quiz",
         slot=4,
         question=question,
-        include_standard=False,
+        include_standard=True,
     )
 
     assert state["quiz_prompt_4"] == question["prompt"]
     assert state["quiz_bank_question_id_4"] == question["id"]
-    assert "quiz_standard_choice_4" not in state
+    assert state["quiz_standard_choice_4"] == "6.NS.1"
 
 
 def test_partial_deploy_guard_keeps_builders_importable():
