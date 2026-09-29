@@ -167,6 +167,9 @@ def prepare_question(
     correct_label: str = "",
     image_path: str = "",
     image_alt: str = "",
+    bank_image_path: str = "",
+    bank_image_alt: str = "",
+    bank_question_id: str = "",
 ) -> dict:
     slot = int(slot)
     if slot not in (1, 2):
@@ -242,6 +245,9 @@ def prepare_question(
         "standard_description": str(standard_description or "").strip(),
         "image_path": str(image_path or "").strip(),
         "image_alt": str(image_alt or "Question diagram").strip() or "Question diagram",
+        "bank_image_path": str(bank_image_path or "").strip(),
+        "bank_image_alt": str(bank_image_alt or "Built-in question diagram").strip() or "Built-in question diagram",
+        "bank_question_id": str(bank_question_id or "").strip(),
     }
 
 
@@ -262,6 +268,9 @@ def question_from_mapping(value: Mapping | None, slot: int) -> dict:
         correct_label=value.get("correct_label", ""),
         image_path=value.get("image_path", ""),
         image_alt=value.get("image_alt", "Question diagram"),
+        bank_image_path=value.get("bank_image_path", ""),
+        bank_image_alt=value.get("bank_image_alt", "Built-in question diagram"),
+        bank_question_id=value.get("bank_question_id", ""),
     )
 
 

@@ -14,6 +14,7 @@ from fact_engine import current_daily_date
 from supabase_fact_store import SupabaseFactStore
 from teacher_question_editor import render_answer_editor
 from question_images import maybe_cleanup_question_images, signed_question_image_url, upload_question_image
+from indiana_question_bank import resolve_bank_image_path, seed_editor_state
 from weekly_quiz import (
     QUIZ_CATEGORIES,
     QUIZ_QUESTION_COUNT,
@@ -50,6 +51,10 @@ def _blank_question(slot: int) -> dict:
 
 
 def _question_editor(existing: dict, slot: int, prefix: str) -> dict:
+    existing = dict(existing or {})
+    if st.session_state.pop(f"{prefix}_clear_existing_image_once_{slot}", False):
+        existing["image_path"] = ""
+        existing["image_alt"] = "Question diagram"
     st.markdown(f"#### Question {slot}")
     prompt = st.text_area(
         "Question", value=str(existing.get("prompt") or ""),
@@ -111,6 +116,25 @@ def _render_builder(store: SupabaseFactStore, classes) -> None:
         help="Five questions are equally weighted. If Max Score is 10, a 4/5 becomes 8/10 in the anonymous export.",
     )
 
+    pending = st.session_state.get("question_bank_pending")
+    if pending and st.session_state.get("question_bank_destination") == "quiz":
+        with st.container(border=True):
+            st.markdown("#### 📚 Question Bank selection ready")
+            st.write(str(pending.get("prompt") or ""))
+            st.caption(f"{pending.get('standard_code', '')} · Choose a Quiz slot. Nothing is saved until you press Save Quiz of the Week.")
+            cols = st.columns(QUIZ_QUESTION_COUNT)
+            for slot_number, col in enumerate(cols, start=1):
+                with col:
+                    if st.button(f"Q{slot_number}", use_container_width=True, key=f"{prefix}_bank_slot_{slot_number}"):
+                        seed_editor_state(st.session_state, prefix=prefix, slot=slot_number, question=pending, include_standard=False)
+                        st.session_state.pop("question_bank_pending", None)
+                        st.session_state.pop("question_bank_destination", None)
+                        st.rerun()
+            if st.button("Cancel bank selection", use_container_width=True, key=f"{prefix}_bank_cancel"):
+                st.session_state.pop("question_bank_pending", None)
+                st.session_state.pop("question_bank_destination", None)
+                st.rerun()
+
     existing_questions = list(existing.questions) if existing else [_blank_question(i) for i in range(1, 6)]
     edited = []
     for slot in range(1, QUIZ_QUESTION_COUNT + 1):
@@ -161,6 +185,9 @@ def _render_builder(store: SupabaseFactStore, classes) -> None:
                     correct_label=item.get("correct_label") or "",
                     image_path=item.get("image_path") or "",
                     image_alt=item.get("image_alt") or "Question diagram",
+                    bank_image_path=item.get("bank_image_path") or "",
+                    bank_image_alt=item.get("bank_image_alt") or "Built-in question diagram",
+                    bank_question_id=item.get("bank_question_id") or "",
                 )
                 for index, item in enumerate(image_ready, start=1)
             ]
@@ -189,6 +216,17 @@ def _render_builder(store: SupabaseFactStore, classes) -> None:
         with st.expander("Student preview · answers hidden", expanded=False):
             for index, question in enumerate(existing.questions, start=1):
                 st.markdown(f"**{index}. {question.get('prompt', '')}**")
+                image_shown = False
+                image_path = str(question.get("image_path") or "")
+                if image_path:
+                    image_url = signed_question_image_url(store, image_path)
+                    if image_url:
+                        st.image(image_url, width=460)
+                        image_shown = True
+                if not image_shown:
+                    bank_image = resolve_bank_image_path(question.get("bank_image_path") or "")
+                    if bank_image:
+                        st.image(bank_image, width=460)
                 st.caption(str(question.get("question_type") or "Number"))
                 if str(question.get("question_type")) == "Multiple choice":
                     st.write(" · ".join(str(item) for item in (question.get("options") or [])))

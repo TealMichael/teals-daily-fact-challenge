@@ -1,28 +1,36 @@
-Teal's Daily Fact Challenge v2.21.3 — Quiz Navigation + Compact Images
+Teal's Daily Fact Challenge v2.22.0 — Indiana Standards Question Bank
 
 IMPORTANT
-- Built directly from the validated v2.21.2 FULL CURRENT APP.
-- No new Supabase SQL is required for this update.
-- Daily 10, Igniter grading, Fix Your Misses, Focus, Mystery, Top 10, Perfect Score Club, AWTRIX, login/session, and Skyward privacy architecture remain unchanged.
+- Built directly from the validated v2.21.3 FULL CURRENT APP.
+- No new Supabase SQL is required.
+- No Streamlit Secrets changes are required.
+- Existing student privacy and local Skyward bridge architecture remain unchanged.
 
 INSTALL
 1. Upload/replace the files from this package in the existing teals-daily-fact-challenge GitHub repository, preserving folders.
 2. Commit with:
-   v2.21.3 - add Quiz back/edit navigation and compact question images
-3. Let Streamlit redeploy. No Secrets or Supabase changes are required.
-4. Confirm the app footer shows v2.21.3.
+   v2.22.0 - add 750-question Indiana Standards Question Bank
+3. Let Streamlit redeploy.
+4. Confirm the app footer shows v2.22.0.
 
 WHAT CHANGED
-- Student question images on Igniter and Quiz of the Week now display at 460 px instead of 620 px.
-- Quiz Questions 2-5 have a Back button.
-- Questions 1-4 use Save & Next; Question 5 uses Submit Quiz.
-- Previously saved answers refill when a student returns to a question.
-- Saving a revised answer updates that same quiz/question record rather than duplicating or ignoring it.
-- Final quiz submission still locks the student flow and continues to Daily 10, then the normal Friday routine/Mystery.
+- Teacher Tools now includes a 📚 Question Bank section.
+- The bank contains 750 permanent questions: 10 questions for every Grade 5, 6, and 7 Indiana math standard in the bank (75 standards total).
+- Browse by grade, domain, standard, and Essential-only status.
+- Use Previous / Random / Next to move through a standard's 10 questions, or expand all 10.
+- Use a question in Igniter or Quiz of the Week with one click.
+- The question is copied into the normal editor and can be edited before the normal Save action.
+- Selected visual bank questions use permanent packaged diagrams that do not consume Supabase image storage.
 
 QUICK TEST
-1. Use Test Student on a Friday quiz.
-2. Answer Q1 and Q2, then use Back on Q3.
-3. Change Q2, save it, move forward, and verify the revised response remains selected/filled.
-4. Confirm images are visibly smaller but readable.
-5. Finish Q5 with Submit Quiz and confirm the existing Daily 10 handoff.
+1. Open Teacher Tools → 📚 Question Bank.
+2. Choose Grade 5 → a Measurement standard such as 5.M.5.
+3. Confirm the standard shows 10 questions and that ★ Essential appears where expected.
+4. Click Random and confirm a different bank item can appear.
+5. Click Use in Quiz of the Week, choose Q1, and confirm the normal Quiz editor is prefilled.
+6. Edit one small detail, save the quiz normally, then use Test Student to confirm the question works.
+7. Repeat once with Use in Igniter.
+8. If you choose a bank question with a built-in diagram, confirm the diagram displays in the teacher preview and student view.
+
+NO DATABASE STEP
+There is no v2.22.0 SQL migration. Do not rerun older Supabase migrations for this release.

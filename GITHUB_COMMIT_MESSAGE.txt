@@ -1,1 +1,1 @@
-v2.21.3 - add Quiz back/edit navigation and compact question images
+v2.22.0 - add 750-question Indiana Standards Question Bank

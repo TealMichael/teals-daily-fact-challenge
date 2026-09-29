@@ -14,6 +14,7 @@ import streamlit as st
 
 from supabase_fact_store import SupabaseFactStore
 from question_images import signed_question_image_url
+from indiana_question_bank import resolve_bank_image_path
 from warmup import (correct_answer_for_storage, display_student_response, grade_question, pack_multi_part_response, question_for_slot)
 
 def render_quick_warmup(store: SupabaseFactStore, day: date) -> bool:
@@ -102,12 +103,19 @@ def render_quick_warmup(store: SupabaseFactStore, day: date) -> bool:
         unsafe_allow_html=True,
     )
     image_path = str(question.get("image_path") or "")
+    image_shown = False
     if image_path:
         image_url = signed_question_image_url(store, image_path)
         if image_url:
             st.image(image_url, width=460)
-        else:
-            st.caption("The question image is no longer available. Show your teacher before answering.")
+            image_shown = True
+    if not image_shown:
+        bank_image = resolve_bank_image_path(question.get("bank_image_path") or "")
+        if bank_image:
+            st.image(bank_image, width=460)
+            image_shown = True
+    if image_path and not image_shown:
+        st.caption("The question image is no longer available. Show your teacher before answering.")
 
     form_key = f"warmup_answer_{warmup.warmup_set_id}_{student_id}_{slot}"
     qtype = str(question.get("question_type") or "Short answer")

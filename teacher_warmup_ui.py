@@ -20,6 +20,7 @@ from supabase_fact_store import SupabaseFactStore
 from warmup import QUESTION_TYPES, display_student_response, prepare_question as prepare_warmup_question, question_for_slot
 from teacher_question_editor import render_answer_editor
 from question_images import maybe_cleanup_question_images, signed_question_image_url, upload_question_image
+from indiana_question_bank import resolve_bank_image_path, seed_editor_state
 from teacher_warmup_settings import (
     warmup_email_recipients as _warmup_email_recipients,
     save_warmup_email_recipients as _save_warmup_email_recipients,
@@ -52,10 +53,16 @@ def _render_warmup_student_preview(store, warmup) -> None:
         st.markdown(f"**{slot}. {label}**")
         st.write(str(question.get("prompt") or ""))
         image_path = str(question.get("image_path") or "")
+        image_shown = False
         if image_path:
             image_url = signed_question_image_url(store, image_path)
             if image_url:
                 st.image(image_url, width=460)
+                image_shown = True
+        if not image_shown:
+            bank_image = resolve_bank_image_path(question.get("bank_image_path") or "")
+            if bank_image:
+                st.image(bank_image, width=460)
         qtype = str(question.get("question_type") or "Short answer")
         st.caption(f"Answer type: {qtype}")
         if qtype == "Multiple choice":
@@ -116,6 +123,10 @@ def _remember_warmup_standards_safely(store: SupabaseFactStore, codes) -> bool:
 
 
 def _warmup_form_question(existing: dict, slot: int, key_prefix: str, recent_codes=()) -> dict:
+    existing = dict(existing or {})
+    if st.session_state.pop(f"{key_prefix}_clear_existing_image_once_{slot}", False):
+        existing["image_path"] = ""
+        existing["image_alt"] = "Question diagram"
     label = "Spiral Review" if slot == 1 else "Yesterday Check"
     st.markdown(f"#### {slot}. {label}")
     prompt = st.text_area(
@@ -537,6 +548,30 @@ def render_teacher_warmup(store: SupabaseFactStore, *, refresh_control, finish_r
     q2_existing = dict(existing.question_two) if existing else {}
     key_prefix = f"warmup_plan_{selected.class_id}_{target_date.isoformat()}"
     recent_standards = _recent_warmup_standards(store)
+    pending = st.session_state.get("question_bank_pending")
+    if pending and st.session_state.get("question_bank_destination") == "warmup":
+        with st.container(border=True):
+            st.markdown("#### 📚 Question Bank selection ready")
+            st.write(str(pending.get("prompt") or ""))
+            st.caption(f"{pending.get('standard_code', '')} · Choose which Igniter slot should receive this question. Nothing is saved until you press Save Warm-Up.")
+            p1, p2, pc = st.columns([1, 1, 0.7])
+            with p1:
+                if st.button("Use as Spiral Review", type="primary", use_container_width=True, disabled=locked, key=f"{key_prefix}_bank_slot1"):
+                    seed_editor_state(st.session_state, prefix=key_prefix, slot=1, question=pending, include_standard=True)
+                    st.session_state.pop("question_bank_pending", None)
+                    st.session_state.pop("question_bank_destination", None)
+                    st.rerun()
+            with p2:
+                if st.button("Use as Yesterday Check", use_container_width=True, disabled=locked, key=f"{key_prefix}_bank_slot2"):
+                    seed_editor_state(st.session_state, prefix=key_prefix, slot=2, question=pending, include_standard=True)
+                    st.session_state.pop("question_bank_pending", None)
+                    st.session_state.pop("question_bank_destination", None)
+                    st.rerun()
+            with pc:
+                if st.button("Cancel", use_container_width=True, key=f"{key_prefix}_bank_cancel"):
+                    st.session_state.pop("question_bank_pending", None)
+                    st.session_state.pop("question_bank_destination", None)
+                    st.rerun()
     st.caption("Indiana Math standards from Grades 4–7 are built in. Type a code or skill word in the standard box to search; recently used standards float to the top.")
     # Keep the editor live, matching the Friday Quiz builder. Streamlit forms
     # intentionally delay selectbox changes until submit; that made answer-type

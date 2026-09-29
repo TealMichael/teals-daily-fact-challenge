@@ -47,6 +47,9 @@ def prepare_quiz_question(
     correct_label: str = "",
     image_path: str = "",
     image_alt: str = "",
+    bank_image_path: str = "",
+    bank_image_alt: str = "",
+    bank_question_id: str = "",
 ) -> dict:
     slot = int(slot)
     if not 1 <= slot <= QUIZ_QUESTION_COUNT:
@@ -95,6 +98,9 @@ def prepare_quiz_question(
         "correct_label": label,
         "image_path": str(image_path or "").strip(),
         "image_alt": str(image_alt or "Question diagram").strip() or "Question diagram",
+        "bank_image_path": str(bank_image_path or "").strip(),
+        "bank_image_alt": str(bank_image_alt or "Built-in question diagram").strip() or "Built-in question diagram",
+        "bank_question_id": str(bank_question_id or "").strip(),
     }
 
 
@@ -115,6 +121,9 @@ def validate_quiz_questions(questions: Sequence[Mapping]) -> tuple[dict, ...]:
             correct_label=raw.get("correct_label", ""),
             image_path=raw.get("image_path", ""),
             image_alt=raw.get("image_alt", "Question diagram"),
+            bank_image_path=raw.get("bank_image_path", ""),
+            bank_image_alt=raw.get("bank_image_alt", "Built-in question diagram"),
+            bank_question_id=raw.get("bank_question_id", ""),
         ))
     return tuple(prepared)
 

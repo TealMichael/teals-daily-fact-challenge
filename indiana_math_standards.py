@@ -192,3 +192,21 @@ def display_label(code: str, recent_codes=()) -> str:
         return str(code)
     prefix = "★ Recently used · " if code in set(recent_codes or ()) else ""
     return prefix + standard.label
+
+# 2023 Indiana standards explicitly designated Essential (E) by IDOE.
+# Source: 2023 IAS/2020 correlation guides for Grades 5–7.
+ESSENTIAL_CODES: frozenset[str] = frozenset({
+    # Grade 5
+    "5.NS.1", "5.CA.1", "5.CA.2", "5.CA.4", "5.CA.5", "5.CA.6", "5.CA.7", "5.CA.8",
+    "5.CA.10", "5.M.3", "5.M.4", "5.M.5", "5.DA.1", "5.DA.2",
+    # Grade 6
+    "6.NS.1", "6.NS.4", "6.NS.5", "6.NS.7", "6.RP.1", "6.RP.4", "6.RP.5",
+    "6.AF.1", "6.AF.2", "6.AF.3", "6.AF.5", "6.GM.4", "6.DS.2", "6.DS.3",
+    # Grade 7
+    "7.NS.3", "7.NS.4", "7.NS.7", "7.RP.2", "7.RP.3", "7.AF.1", "7.AF.2", "7.AF.3",
+    "7.AF.6", "7.GM.3", "7.DSP.1", "7.DSP.2", "7.DSP.4", "7.DSP.5",
+})
+
+
+def is_essential_standard(code: str) -> bool:
+    return str(code or "").strip() in ESSENTIAL_CODES

@@ -54,6 +54,7 @@ from teacher_intelligence_ui import render_teacher_next_steps, render_teacher_we
 from teacher_class_history_ui import render_teacher_class_history
 from teacher_warmup_ui import render_teacher_warmup as _render_teacher_warmup_module
 from teacher_weekly_quiz_ui import render_teacher_weekly_quiz
+from teacher_question_bank_ui import render_teacher_question_bank
 from teacher_clock_ui import render_teacher_clock
 from teacher_today_ui import render_teacher_today_command_center as _render_teacher_today_command_center
 from teacher_recovery_ui import render_class_recovery_tools
@@ -2904,7 +2905,10 @@ def render_teacher(store: SupabaseFactStore | None) -> None:
             st.session_state["teacher_projector_mode"] = False
             st.rerun()
 
-    teacher_primary_sections = ["📊 Today", "🧠 Warm-Up", "📝 Quiz of the Week", "📈 Learning", "🕵️ Weekly Mystery", "⚙️ Manage"]
+    teacher_primary_sections = ["📊 Today", "🧠 Warm-Up", "📝 Quiz of the Week", "📚 Question Bank", "📈 Learning", "🕵️ Weekly Mystery", "⚙️ Manage"]
+    redirect = st.session_state.pop("teacher_primary_redirect", None)
+    if redirect in teacher_primary_sections:
+        st.session_state["teacher_primary_section"] = redirect
     current_primary = st.session_state.get("teacher_primary_section")
     if current_primary not in teacher_primary_sections:
         st.session_state["teacher_primary_section"] = "📊 Today"
@@ -2919,6 +2923,8 @@ def render_teacher(store: SupabaseFactStore | None) -> None:
         render_teacher_warmup(store)
     elif primary == "📝 Quiz of the Week":
         render_teacher_weekly_quiz(store)
+    elif primary == "📚 Question Bank":
+        render_teacher_question_bank(store)
     elif primary == "📈 Learning":
         learning_sections = ["🧭 Next Steps", "📈 Learning Data", "🛠️ Student Support", "📅 Weekly Recap"] + ["🗓️ Class History"]
         if st.session_state.get("teacher_learning_section") not in learning_sections:

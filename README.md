@@ -1,18 +1,29 @@
-# Teal's Daily Fact Challenge v2.21.3 — Quiz Navigation + Compact Images
+# Teal's Daily Fact Challenge v2.22.0 — Indiana Standards Question Bank
 
-This cumulative release is built directly from the validated v2.21.2 FULL CURRENT APP.
+This cumulative release is built directly from the validated v2.21.3 FULL CURRENT APP.
 
-## New in v2.21.3
-- Quiz of the Week now supports **Back** navigation before final submission.
-- Previously saved answers are restored when students revisit a question.
-- Students can revise an answer; the existing anonymous answer row is updated in place.
-- Questions 1-4 use **Save & Next** and Question 5 uses **Submit Quiz**.
-- Student question images in both Quiz of the Week and Igniter are reduced from 620 px to 460 px for a better Chromebook/iPad layout.
+## New in v2.22.0
+- Adds a permanent **Indiana Standards Question Bank** to Teacher Tools.
+- Includes **750 ready-to-use questions**: exactly 10 for each of the 75 Grade 5, 6, and 7 Indiana math standards represented in the app.
+- Grade totals: 260 Grade 5 questions, 250 Grade 6 questions, and 240 Grade 7 questions.
+- Marks the 42 Essential standards and supports an Essential-only filter.
+- Browse by Grade → Domain → Standard, then move Previous / Random / Next or open all 10 questions for a standard.
+- One-click handoff sends a bank question into either **Igniter** or **Quiz of the Week**.
+- Bank questions are copied into the normal editor, so the teacher can revise wording, numbers, answer choices, labels, or images before saving.
+- Includes lightweight permanent built-in diagrams for selected visual questions. These files live in the app package and do not use Supabase Storage or the 7-day temporary-image system.
+- Supports the existing shared answer types: Number, Fraction, Multiple choice, and Number + Label.
+
+## Important behavior
+- Choosing a bank question does **not** immediately publish it. The question is loaded into the existing Igniter/Quiz editor and still requires the normal Save action.
+- A bank question is copied, not linked. Editing a copied question never changes the permanent bank and later bank updates cannot alter previously saved student work.
+- Teacher-uploaded images still use the existing private Supabase temporary-image flow and 7-day post-question-date cleanup.
+- The Question Bank itself is static app content and does not store student information or require Supabase reads/writes.
 
 ## Unchanged
-- The Friday sequence remains Quiz of the Week → Daily 10 → normal Friday routine → final Weekly Mystery guess.
-- Quiz scoring, numeric/fraction equivalence, Number + Label grading, image expiration, anonymous Skyward export, and local-only PII bridge are unchanged.
-- No new Supabase migration is required.
+- Daily 10, Fix Your Misses, Focus Practice, teaching models, Weekly Mystery, Top 10, Perfect Score Club, AWTRIX, login/session behavior, Friday Quiz flow, anonymous Skyward export, and the local-only identity bridge remain unchanged.
+- Quiz Back/edit navigation from v2.21.3 remains intact.
+- Temporary question-image behavior from v2.21.2 remains intact.
+- No new Supabase migration or Secrets change is required.
 
 ## Privacy
-No student first/last names, Skyward IDs, or roster files belong in the app or AI. The local Excel Skyward bridge remains the only identity mapping.
+No student first/last names, Skyward IDs, or roster files belong in the app or AI. The private local Excel Skyward bridges remain the only Student Key ↔ real-name mapping.

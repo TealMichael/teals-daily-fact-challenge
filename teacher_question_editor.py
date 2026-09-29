@@ -11,6 +11,8 @@ from collections.abc import Sequence
 
 import streamlit as st
 
+from indiana_question_bank import resolve_bank_image_path
+
 
 def _lines(value: str) -> list[str]:
     return [line.strip() for line in str(value or "").splitlines() if line.strip()]
@@ -94,6 +96,32 @@ def render_answer_editor(
             key=f"{prefix}_alternates_two_{slot}", height=70,
         )
 
+    session_state = getattr(st, "session_state", {})
+    bank_image_path = str(
+        session_state.get(f"{prefix}_bank_image_path_{slot}", existing.get("bank_image_path") or "")
+        or ""
+    )
+    bank_image_alt = str(
+        session_state.get(f"{prefix}_bank_image_alt_{slot}", existing.get("bank_image_alt") or "Built-in question diagram")
+        or "Built-in question diagram"
+    )
+    bank_question_id = str(
+        session_state.get(f"{prefix}_bank_question_id_{slot}", existing.get("bank_question_id") or "")
+        or ""
+    )
+    resolved_bank_image = resolve_bank_image_path(bank_image_path)
+    if resolved_bank_image:
+        st.caption("Built-in Question Bank diagram · permanent app asset")
+        st.image(resolved_bank_image, width=420)
+        st.caption("A temporary image upload will display instead of this built-in diagram for the scheduled question.")
+        remove_bank_image = st.checkbox(
+            "Remove built-in bank diagram", value=False, key=f"{prefix}_remove_bank_image_{slot}"
+        )
+        if remove_bank_image:
+            bank_image_path = ""
+            bank_image_alt = "Built-in question diagram"
+            bank_question_id = ""
+
     st.caption("Optional question image · PNG/JPG/WEBP · auto-deletes after scheduled date + 7 days")
     existing_image_path = str(existing.get("image_path") or "")
     if existing_image_path:
@@ -138,6 +166,9 @@ def render_answer_editor(
         "correct_label": correct_label,
         "image_path": existing_image_path,
         "image_alt": image_alt,
+        "bank_image_path": bank_image_path,
+        "bank_image_alt": bank_image_alt,
+        "bank_question_id": bank_question_id,
         "_image_upload": image_upload,
         "_remove_image": remove_image,
     }
