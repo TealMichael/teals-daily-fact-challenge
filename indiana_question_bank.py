@@ -13,7 +13,7 @@ from pathlib import Path
 import random
 from typing import Iterable, Mapping
 
-from indiana_math_standards import BY_CODE, ESSENTIAL_CODES, is_essential_standard
+from indiana_math_standards import BY_CODE
 
 BANK_FILE = Path(__file__).with_name("indiana_question_bank.json")
 BANK_ASSET_DIR = Path(__file__).with_name("question_bank_assets")
@@ -29,6 +29,25 @@ def all_questions() -> tuple[dict, ...]:
     with BANK_FILE.open("r", encoding="utf-8") as handle:
         rows = json.load(handle)
     return tuple(dict(row) for row in rows)
+
+
+@lru_cache(maxsize=1)
+def essential_codes() -> frozenset[str]:
+    """Derive Essential-standard membership from the packaged bank data.
+
+    Keeping this metadata with the bank makes the Question Bank compatible with
+    pre-v2.22 copies of ``indiana_math_standards.py`` during a partial GitHub
+    deployment, preventing a startup-wide ImportError.
+    """
+    return frozenset(
+        str(row.get("standard_code") or "").strip()
+        for row in all_questions()
+        if bool(row.get("essential")) and str(row.get("standard_code") or "").strip()
+    )
+
+
+def is_essential_standard(code: str) -> bool:
+    return str(code or "").strip() in essential_codes()
 
 
 def questions_for_standard(code: str) -> tuple[dict, ...]:
@@ -163,7 +182,7 @@ def bank_summary() -> dict:
     return {
         "questions": len(rows),
         "standards": len({row.get("standard_code") for row in rows}),
-        "essential_standards": len(ESSENTIAL_CODES),
+        "essential_standards": len(essential_codes()),
         "essential_questions": sum(bool(row.get("essential")) for row in rows),
     }
 

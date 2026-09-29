@@ -1,36 +1,13 @@
-Teal's Daily Fact Challenge v2.22.0 — Indiana Standards Question Bank
+Teal's Daily Fact Challenge v2.22.1 — Question Bank Startup Hotfix
 
-IMPORTANT
-- Built directly from the validated v2.21.3 FULL CURRENT APP.
-- No new Supabase SQL is required.
-- No Streamlit Secrets changes are required.
-- Existing student privacy and local Skyward bridge architecture remain unchanged.
+1. Open the normal teals-daily-fact-challenge GitHub repository.
+2. Upload/replace the files from this package's UPLOAD_TO_GITHUB folder.
+3. Commit with:
+   v2.22.1 - fix Question Bank startup import error
+4. Wait for Streamlit to redeploy.
+5. Confirm the app loads normally and the footer shows v2.22.1.
+6. Open Teacher → Question Bank and verify Grade 5 → Measurement → 5.M.5 loads.
 
-INSTALL
-1. Upload/replace the files from this package in the existing teals-daily-fact-challenge GitHub repository, preserving folders.
-2. Commit with:
-   v2.22.0 - add 750-question Indiana Standards Question Bank
-3. Let Streamlit redeploy.
-4. Confirm the app footer shows v2.22.0.
+No Supabase SQL migration or Secrets change is required.
 
-WHAT CHANGED
-- Teacher Tools now includes a 📚 Question Bank section.
-- The bank contains 750 permanent questions: 10 questions for every Grade 5, 6, and 7 Indiana math standard in the bank (75 standards total).
-- Browse by grade, domain, standard, and Essential-only status.
-- Use Previous / Random / Next to move through a standard's 10 questions, or expand all 10.
-- Use a question in Igniter or Quiz of the Week with one click.
-- The question is copied into the normal editor and can be edited before the normal Save action.
-- Selected visual bank questions use permanent packaged diagrams that do not consume Supabase image storage.
-
-QUICK TEST
-1. Open Teacher Tools → 📚 Question Bank.
-2. Choose Grade 5 → a Measurement standard such as 5.M.5.
-3. Confirm the standard shows 10 questions and that ★ Essential appears where expected.
-4. Click Random and confirm a different bank item can appear.
-5. Click Use in Quiz of the Week, choose Q1, and confirm the normal Quiz editor is prefilled.
-6. Edit one small detail, save the quiz normally, then use Test Student to confirm the question works.
-7. Repeat once with Use in Igniter.
-8. If you choose a bank question with a built-in diagram, confirm the diagram displays in the teacher preview and student view.
-
-NO DATABASE STEP
-There is no v2.22.0 SQL migration. Do not rerun older Supabase migrations for this release.
+This hotfix only removes the fragile startup dependency on new Essential-standard exports. The 750-question bank and existing v2.22.0 features remain unchanged.

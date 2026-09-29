@@ -5,12 +5,13 @@ from __future__ import annotations
 import random
 import streamlit as st
 
-from indiana_math_standards import BY_CODE, is_essential_standard
+from indiana_math_standards import BY_CODE
 from indiana_question_bank import (
     BANK_GRADES,
     bank_summary,
     domains_for_grade,
     questions_for_standard,
+    is_essential_standard,
     resolve_bank_image_path,
     standard_codes_for,
     standard_label,

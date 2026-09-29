@@ -1,6 +1,12 @@
-# Teal's Daily Fact Challenge v2.22.0 — Indiana Standards Question Bank
+# Teal's Daily Fact Challenge v2.22.1 — Question Bank Startup Hotfix
 
 This cumulative release is built directly from the validated v2.21.3 FULL CURRENT APP.
+
+## v2.22.1 hotfix
+
+- Prevents the Indiana Standards Question Bank from crashing app startup if GitHub temporarily has the pre-v2.22 `indiana_math_standards.py` during deployment.
+- Essential-standard metadata is now read directly from the packaged question-bank data.
+- No Supabase SQL or Secrets changes.
 
 ## New in v2.22.0
 - Adds a permanent **Indiana Standards Question Bank** to Teacher Tools.
