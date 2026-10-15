@@ -2,11 +2,13 @@ from __future__ import annotations
 
 """Reusable student widgets for interactive curriculum questions.
 
-v2.24.3 hardens the Order Tiles interaction for real classroom browsers.
+v2.24.4 hardens the Order Tiles interaction across Streamlit component reruns.
 Desktop mouse input uses native HTML drag/drop, touch/pen uses pointer-based
 reordering, and every tile can also be selected and moved with visible arrow
-buttons or a physical keyboard. The component receives labels only; it never
-handles student identity, names, or external data.
+buttons or a physical keyboard. Event handlers are rebound on every frontend
+render so repeated drags and fallback moves keep working after state updates.
+The component receives labels only; it never handles student identity, names,
+or external data.
 """
 
 from functools import lru_cache
@@ -139,6 +141,10 @@ export default function({ parentElement, data, setStateValue }) {
   const requested = Array.isArray(data?.items) ? data.items.map((value) => String(value)) : [];
   instruction.textContent = data?.instruction ? String(data.instruction) : "Drag the tiles into order.";
 
+  // These variables intentionally belong to THIS render pass. Components v2
+  // reruns the frontend renderer after setStateValue(). Every DOM handler is
+  // rebound below so tile handlers and list/button handlers always close over
+  // the same current variables instead of stale variables from a prior render.
   let selectedTile = null;
   let mouseDragging = null;
   let pointerDragging = null;
@@ -177,9 +183,8 @@ export default function({ parentElement, data, setStateValue }) {
     refreshMoveButtons();
   }
 
-  // Reorder relative to the tile under the pointer. This avoids the old
-  // row-midpoint bug where a horizontal drag could remain pinned in place
-  // whenever the pointer was in the upper half of a flex row.
+  // Reorder relative to the tile under the pointer. Horizontal placement is
+  // resolved first when the pointer is on the same flex row.
   function reorderAtPoint(active, clientX, clientY) {
     if (!active || !list.contains(active)) return;
 
@@ -242,10 +247,12 @@ export default function({ parentElement, data, setStateValue }) {
   }
 
   function wireTile(tile) {
-    // Desktop/laptop mouse: use native HTML drag/drop so the browser supplies
-    // the familiar ghost tile and reliable mouse movement behavior.
+    // IMPORTANT: use DOM handler PROPERTIES, not addEventListener(). Streamlit
+    // invokes this renderer again after every state update. Replacing handler
+    // properties ensures existing tiles are connected to the CURRENT render's
+    // mouseDragging/selectedTile variables instead of stale prior closures.
     tile.draggable = true;
-    tile.addEventListener("dragstart", (event) => {
+    tile.ondragstart = (event) => {
       mouseDragging = tile;
       selectTile(tile);
       tile.classList.add("is-dragging");
@@ -253,16 +260,16 @@ export default function({ parentElement, data, setStateValue }) {
         event.dataTransfer.effectAllowed = "move";
         event.dataTransfer.setData("text/plain", tile.dataset.value || "tile");
       } catch (_) {}
-    });
-    tile.addEventListener("dragend", () => {
+    };
+    tile.ondragend = () => {
       const active = mouseDragging;
       mouseDragging = null;
       finishDrag(active);
-    });
+    };
 
     // Touch and pen: native HTML drag/drop is inconsistent, so use Pointer
     // Events. Mouse pointers intentionally use the native path above.
-    tile.addEventListener("pointerdown", (event) => {
+    tile.onpointerdown = (event) => {
       selectTile(tile);
       if (event.pointerType === "mouse") return;
       if (event.button !== undefined && event.button !== 0) return;
@@ -271,13 +278,13 @@ export default function({ parentElement, data, setStateValue }) {
       tile.classList.add("is-dragging");
       try { tile.setPointerCapture(event.pointerId); } catch (_) {}
       event.preventDefault();
-    });
+    };
 
-    tile.addEventListener("pointermove", (event) => {
+    tile.onpointermove = (event) => {
       if (pointerDragging !== tile || pointerId !== event.pointerId) return;
       reorderAtPoint(tile, event.clientX, event.clientY);
       event.preventDefault();
-    });
+    };
 
     const finishPointer = (event) => {
       if (pointerDragging !== tile || pointerId !== event.pointerId) return;
@@ -287,12 +294,12 @@ export default function({ parentElement, data, setStateValue }) {
       finishDrag(tile);
       event.preventDefault();
     };
-    tile.addEventListener("pointerup", finishPointer);
-    tile.addEventListener("pointercancel", finishPointer);
+    tile.onpointerup = finishPointer;
+    tile.onpointercancel = finishPointer;
 
-    tile.addEventListener("click", () => selectTile(tile));
+    tile.onclick = () => selectTile(tile);
 
-    tile.addEventListener("keydown", (event) => {
+    tile.onkeydown = (event) => {
       const previous = tile.previousElementSibling;
       const next = tile.nextElementSibling;
       if ((event.key === "ArrowLeft" || event.key === "ArrowUp") && previous) {
@@ -308,7 +315,7 @@ export default function({ parentElement, data, setStateValue }) {
         tile.focus();
         event.preventDefault();
       }
-    });
+    };
   }
 
   list.ondragover = (event) => {
@@ -354,11 +361,22 @@ export default function({ parentElement, data, setStateValue }) {
       tile.setAttribute("role", "listitem");
       tile.setAttribute("aria-label", `Number tile ${label}. Drag it, tap and use Move buttons, or use arrow keys to reorder.`);
       tile.textContent = label;
-      wireTile(tile);
       list.appendChild(tile);
     });
-    selectedTile = null;
   }
+
+  // Streamlit state updates rerun this renderer without necessarily replacing
+  // the existing tile DOM. Rebind EVERY tile on EVERY render so the second,
+  // third, and later drags use the same closure as list.ondragover/ondrop.
+  tiles().forEach((tile) => {
+    tile.classList.remove("is-dragging");
+    wireTile(tile);
+  });
+
+  // Selection is represented by a DOM class so it survives a normal component
+  // rerender. Restoring it here keeps the Move buttons usable repeatedly after
+  // each move has persisted state back to Streamlit.
+  selectedTile = list.querySelector(".tdfc-order-tile.is-selected");
   refreshMoveButtons();
 }
 """

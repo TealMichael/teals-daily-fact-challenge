@@ -12,9 +12,9 @@ def check(name, condition):
     checks.append(name)
 
 
-check("release version", 'APP_VERSION = "2.24.3"' in engine)
-check("native desktop drag", 'tile.draggable = true' in source and '"dragstart"' in source and 'ondragover' in source and '"dragend"' in source)
-check("touch pointer drag", '"pointerdown"' in source and '"pointermove"' in source and '"pointerup"' in source)
+check("release version", 'APP_VERSION = "2.24.4"' in engine)
+check("native desktop drag", 'tile.draggable = true' in source and 'ondragstart' in source and 'ondragover' in source and 'ondragend' in source)
+check("touch pointer drag", 'onpointerdown' in source and 'onpointermove' in source and 'onpointerup' in source)
 check("mouse uses native path", 'if (event.pointerType === "mouse") return;' in source)
 check("hit-test positioning", 'elementFromPoint' in source and 'reorderAtPoint' in source)
 check("old row midpoint trap removed", 'if (clientY < rowMid ||' not in source)

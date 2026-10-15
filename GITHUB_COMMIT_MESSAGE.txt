@@ -1,1 +1,1 @@
-v2.24.3 - fix Order Tiles drag interaction
+v2.24.4 - fix repeated Order Tiles interactions

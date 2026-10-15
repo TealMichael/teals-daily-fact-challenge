@@ -30,7 +30,7 @@ def check(name: str, condition: bool):
     checks.append(name)
 
 
-check("release version", APP_VERSION == "2.24.1")
+check("release version", APP_VERSION == "2.24.4")
 for qtype in (COMPARE_QUESTION_TYPE, ORDER_QUESTION_TYPE):
     check(f"{qtype} shared common type", qtype in COMMON_QUESTION_TYPES)
     check(f"{qtype} Igniter type", qtype in QUESTION_TYPES)
@@ -136,7 +136,7 @@ for qid, qtype in {
 
 component_source = (ROOT / "interactive_math_questions.py").read_text(encoding="utf-8")
 check("component v2", "components" in component_source and "v2" in component_source and "component" in component_source)
-check("touch pointer drag", '"pointerdown"' in component_source and '"pointermove"' in component_source and '"pointerup"' in component_source)
+check("touch pointer drag", "onpointerdown" in component_source and "onpointermove" in component_source and "onpointerup" in component_source)
 check("component persists order", 'setStateValue("order"' in component_source)
 check("keyboard reorder", 'event.key === "ArrowLeft"' in component_source and 'event.key === "ArrowRight"' in component_source)
 

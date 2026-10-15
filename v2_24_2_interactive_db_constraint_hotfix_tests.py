@@ -10,7 +10,7 @@ def check(name, condition):
     assert condition, name
     checks.append(name)
 
-check("release version", 'APP_VERSION = "2.24.2"' in fact_engine)
+check("release version", 'APP_VERSION = "2.24.4"' in fact_engine)
 for table_constraint in (
     "warmup_question_type_allowed",
     "weekly_quiz_type_allowed",

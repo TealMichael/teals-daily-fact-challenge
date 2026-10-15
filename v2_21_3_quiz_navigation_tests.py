@@ -23,7 +23,7 @@ def questions():
         prepare_quiz_question(slot=5, prompt="Enter 7/3.", question_type="Fraction", correct_answer="7/3"),
     ]
 
-check("v2.21.3 version", APP_VERSION == "2.24.1")
+check("v2.21.3 version", APP_VERSION == "2.24.4")
 
 store = InMemoryFactStore()
 klass = store.create_class("Block 1")

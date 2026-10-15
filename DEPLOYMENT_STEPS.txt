@@ -1,13 +1,11 @@
-Teal's Daily Fact Challenge v2.24.3 — Order Tiles Drag Hotfix
+Teal's Daily Fact Challenge v2.24.4 — Order Tiles Repeat-Interaction Hotfix
 
-1. Upload the contents of UPLOAD_TO_GITHUB to the root of the normal teals-daily-fact-challenge GitHub repository, replacing matching files.
-2. Commit message:
-   v2.24.3 - fix Order Tiles drag interaction
-3. Let Streamlit redeploy normally.
-4. Confirm the footer shows v2.24.3.
-5. Test an Order Tiles Igniter question with a mouse by dragging the first tile across another tile.
-6. Also verify the fallback: click/tap a tile, then use ← Move or Move →.
-7. If students use touch devices, test one touch drag as well.
+1. Open the v2.24.4 update package.
+2. Upload the contents of UPLOAD_TO_GITHUB to the ROOT of the normal teals-daily-fact-challenge GitHub repository, replacing matching files.
+3. Commit with:
+   v2.24.4 - fix repeated Order Tiles interactions
+4. Let Streamlit redeploy.
+5. Confirm the footer shows v2.24.4.
+6. Test an Order Tiles question by dragging twice in a row, then selecting a tile and using Move twice in a row.
 
-No new Supabase SQL.
-No Secrets changes.
+No new Supabase SQL or Secrets changes are required.
