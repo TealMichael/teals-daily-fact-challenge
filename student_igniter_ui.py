@@ -15,6 +15,14 @@ import streamlit as st
 from supabase_fact_store import SupabaseFactStore
 from question_images import signed_question_image_url
 from indiana_question_bank import resolve_bank_image_path
+from curriculum_question_types import (
+    COMPARE_QUESTION_TYPE,
+    COMPARISON_SYMBOLS,
+    ORDER_QUESTION_TYPE,
+    deterministic_start_order,
+    pack_order_response,
+)
+from interactive_math_questions import render_order_tiles
 from warmup import (correct_answer_for_storage, display_student_response, grade_question, pack_multi_part_response, question_for_slot)
 
 def render_quick_warmup(store: SupabaseFactStore, day: date) -> bool:
@@ -120,6 +128,27 @@ def render_quick_warmup(store: SupabaseFactStore, day: date) -> bool:
     form_key = f"warmup_answer_{warmup.warmup_set_id}_{student_id}_{slot}"
     qtype = str(question.get("question_type") or "Short answer")
     response_two = ""
+    order_response = ""
+    if qtype == ORDER_QUESTION_TYPE:
+        order_items = [str(item) for item in (question.get("order_items") or [])]
+        direction = str(question.get("order_direction") or "Least to greatest")
+        try:
+            initial_order = deterministic_start_order(
+                order_items,
+                seed=f"{student_id}:{warmup.warmup_set_id}:{slot}",
+                direction=direction,
+            )
+        except ValueError:
+            initial_order = order_items
+        st.caption(f"Drag the tiles from {direction.lower()}.")
+        current_order = render_order_tiles(
+            order_items,
+            initial_order=initial_order,
+            key=f"warmup_order_tiles::{warmup.warmup_set_id}::{student_id}::{slot}",
+            instruction=f"Order from {direction.lower()}.",
+        )
+        order_response = pack_order_response(current_order)
+
     with st.form(form_key, clear_on_submit=False):
         if qtype == "Multiple choice":
             options = [str(value) for value in (question.get("options") or [])]
@@ -127,6 +156,21 @@ def render_quick_warmup(store: SupabaseFactStore, day: date) -> bool:
                 "Choose your answer", options, index=None,
                 key=f"warmup_choice_{warmup.warmup_set_id}_{slot}",
             ) if options else ""
+        elif qtype == COMPARE_QUESTION_TYPE:
+            compare_left = str(question.get("compare_left") or "")
+            compare_right = str(question.get("compare_right") or "")
+            st.markdown(
+                f"<div style='text-align:center;font-size:1.55rem;font-weight:750;margin:0.2rem 0 0.45rem 0;'>"
+                f"{html.escape(compare_left)} &nbsp;&nbsp; ? &nbsp;&nbsp; {html.escape(compare_right)}</div>",
+                unsafe_allow_html=True,
+            )
+            response = st.radio(
+                "Choose the symbol", list(COMPARISON_SYMBOLS), index=None, horizontal=True,
+                key=f"warmup_compare_{warmup.warmup_set_id}_{slot}",
+            )
+        elif qtype == ORDER_QUESTION_TYPE:
+            response = order_response
+            st.caption("When the tiles are in the order you want, check your answer.")
         elif qtype == "Number + Label":
             left, right = st.columns([1.15, 1])
             with left:

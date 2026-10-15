@@ -11,6 +11,15 @@ from collections.abc import Sequence
 
 import streamlit as st
 
+from curriculum_question_types import (
+    COMPARE_QUESTION_TYPE,
+    ORDER_DIRECTIONS,
+    ORDER_QUESTION_TYPE,
+    comparison_symbol,
+    order_display,
+    pack_order_response,
+    sorted_order_items,
+)
 from indiana_question_bank import resolve_bank_image_path
 
 
@@ -26,7 +35,16 @@ def render_answer_editor(
     question_types: Sequence[str],
     default_type: str,
 ) -> dict:
-    types = list(question_types)
+    # Defensive compatibility: the shared editor owns the new interactive
+    # question types. If an older caller supplies the pre-v2.24 type list,
+    # inject Compare Values and Order Tiles so the teacher can still select
+    # them while the rest of the v2.24 files are being deployed.
+    types = list(dict.fromkeys(question_types))
+    insert_at = types.index("Number + Label") + 1 if "Number + Label" in types else len(types)
+    for interactive_type in (COMPARE_QUESTION_TYPE, ORDER_QUESTION_TYPE):
+        if interactive_type not in types:
+            types.insert(insert_at, interactive_type)
+            insert_at += 1
     current_type = str(existing.get("question_type") or default_type)
     if current_type not in types:
         current_type = default_type if default_type in types else types[0]
@@ -36,16 +54,77 @@ def render_answer_editor(
         key=f"{prefix}_type_{slot}",
     )
 
-    correct_caption = "Correct answer — Part 1" if qtype == "Multi-Part — 2 answers" else "Correct answer"
-    correct = st.text_input(
-        correct_caption,
-        value=str(existing.get("correct_answer") or ""),
-        key=f"{prefix}_correct_{slot}",
-        help=(
-            "Equivalent numerical values are graded mathematically. Example: 3 and 3.0 match; 3/4 and 6/8 match."
-            if qtype in {"Number", "Fraction", "Number + Label"} else None
-        ),
-    )
+    compare_left = ""
+    compare_right = ""
+    order_items: list[str] = []
+    order_direction = ""
+    correct = ""
+
+    if qtype == COMPARE_QUESTION_TYPE:
+        left_col, right_col = st.columns(2)
+        with left_col:
+            compare_left = st.text_input(
+                "Left value",
+                value=str(existing.get("compare_left") or ""),
+                key=f"{prefix}_compare_left_{slot}",
+                placeholder="0.507",
+            )
+        with right_col:
+            compare_right = st.text_input(
+                "Right value",
+                value=str(existing.get("compare_right") or ""),
+                key=f"{prefix}_compare_right_{slot}",
+                placeholder="0.57",
+            )
+        symbol = comparison_symbol(compare_left, compare_right)
+        correct = symbol or ""
+        if compare_left and compare_right:
+            if symbol:
+                st.success(f"Correct comparison: {compare_left} {symbol} {compare_right}")
+            else:
+                st.warning("Both comparison values must be valid numbers, decimals, fractions, or mixed numbers.")
+        st.caption("Students tap <, =, or >. The correct symbol is calculated automatically using exact math.")
+
+    elif qtype == ORDER_QUESTION_TYPE:
+        raw_items = st.text_area(
+            "Number tiles — one per line",
+            value="\n".join(str(item) for item in (existing.get("order_items") or [])),
+            key=f"{prefix}_order_items_{slot}",
+            height=120,
+            placeholder="0.45\n0.405\n0.54\n0.5",
+            help="Use 3–6 whole numbers, decimals, fractions, or mixed numbers. Students will drag these tiles into order.",
+        )
+        order_items = _lines(raw_items)
+        existing_direction = str(existing.get("order_direction") or ORDER_DIRECTIONS[0])
+        if existing_direction not in ORDER_DIRECTIONS:
+            existing_direction = ORDER_DIRECTIONS[0]
+        order_direction = st.selectbox(
+            "Order direction",
+            ORDER_DIRECTIONS,
+            index=ORDER_DIRECTIONS.index(existing_direction),
+            key=f"{prefix}_order_direction_{slot}",
+        )
+        try:
+            canonical = sorted_order_items(order_items, order_direction)
+            correct = pack_order_response(canonical)
+            st.success(f"Correct order: {order_display(canonical, order_direction)}")
+        except ValueError as exc:
+            correct = ""
+            if order_items:
+                st.warning(str(exc))
+        st.caption("Students get touch-friendly draggable tiles. Equivalent values may appear next to each other in either order.")
+
+    else:
+        correct_caption = "Correct answer — Part 1" if qtype == "Multi-Part — 2 answers" else "Correct answer"
+        correct = st.text_input(
+            correct_caption,
+            value=str(existing.get("correct_answer") or ""),
+            key=f"{prefix}_correct_{slot}",
+            help=(
+                "Equivalent numerical values are graded mathematically. Example: 3 and 3.0 match; 3/4 and 6/8 match."
+                if qtype in {"Number", "Fraction", "Number + Label"} else None
+            ),
+        )
 
     correct_two = ""
     if qtype == "Multi-Part — 2 answers":
@@ -81,7 +160,7 @@ def render_answer_editor(
         st.caption("The question counts correct only when both the numerical answer and label are correct.")
 
     alternates = ""
-    if qtype != "Multiple choice":
+    if qtype not in {"Multiple choice", COMPARE_QUESTION_TYPE, ORDER_QUESTION_TYPE}:
         alternates = st.text_area(
             "Accepted alternate answers — optional, one per line",
             value="\n".join(str(item) for item in (existing.get("accepted_answers") or [])),
@@ -164,6 +243,10 @@ def render_answer_editor(
         "options": _lines(options),
         "label_options": _lines(labels),
         "correct_label": correct_label,
+        "compare_left": compare_left,
+        "compare_right": compare_right,
+        "order_items": order_items,
+        "order_direction": order_direction,
         "image_path": existing_image_path,
         "image_alt": image_alt,
         "bank_image_path": bank_image_path,

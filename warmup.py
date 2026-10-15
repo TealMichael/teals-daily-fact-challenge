@@ -6,10 +6,19 @@ import re
 from typing import Mapping, Sequence
 
 from curriculum_question_types import (
+    COMPARE_QUESTION_TYPE,
+    ORDER_QUESTION_TYPE,
+    comparison_answer_matches,
+    comparison_symbol,
     clean_text,
     numeric_answers_match,
     numeric_value,
+    order_response_matches,
+    pack_order_response,
+    sorted_order_items,
     text_answers_match,
+    unpack_order_response,
+    validate_order_items,
 )
 
 WARMUP_SLOTS = (
@@ -22,6 +31,8 @@ QUESTION_TYPES = (
     "Fraction",
     "Multiple choice",
     "Number + Label",
+    COMPARE_QUESTION_TYPE,
+    ORDER_QUESTION_TYPE,
     "Expanded Form",
     "Equivalent Number",
     "Multi-Part — 2 answers",
@@ -107,6 +118,9 @@ def display_student_response(value: str, question_type: str) -> str:
     if qtype == "Number + Label":
         first, second = unpack_multi_part_response(value)
         return f"Number: {first} · Label: {second}"
+    if qtype == ORDER_QUESTION_TYPE:
+        ordered = unpack_order_response(value)
+        return " → ".join(ordered) if ordered else str(value or "")
     return str(value or "")
 
 
@@ -118,6 +132,14 @@ def grade_question(question: Mapping, student_answer: str, student_answer_two: s
         return expanded_form_matches(student_answer, correct)
     if qtype == "Multiple choice":
         return text_answers_match(student_answer, correct, alternates)
+    if qtype == COMPARE_QUESTION_TYPE:
+        return comparison_answer_matches(
+            student_answer, question.get("compare_left") or "", question.get("compare_right") or ""
+        )
+    if qtype == ORDER_QUESTION_TYPE:
+        return order_response_matches(
+            student_answer, question.get("order_items") or (), question.get("order_direction") or ""
+        )
     if qtype in {"Number", "Fraction"}:
         return numeric_answers_match(student_answer, correct, alternates)
     if qtype == "Number + Label":
@@ -170,6 +192,10 @@ def prepare_question(
     bank_image_path: str = "",
     bank_image_alt: str = "",
     bank_question_id: str = "",
+    compare_left: str = "",
+    compare_right: str = "",
+    order_items: Sequence[str] = (),
+    order_direction: str = "",
 ) -> dict:
     slot = int(slot)
     if slot not in (1, 2):
@@ -181,7 +207,19 @@ def prepare_question(
     if qtype not in QUESTION_TYPES:
         raise ValueError("Choose a supported Igniter answer type.")
     correct = str(correct_answer or "").strip()
-    if not correct:
+    compare_left = str(compare_left or "").strip()
+    compare_right = str(compare_right or "").strip()
+    cleaned_order_items = [str(value or "").strip() for value in order_items if str(value or "").strip()]
+    order_direction = str(order_direction or "").strip()
+    if qtype == COMPARE_QUESTION_TYPE:
+        symbol = comparison_symbol(compare_left, compare_right)
+        if symbol is None:
+            raise ValueError("Compare Values questions need valid left and right numbers.")
+        correct = symbol
+    elif qtype == ORDER_QUESTION_TYPE:
+        cleaned_order_items = validate_order_items(cleaned_order_items)
+        correct = pack_order_response(sorted_order_items(cleaned_order_items, order_direction))
+    elif not correct:
         raise ValueError("Each Warm-Up question needs a correct answer.")
     correct_two = str(correct_answer_two or "").strip()
     if qtype == "Multi-Part — 2 answers" and not correct_two:
@@ -241,6 +279,10 @@ def prepare_question(
         "options": cleaned_options,
         "label_options": cleaned_labels,
         "correct_label": correct_label,
+        "compare_left": compare_left if qtype == COMPARE_QUESTION_TYPE else "",
+        "compare_right": compare_right if qtype == COMPARE_QUESTION_TYPE else "",
+        "order_items": cleaned_order_items if qtype == ORDER_QUESTION_TYPE else [],
+        "order_direction": order_direction if qtype == ORDER_QUESTION_TYPE else "",
         "standard_code": standard,
         "standard_description": str(standard_description or "").strip(),
         "image_path": str(image_path or "").strip(),
@@ -271,6 +313,10 @@ def question_from_mapping(value: Mapping | None, slot: int) -> dict:
         bank_image_path=value.get("bank_image_path", ""),
         bank_image_alt=value.get("bank_image_alt", "Built-in question diagram"),
         bank_question_id=value.get("bank_question_id", ""),
+        compare_left=value.get("compare_left", ""),
+        compare_right=value.get("compare_right", ""),
+        order_items=value.get("order_items") or (),
+        order_direction=value.get("order_direction", ""),
     )
 
 

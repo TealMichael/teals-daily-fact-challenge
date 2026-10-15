@@ -15,6 +15,15 @@ import streamlit as st
 from supabase_fact_store import SupabaseFactStore
 from question_images import signed_question_image_url
 from indiana_question_bank import resolve_bank_image_path
+from curriculum_question_types import (
+    COMPARE_QUESTION_TYPE,
+    COMPARISON_SYMBOLS,
+    ORDER_QUESTION_TYPE,
+    deterministic_start_order,
+    pack_order_response,
+    unpack_order_response,
+)
+from interactive_math_questions import render_order_tiles
 from weekly_quiz import (
     QUIZ_QUESTION_COUNT,
     grade_quiz_response,
@@ -134,6 +143,28 @@ def render_friday_quiz(store: SupabaseFactStore, day: date) -> str:
     form_key = f"weekly_quiz_answer_{quiz.quiz_id}_{student_id}_{slot}"
     response = ""
     label = ""
+    order_response = ""
+    if qtype == ORDER_QUESTION_TYPE:
+        order_items = [str(item) for item in (question.get("order_items") or [])]
+        direction = str(question.get("order_direction") or "Least to greatest")
+        saved_order = unpack_order_response(saved_answer)
+        try:
+            initial_order = saved_order or deterministic_start_order(
+                order_items,
+                seed=f"{student_id}:{quiz.quiz_id}:{slot}",
+                direction=direction,
+            )
+        except ValueError:
+            initial_order = saved_order or order_items
+        st.caption(f"Drag the tiles from {direction.lower()}.")
+        current_order = render_order_tiles(
+            order_items,
+            initial_order=initial_order,
+            key=f"quiz_order_tiles::{quiz.quiz_id}::{student_id}::{slot}",
+            instruction=f"Order from {direction.lower()}.",
+        )
+        order_response = pack_order_response(current_order)
+
     with st.form(form_key, clear_on_submit=False):
         if qtype == "Multiple choice":
             options = [str(item) for item in (question.get("options") or [])]
@@ -141,6 +172,23 @@ def render_friday_quiz(store: SupabaseFactStore, day: date) -> str:
             if choice_key not in st.session_state and saved_answer in options:
                 st.session_state[choice_key] = saved_answer
             response = st.radio("Choose your answer", options, index=None, key=choice_key) if options else ""
+        elif qtype == COMPARE_QUESTION_TYPE:
+            compare_left = str(question.get("compare_left") or "")
+            compare_right = str(question.get("compare_right") or "")
+            compare_key = f"quiz_compare_{quiz.quiz_id}_{slot}"
+            if compare_key not in st.session_state and saved_answer in COMPARISON_SYMBOLS:
+                st.session_state[compare_key] = saved_answer
+            st.markdown(
+                f"<div style='text-align:center;font-size:1.55rem;font-weight:750;margin:0.2rem 0 0.45rem 0;'>"
+                f"{html.escape(compare_left)} &nbsp;&nbsp; ? &nbsp;&nbsp; {html.escape(compare_right)}</div>",
+                unsafe_allow_html=True,
+            )
+            response = st.radio(
+                "Choose the symbol", list(COMPARISON_SYMBOLS), index=None, horizontal=True, key=compare_key,
+            )
+        elif qtype == ORDER_QUESTION_TYPE:
+            response = order_response
+            st.caption("When the tiles are in the order you want, save and continue.")
         elif qtype == "Number + Label":
             left, right = st.columns([1.15, 1])
             number_key = f"quiz_number_{quiz.quiz_id}_{slot}"

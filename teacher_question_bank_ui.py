@@ -133,6 +133,17 @@ def _render_teacher_answer(question: dict) -> None:
     answer = str(question.get("correct_answer") or "")
     if qtype == "Number + Label":
         answer = f"{answer} {question.get('correct_label') or ''}".strip()
+    elif qtype == "Compare Values":
+        answer = f"{question.get('compare_left', '')} {answer} {question.get('compare_right', '')}".strip()
+    elif qtype == "Order Tiles":
+        from curriculum_question_types import order_display, sorted_order_items
+        try:
+            answer = order_display(
+                sorted_order_items(question.get("order_items") or (), question.get("order_direction") or ""),
+                question.get("order_direction") or "",
+            )
+        except ValueError:
+            answer = "Invalid order question"
     st.markdown(f"**Answer:** {answer}")
     alternates = list(question.get("accepted_answers") or ())
     if alternates:
@@ -157,6 +168,11 @@ def _render_question(question: dict) -> None:
             st.write(f"{letter}. {option}")
     elif qtype == "Number + Label":
         st.caption("Unit choices: " + " · ".join(str(item) for item in (question.get("label_options") or ())))
+    elif qtype == "Compare Values":
+        st.write(f"{question.get('compare_left', '')}   [ <  =  > ]   {question.get('compare_right', '')}")
+    elif qtype == "Order Tiles":
+        st.caption(f"Drag tiles · {question.get('order_direction', 'Least to greatest')}")
+        st.write(" · ".join(str(item) for item in (question.get("order_items") or ())))
 
     with st.expander("Teacher answer", expanded=False):
         _render_teacher_answer(question)

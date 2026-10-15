@@ -9,7 +9,7 @@ ROOT = Path(__file__).resolve().parent
 
 
 def test_release_version():
-    assert APP_VERSION == "2.23.0"
+    assert APP_VERSION == "2.24.1"
 
 
 def test_inline_picker_is_available_in_both_builders():

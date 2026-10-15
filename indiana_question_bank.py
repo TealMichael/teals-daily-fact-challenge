@@ -17,7 +17,7 @@ from indiana_math_standards import BY_CODE
 
 BANK_FILE = Path(__file__).with_name("indiana_question_bank.json")
 BANK_ASSET_DIR = Path(__file__).with_name("question_bank_assets")
-SUPPORTED_BANK_TYPES = frozenset({"Number", "Fraction", "Multiple choice", "Number + Label"})
+SUPPORTED_BANK_TYPES = frozenset({"Number", "Fraction", "Multiple choice", "Number + Label", "Compare Values", "Order Tiles"})
 BANK_GRADES = (5, 6, 7)
 QUESTIONS_PER_STANDARD = 10
 EXPECTED_STANDARD_COUNT = 75
@@ -114,6 +114,10 @@ def editor_question(question: Mapping) -> dict:
         "options": list(row.get("options") or ()),
         "label_options": list(row.get("label_options") or ()),
         "correct_label": str(row.get("correct_label") or ""),
+        "compare_left": str(row.get("compare_left") or ""),
+        "compare_right": str(row.get("compare_right") or ""),
+        "order_items": list(row.get("order_items") or ()),
+        "order_direction": str(row.get("order_direction") or ""),
         "standard_code": str(row.get("standard_code") or ""),
         "standard_description": str(row.get("standard_description") or ""),
         "image_path": "",  # temporary teacher uploads remain separate
@@ -136,6 +140,10 @@ def seed_editor_state(session_state, *, prefix: str, slot: int, question: Mappin
         f"{prefix}_options_{slot}": "\n".join(values["options"]),
         f"{prefix}_labels_{slot}": "\n".join(values["label_options"]),
         f"{prefix}_correct_label_{slot}": values["correct_label"],
+        f"{prefix}_compare_left_{slot}": values["compare_left"],
+        f"{prefix}_compare_right_{slot}": values["compare_right"],
+        f"{prefix}_order_items_{slot}": "\n".join(values["order_items"]),
+        f"{prefix}_order_direction_{slot}": values["order_direction"] or "Least to greatest",
         f"{prefix}_alternates_{slot}": "\n".join(values["accepted_answers"]),
         f"{prefix}_alternates_two_{slot}": "",
         f"{prefix}_image_alt_{slot}": values["image_alt"],

@@ -2,21 +2,31 @@ from __future__ import annotations
 
 """Shared grading primitives for curriculum questions.
 
-Igniter and Quiz of the Week intentionally share these exact comparison rules
-for Number, Fraction, Multiple choice, and Number + Label questions. Keeping
-these helpers in one module prevents the two teacher/student workflows from
-quietly drifting apart again.
+Igniter, Quiz of the Week, and Monday Recovery intentionally share these exact
+comparison rules. Keeping the helpers in one module prevents the student flows
+from quietly drifting apart when a new curriculum interaction is added.
 """
 
+from collections import Counter
 from fractions import Fraction
+import hashlib
+import json
+import random
 import re
 from typing import Sequence
+
+COMPARE_QUESTION_TYPE = "Compare Values"
+ORDER_QUESTION_TYPE = "Order Tiles"
+COMPARISON_SYMBOLS = ("<", "=", ">")
+ORDER_DIRECTIONS = ("Least to greatest", "Greatest to least")
 
 COMMON_QUESTION_TYPES = (
     "Number",
     "Fraction",
     "Multiple choice",
     "Number + Label",
+    COMPARE_QUESTION_TYPE,
+    ORDER_QUESTION_TYPE,
 )
 
 
@@ -82,3 +92,113 @@ def clean_alternate_lines(values: Sequence[str], *, primary: str = "") -> list[s
             result.append(value)
             seen.add(key)
     return result
+
+
+def comparison_symbol(left: str, right: str) -> str | None:
+    """Return <, =, or > using exact rational arithmetic."""
+    left_value = numeric_value(left)
+    right_value = numeric_value(right)
+    if left_value is None or right_value is None:
+        return None
+    if left_value < right_value:
+        return "<"
+    if left_value > right_value:
+        return ">"
+    return "="
+
+
+def comparison_answer_matches(student_answer: str, left: str, right: str) -> bool:
+    correct = comparison_symbol(left, right)
+    return correct is not None and str(student_answer or "").strip() == correct
+
+
+def normalize_order_direction(value: str) -> str:
+    text = clean_text(value)
+    if text in {"least to greatest", "ascending", "least", "low to high"}:
+        return "Least to greatest"
+    if text in {"greatest to least", "descending", "greatest", "high to low"}:
+        return "Greatest to least"
+    return ""
+
+
+def validate_order_items(values: Sequence[str]) -> list[str]:
+    """Return cleaned 3–6 numeric tiles or raise ValueError."""
+    items = [str(value or "").strip() for value in values if str(value or "").strip()]
+    if not 3 <= len(items) <= 6:
+        raise ValueError("Order Tiles questions need 3 to 6 number tiles.")
+    if len(set(items)) != len(items):
+        raise ValueError("Order Tiles should use distinct tile labels. Equivalent values such as 0.5 and 0.50 are okay.")
+    parsed = [numeric_value(item) for item in items]
+    if any(value is None for value in parsed):
+        raise ValueError("Every Order Tile must be a valid whole number, decimal, fraction, or mixed number.")
+    if len(set(parsed)) < 2:
+        raise ValueError("Order Tiles needs at least two different numerical values.")
+    return items
+
+
+def sorted_order_items(values: Sequence[str], direction: str) -> list[str]:
+    items = validate_order_items(values)
+    normalized = normalize_order_direction(direction)
+    if not normalized:
+        raise ValueError("Choose least to greatest or greatest to least.")
+    reverse = normalized == "Greatest to least"
+    # Python's sort is stable, so numerically equivalent tiles retain teacher
+    # order in the canonical answer while grading accepts either equivalent order.
+    return sorted(items, key=lambda item: numeric_value(item), reverse=reverse)
+
+
+def pack_order_response(values: Sequence[str]) -> str:
+    return json.dumps([str(value or "").strip() for value in values], ensure_ascii=False, separators=(",", ":"))
+
+
+def unpack_order_response(value: str) -> list[str]:
+    try:
+        parsed = json.loads(str(value or ""))
+        if isinstance(parsed, list):
+            return [str(item or "").strip() for item in parsed]
+    except Exception:
+        pass
+    return []
+
+
+def order_response_matches(student_answer: str, expected_items: Sequence[str], direction: str) -> bool:
+    try:
+        expected = validate_order_items(expected_items)
+    except ValueError:
+        return False
+    submitted = unpack_order_response(student_answer)
+    if len(submitted) != len(expected):
+        return False
+    if Counter(clean_text(item) for item in submitted) != Counter(clean_text(item) for item in expected):
+        return False
+    values = [numeric_value(item) for item in submitted]
+    if any(value is None for value in values):
+        return False
+    normalized = normalize_order_direction(direction)
+    if normalized == "Least to greatest":
+        return all(values[index] <= values[index + 1] for index in range(len(values) - 1))
+    if normalized == "Greatest to least":
+        return all(values[index] >= values[index + 1] for index in range(len(values) - 1))
+    return False
+
+
+def deterministic_start_order(values: Sequence[str], *, seed: str, direction: str) -> list[str]:
+    """Create a stable shuffled starting order for one student/question.
+
+    A student's tiles stay in the same initial arrangement across reruns. When
+    possible, the starting arrangement is deliberately not already correct.
+    """
+    items = validate_order_items(values)
+    digest = hashlib.sha256(str(seed or "").encode("utf-8")).digest()
+    rng = random.Random(int.from_bytes(digest[:8], "big"))
+    shuffled = list(items)
+    rng.shuffle(shuffled)
+    if order_response_matches(pack_order_response(shuffled), items, direction) and len(shuffled) > 1:
+        shuffled = shuffled[1:] + shuffled[:1]
+    return shuffled
+
+
+def order_display(values: Sequence[str], direction: str) -> str:
+    normalized = normalize_order_direction(direction)
+    arrow = " ≤ " if normalized == "Least to greatest" else " ≥ "
+    return arrow.join(str(value) for value in values)

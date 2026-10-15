@@ -9,6 +9,14 @@ import re
 import streamlit as st
 
 from indiana_question_bank import resolve_bank_image_path
+from curriculum_question_types import (
+    COMPARE_QUESTION_TYPE,
+    COMPARISON_SYMBOLS,
+    ORDER_QUESTION_TYPE,
+    deterministic_start_order,
+    pack_order_response,
+)
+from interactive_math_questions import render_order_tiles
 from standards_recovery import build_recovery_plan, previous_friday_for_recovery
 from weekly_quiz import grade_quiz_response, pack_response
 
@@ -92,10 +100,45 @@ def render_monday_recovery(store, day: date) -> str:
     label = ""
     bank_id = str(current.get("bank_question_id") or "")
     form_key = f"standards_recovery_{quiz.quiz_id}_{student_id}_{standard_code}_{bank_id}"
+    order_response = ""
+    if qtype == ORDER_QUESTION_TYPE:
+        order_items = [str(item) for item in (question.get("order_items") or [])]
+        direction = str(question.get("order_direction") or "Least to greatest")
+        try:
+            initial_order = deterministic_start_order(
+                order_items,
+                seed=f"{student_id}:{quiz.quiz_id}:{standard_code}:{bank_id}",
+                direction=direction,
+            )
+        except ValueError:
+            initial_order = order_items
+        st.caption(f"Drag the tiles from {direction.lower()}.")
+        current_order = render_order_tiles(
+            order_items,
+            initial_order=initial_order,
+            key=f"recovery_order_tiles::{quiz.quiz_id}::{student_id}::{standard_code}::{bank_id}",
+            instruction=f"Order from {direction.lower()}.",
+        )
+        order_response = pack_order_response(current_order)
+
     with st.form(form_key, clear_on_submit=False):
         if qtype == "Multiple choice":
             options = [str(item) for item in (question.get("options") or [])]
             response = st.radio("Choose your answer", options, index=None, key=f"{form_key}_choice") if options else ""
+        elif qtype == COMPARE_QUESTION_TYPE:
+            compare_left = str(question.get("compare_left") or "")
+            compare_right = str(question.get("compare_right") or "")
+            st.markdown(
+                f"<div style='text-align:center;font-size:1.55rem;font-weight:750;margin:0.2rem 0 0.45rem 0;'>"
+                f"{html.escape(compare_left)} &nbsp;&nbsp; ? &nbsp;&nbsp; {html.escape(compare_right)}</div>",
+                unsafe_allow_html=True,
+            )
+            response = st.radio(
+                "Choose the symbol", list(COMPARISON_SYMBOLS), index=None, horizontal=True, key=f"{form_key}_compare",
+            )
+        elif qtype == ORDER_QUESTION_TYPE:
+            response = order_response
+            st.caption("When the tiles are in the order you want, save Recovery.")
         elif qtype == "Number + Label":
             left, right = st.columns([1.15, 1])
             with left:

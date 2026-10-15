@@ -65,6 +65,10 @@ def _blank_question(slot: int) -> dict:
         "options": [],
         "label_options": [],
         "correct_label": "",
+        "compare_left": "",
+        "compare_right": "",
+        "order_items": [],
+        "order_direction": "",
         "standard_code": "",
         "standard_description": "",
     }
@@ -242,6 +246,10 @@ def _render_builder(store: SupabaseFactStore, classes) -> None:
                     bank_image_path=item.get("bank_image_path") or "",
                     bank_image_alt=item.get("bank_image_alt") or "Built-in question diagram",
                     bank_question_id=item.get("bank_question_id") or "",
+                    compare_left=item.get("compare_left") or "",
+                    compare_right=item.get("compare_right") or "",
+                    order_items=item.get("order_items") or (),
+                    order_direction=item.get("order_direction") or "",
                 )
                 for index, item in enumerate(image_ready, start=1)
             ]
@@ -284,10 +292,16 @@ def _render_builder(store: SupabaseFactStore, classes) -> None:
                 if str(question.get("standard_code") or "").strip():
                     st.caption(f"Indiana standard: {question.get('standard_code')}")
                 st.caption(str(question.get("question_type") or "Number"))
-                if str(question.get("question_type")) == "Multiple choice":
+                qtype = str(question.get("question_type") or "")
+                if qtype == "Multiple choice":
                     st.write(" · ".join(str(item) for item in (question.get("options") or [])))
-                elif str(question.get("question_type")) == "Number + Label":
+                elif qtype == "Number + Label":
                     st.write("Label choices: " + " · ".join(str(item) for item in (question.get("label_options") or [])))
+                elif qtype == "Compare Values":
+                    st.write(f"{question.get('compare_left', '')}   [ <  =  > ]   {question.get('compare_right', '')}")
+                elif qtype == "Order Tiles":
+                    st.caption(f"Drag tiles · {question.get('order_direction', 'Least to greatest')}")
+                    st.write(" · ".join(str(item) for item in (question.get("order_items") or [])))
             st.caption("This preview never records an answer.")
         if locked:
             st.info("🔒 This class's quiz is locked because at least one real student has started it.")

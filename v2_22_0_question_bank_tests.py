@@ -5,7 +5,12 @@ from __future__ import annotations
 from collections import Counter
 from pathlib import Path
 
-from curriculum_question_types import numeric_value
+from curriculum_question_types import (
+    comparison_symbol,
+    numeric_value,
+    pack_order_response,
+    sorted_order_items,
+)
 from fact_engine import APP_VERSION
 from indiana_math_standards import BY_CODE, ESSENTIAL_CODES, STANDARDS
 from indiana_question_bank import (
@@ -30,7 +35,7 @@ def check(name: str, condition: bool):
     checks.append(name)
 
 rows = all_questions()
-check("current version", APP_VERSION == "2.23.0")
+check("current version", APP_VERSION == "2.24.1")
 check("750 questions", len(rows) == EXPECTED_QUESTION_COUNT == 750)
 check("unique ids", len({row["id"] for row in rows}) == 750)
 
@@ -67,6 +72,12 @@ for row in rows:
         labels = list(row.get("label_options") or ())
         check(f"{qid} label choices", len(labels) >= 2)
         check(f"{qid} correct label present", row["correct_label"] in labels)
+    if qtype == "Compare Values":
+        check(f"{qid} comparison values", bool(row.get("compare_left")) and bool(row.get("compare_right")))
+        check(f"{qid} comparison answer", row["correct_answer"] == comparison_symbol(row["compare_left"], row["compare_right"]))
+    if qtype == "Order Tiles":
+        ordered = sorted_order_items(row.get("order_items") or (), row.get("order_direction") or "")
+        check(f"{qid} order answer", row["correct_answer"] == pack_order_response(ordered))
     bank_image = str(row.get("bank_image_path") or "")
     if bank_image:
         check(f"{qid} bank image exists", bool(resolve_bank_image_path(bank_image)))
@@ -76,6 +87,8 @@ for row in rows:
 by_id = {row["id"]: row for row in rows}
 check("whole-number division sentinel", by_id["5.CA.1-Q03"]["correct_answer"] == "40")
 check("grade 5 comparison sentinel", by_id["5.NS.1-Q04"]["correct_answer"] == "6/5")
+check("interactive decimal compare sentinel", by_id["5.NS.1-Q05"]["question_type"] == "Compare Values" and by_id["5.NS.1-Q05"]["correct_answer"] == "<")
+check("interactive decimal order sentinel", by_id["5.NS.1-Q02"]["question_type"] == "Order Tiles" and by_id["5.NS.1-Q02"]["order_direction"] == "Least to greatest")
 check("marathon conversion sentinel", by_id["6.GM.1-Q10"]["correct_answer"] == "42.16" and "nearest hundredth" in by_id["6.GM.1-Q10"]["prompt"])
 check("equation context sentinel", "game costs $6 less than a book" in by_id["6.AF.3-Q09"]["prompt"] and by_id["6.AF.3-Q09"]["correct_answer"] == "28")
 check("negative slope sentinel", by_id["7.AF.6-Q07"]["options"].count("Down 3 and right 4") == 1)
@@ -108,6 +121,10 @@ for code in counts:
             bank_image_path=row.get("bank_image_path") or "",
             bank_image_alt=row.get("bank_image_alt") or "",
             bank_question_id=row["id"],
+            compare_left=row.get("compare_left") or "",
+            compare_right=row.get("compare_right") or "",
+            order_items=row.get("order_items") or (),
+            order_direction=row.get("order_direction") or "",
         )
         quiz = prepare_quiz_question(
             slot=1,
@@ -121,6 +138,10 @@ for code in counts:
             bank_image_path=row.get("bank_image_path") or "",
             bank_image_alt=row.get("bank_image_alt") or "",
             bank_question_id=row["id"],
+            compare_left=row.get("compare_left") or "",
+            compare_right=row.get("compare_right") or "",
+            order_items=row.get("order_items") or (),
+            order_direction=row.get("order_direction") or "",
         )
         check(f"{row['id']} warmup bank id preserved", warmup.get("bank_question_id") == row["id"])
         check(f"{row['id']} quiz bank id preserved", quiz.get("bank_question_id") == row["id"])

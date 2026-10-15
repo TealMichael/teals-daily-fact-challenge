@@ -16,11 +16,19 @@ from indiana_math_standards import BY_CODE as INDIANA_STANDARD_BY_CODE
 
 from curriculum_question_types import (
     COMMON_QUESTION_TYPES,
+    COMPARE_QUESTION_TYPE,
+    ORDER_QUESTION_TYPE,
     clean_alternate_lines,
     clean_text,
+    comparison_answer_matches,
+    comparison_symbol,
     numeric_answers_match,
     numeric_value,
+    order_response_matches,
+    pack_order_response,
+    sorted_order_items,
     text_answers_match,
+    validate_order_items,
 )
 
 QUIZ_QUESTION_COUNT = 5
@@ -54,6 +62,10 @@ def prepare_quiz_question(
     bank_image_path: str = "",
     bank_image_alt: str = "",
     bank_question_id: str = "",
+    compare_left: str = "",
+    compare_right: str = "",
+    order_items: Sequence[str] = (),
+    order_direction: str = "",
 ) -> dict:
     slot = int(slot)
     if not 1 <= slot <= QUIZ_QUESTION_COUNT:
@@ -65,7 +77,19 @@ def prepare_quiz_question(
     if qtype not in QUIZ_QUESTION_TYPES:
         raise ValueError(f"Question {slot} has an unsupported answer type.")
     correct = str(correct_answer or "").strip()
-    if not correct:
+    compare_left = str(compare_left or "").strip()
+    compare_right = str(compare_right or "").strip()
+    cleaned_order_items = [str(value or "").strip() for value in order_items if str(value or "").strip()]
+    order_direction = str(order_direction or "").strip()
+    if qtype == COMPARE_QUESTION_TYPE:
+        symbol = comparison_symbol(compare_left, compare_right)
+        if symbol is None:
+            raise ValueError(f"Question {slot}'s Compare Values inputs must both be valid numbers.")
+        correct = symbol
+    elif qtype == ORDER_QUESTION_TYPE:
+        cleaned_order_items = validate_order_items(cleaned_order_items)
+        correct = pack_order_response(sorted_order_items(cleaned_order_items, order_direction))
+    elif not correct:
         raise ValueError(f"Question {slot} needs a correct answer.")
 
     standard = str(standard_code or "").strip()
@@ -108,6 +132,10 @@ def prepare_quiz_question(
         "options": cleaned_options,
         "label_options": cleaned_labels,
         "correct_label": label,
+        "compare_left": compare_left if qtype == COMPARE_QUESTION_TYPE else "",
+        "compare_right": compare_right if qtype == COMPARE_QUESTION_TYPE else "",
+        "order_items": cleaned_order_items if qtype == ORDER_QUESTION_TYPE else [],
+        "order_direction": order_direction if qtype == ORDER_QUESTION_TYPE else "",
         "standard_code": standard,
         "standard_description": description,
         "image_path": str(image_path or "").strip(),
@@ -140,6 +168,10 @@ def validate_quiz_questions(questions: Sequence[Mapping]) -> tuple[dict, ...]:
             bank_image_path=raw.get("bank_image_path", ""),
             bank_image_alt=raw.get("bank_image_alt", "Built-in question diagram"),
             bank_question_id=raw.get("bank_question_id", ""),
+            compare_left=raw.get("compare_left", ""),
+            compare_right=raw.get("compare_right", ""),
+            order_items=raw.get("order_items") or (),
+            order_direction=raw.get("order_direction", ""),
         ))
     return tuple(prepared)
 
@@ -159,6 +191,16 @@ def grade_quiz_response(question: Mapping, student_answer: str, student_label: s
 
     if qtype == "Multiple choice":
         number_correct = text_answers_match(student_answer, correct_answer, alternates)
+        label_correct = True
+    elif qtype == COMPARE_QUESTION_TYPE:
+        number_correct = comparison_answer_matches(
+            student_answer, question.get("compare_left") or "", question.get("compare_right") or ""
+        )
+        label_correct = True
+    elif qtype == ORDER_QUESTION_TYPE:
+        number_correct = order_response_matches(
+            student_answer, question.get("order_items") or (), question.get("order_direction") or ""
+        )
         label_correct = True
     else:
         number_correct = numeric_answers_match(student_answer, correct_answer, alternates)

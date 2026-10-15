@@ -78,6 +78,11 @@ def _render_warmup_student_preview(store, warmup) -> None:
         elif qtype == "Number + Label":
             labels = list(question.get("label_options") or [])
             st.caption("Students enter a number and choose a label / unit." + (f" Choices: {' · '.join(str(x) for x in labels)}" if labels else ""))
+        elif qtype == "Compare Values":
+            st.write(f"{question.get('compare_left', '')}   [ <  =  > ]   {question.get('compare_right', '')}")
+        elif qtype == "Order Tiles":
+            st.caption(f"Students drag tiles · {question.get('order_direction', 'Least to greatest')}")
+            st.write(" · ".join(str(item) for item in (question.get("order_items") or [])))
 
 
 

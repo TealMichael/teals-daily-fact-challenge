@@ -1,1 +1,1 @@
-v2.23.0 - add Monday Standards Recovery and mastery evidence
+v2.24.1 - fix Igniter Compare Values and Order Tiles picker

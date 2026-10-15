@@ -18,7 +18,7 @@ def check(name, condition):
     assert condition, name
     checks.append(name)
 
-check("current version", APP_VERSION == "2.23.0")
+check("current version", APP_VERSION == "2.24.1")
 check("7-day retention", RETENTION_DAYS == 7)
 
 q = prepare_quiz_question(

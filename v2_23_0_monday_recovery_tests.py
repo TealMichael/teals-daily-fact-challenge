@@ -36,6 +36,10 @@ def bank_prepared(question_id: str, slot: int):
         bank_image_path=q.get("bank_image_path") or "",
         bank_image_alt=q.get("bank_image_alt") or "",
         bank_question_id=q.get("bank_question_id") or "",
+        compare_left=q.get("compare_left") or "",
+        compare_right=q.get("compare_right") or "",
+        order_items=q.get("order_items") or (),
+        order_direction=q.get("order_direction") or "",
     )
 
 
@@ -69,7 +73,7 @@ def save_quiz_answers(store, klass, student, friday, quiz, correct_flags):
 
 
 def test_release_and_route_contract():
-    assert APP_VERSION == "2.23.0"
+    assert APP_VERSION == "2.24.1"
     source = (ROOT / "app.py").read_text(encoding="utf-8")
     assert source.index("render_quick_warmup(store, day)") < source.index("render_monday_recovery(store, day)")
     assert source.index("render_monday_recovery(store, day)") < source.index("load_student_daily_context(store)")

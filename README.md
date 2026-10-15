@@ -1,26 +1,15 @@
-# Teal's Daily Fact Challenge v2.23.0 — Monday Standards Recovery
+# Teal's Daily Fact Challenge v2.24.1 — Igniter Answer-Type Hotfix
 
-This cumulative release is built directly from the working v2.22.2 FULL CURRENT APP.
+This is a focused hotfix on top of v2.24.0 Interactive Math Questions.
 
-## New in v2.23.0
-- Quiz of the Week questions can be tagged to a Grade 5, 6, or 7 Indiana Math standard.
-- Built-in Question Bank questions automatically tag their standard when loaded into the Quiz builder.
-- Monday student flow becomes: **Igniter → Monday Recovery (when needed) → Daily 10**.
-- Recovery uses the prior Friday Quiz, gives one new bank question per distinct missed tagged standard, and caps the session at 3 questions.
-- Multiple missed Friday questions on one standard still create only one Recovery item.
-- The exact built-in bank question(s) seen Friday are excluded from Monday Recovery.
-- Recovery answers feed the Teacher Standards Mastery Tracker as another evidence source.
-- Standards Tracker now combines **Igniter + Quiz of the Week + Recovery** evidence.
-- A single correct Recovery answer cannot by itself make a standard Proficient or Strong.
-- Recovery is supplemental/fail-open so it cannot strand students before Daily 10.
+## Fix
+The Igniter/Warm-Up Answer type menu must include:
+- Compare Values
+- Order Tiles
 
-## Required Supabase step
-Run `RUN_THIS_ONCE_IN_SUPABASE_v2_23.sql` once before deploying the app files. It adds the private `standard_recovery_answers` table and indexes.
+A classroom screenshot showed the old pre-v2.24 menu sequence, proving the deployed `warmup.py` was still stale. This package re-ships the complete interactive-math file set and adds a defensive fallback in the shared teacher answer editor.
 
-No Secrets changes are required.
+Expected menu order:
+`Short answer` → `Number` → `Fraction` → `Multiple choice` → `Number + Label` → `Compare Values` → `Order Tiles` → `Expanded Form` → `Equivalent Number` → `Multi-Part — 2 answers`
 
-## Privacy
-The Recovery table stores only existing anonymous app UUIDs and standards/question evidence. No student names, Skyward IDs, emails, or roster files are stored.
-
-## Unchanged
-Daily 10, Fix Your Misses, Focus Practice, teaching models, Weekly Mystery, Top 10, Perfect Score Club, AWTRIX, login/session behavior, Quiz navigation, temporary image cleanup, anonymous Skyward export, and local-only bridge workbooks remain unchanged.
+No new Supabase SQL or Secrets changes are required.
