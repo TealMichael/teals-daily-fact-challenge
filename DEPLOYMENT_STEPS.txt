@@ -1,11 +1,8 @@
-Teal's Daily Fact Challenge v2.24.4 — Order Tiles Repeat-Interaction Hotfix
+Teal's Daily Fact Challenge v2.24.5
 
-1. Open the v2.24.4 update package.
-2. Upload the contents of UPLOAD_TO_GITHUB to the ROOT of the normal teals-daily-fact-challenge GitHub repository, replacing matching files.
-3. Commit with:
-   v2.24.4 - fix repeated Order Tiles interactions
-4. Let Streamlit redeploy.
-5. Confirm the footer shows v2.24.4.
-6. Test an Order Tiles question by dragging twice in a row, then selecting a tile and using Move twice in a row.
-
-No new Supabase SQL or Secrets changes are required.
+1. Open this package.
+2. Open UPLOAD_TO_GITHUB.
+3. Upload the CONTENTS of UPLOAD_TO_GITHUB to the ROOT of the normal teals-daily-fact-challenge GitHub repository, replacing matching files.
+4. Do not upload the ZIP or the outer package folder itself.
+5. Commit with: v2.24.5 - harden teacher Warm-Up against transient Supabase API errors
+6. No Supabase SQL and no Secrets changes are required.

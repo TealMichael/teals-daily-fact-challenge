@@ -1,12 +1,11 @@
-# Teal's Daily Fact Challenge v2.24.4 — Order Tiles Repeat-Interaction Hotfix
+# Teal's Daily Fact Challenge v2.24.5 — Teacher Supabase Resilience Hotfix
 
-v2.24.4 keeps all v2.24.3 behavior and fixes a Streamlit Components v2 rerender bug in **Order Tiles**.
+v2.24.5 keeps all v2.24.4 behavior and hardens the teacher Warm-Up against short-lived Supabase/PostgREST API failures while loading the class list.
 
-## Fixed
-- First drag works but later drags stop responding.
-- Move buttons stop affecting the order after component state reruns.
-- Selected tile state is restored after a normal component rerender.
+## What changed
+- Retries structured PostgREST infrastructure errors such as transient database/pool/schema-cache availability failures.
+- Keeps a last-known-good anonymous class-list cache in the cached server-side store and uses it only for transient failures.
+- Replaces the full red Streamlit traceback on the Warm-Up page with a friendly retry control that forces a fresh Supabase client.
+- Does not swallow permanent SQL/schema/auth errors.
 
-The shared fix applies to Igniter, Quiz of the Week, and Monday Recovery.
-
-No Supabase SQL and no Secrets changes are required for v2.24.4. The v2.24.2 SQL constraint hotfix remains part of the cumulative build and should already have been run once.
+No new Supabase SQL or Secrets changes are required.

@@ -30,7 +30,7 @@ def check(name: str, condition: bool):
     checks.append(name)
 
 
-check("release version", APP_VERSION == "2.24.4")
+check("release version", APP_VERSION == "2.24.5")
 for qtype in (COMPARE_QUESTION_TYPE, ORDER_QUESTION_TYPE):
     check(f"{qtype} shared common type", qtype in COMMON_QUESTION_TYPES)
     check(f"{qtype} Igniter type", qtype in QUESTION_TYPES)

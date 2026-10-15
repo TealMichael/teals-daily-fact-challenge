@@ -182,6 +182,14 @@ def _is_transient_http_error(exc: Exception) -> bool:
     return any(token in text for token in (
         "readerror", "connection reset", "server disconnected",
         "remoteprotocolerror", "read timeout", "connect timeout", "pool timeout",
+        # PostgREST can surface short-lived backend/pool problems as structured
+        # APIError responses instead of httpx transport exceptions. Treat only
+        # the documented infrastructure-style codes/messages as retryable; SQL,
+        # schema, auth, and validation errors must still fail immediately.
+        "pgrst000", "pgrst001", "pgrst002", "pgrst003",
+        "database connection error", "connection pool",
+        "timed out acquiring connection", "schema cache",
+        "service unavailable", "gateway timeout",
     ))
 
 
@@ -543,8 +551,23 @@ class SupabaseFactStore:
                 query = query.eq("active", True)
             return query.order("class_name").execute()
 
-        rows = _rows(_retry_transient(fetch_classes, attempts=4))
-        return [_class(row) for row in rows]
+        cache_attr = "_class_list_cache_all" if include_inactive else "_class_list_cache_active"
+        try:
+            rows = _rows(_retry_transient(fetch_classes, attempts=4))
+            result = [_class(row) for row in rows]
+            # The store is a cached Streamlit resource, so a last-known-good
+            # class list can bridge a momentary PostgREST pool/service hiccup.
+            # Keep only anonymous class metadata; no student identity is cached.
+            setattr(self, cache_attr, list(result))
+            if include_inactive:
+                setattr(self, "_class_list_cache_active", [item for item in result if item.active])
+            return result
+        except Exception as exc:
+            if _is_transient_http_error(exc):
+                cached = getattr(self, cache_attr, None)
+                if cached is not None:
+                    return list(cached)
+            raise
 
     def get_class(self, class_id: str) -> ClassRecord:
         row = _first(_retry_transient(lambda: (

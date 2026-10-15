@@ -12,7 +12,7 @@ def check(name, condition):
     checks.append(name)
 
 
-check("release version", 'APP_VERSION = "2.24.4"' in engine)
+check("release version", 'APP_VERSION = "2.24.5"' in engine)
 check("native desktop drag", 'tile.draggable = true' in source and 'ondragstart' in source and 'ondragover' in source and 'ondragend' in source)
 check("touch pointer drag", 'onpointerdown' in source and 'onpointermove' in source and 'onpointerup' in source)
 check("mouse uses native path", 'if (event.pointerType === "mouse") return;' in source)

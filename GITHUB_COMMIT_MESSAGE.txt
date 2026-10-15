@@ -1,1 +1,1 @@
-v2.24.4 - fix repeated Order Tiles interactions
+v2.24.5 - harden teacher Warm-Up against transient Supabase API errors

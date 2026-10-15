@@ -469,7 +469,18 @@ def render_teacher_warmup(store: SupabaseFactStore, *, refresh_control, finish_r
             st.session_state[retention_key] = True
         except Exception as exc:
             print(f"[TDFC teacher] warmup_response_retention_failed type={type(exc).__name__}")
-    classes = store.list_classes()
+    try:
+        classes = store.list_classes()
+    except Exception as exc:
+        # A temporary PostgREST/API problem should not turn the teacher Warm-Up
+        # page into Streamlit's full red exception screen. Give the teacher a
+        # one-click retry that also forces a fresh Supabase client.
+        print(f"[TDFC teacher] warmup_class_list_failed type={type(exc).__name__}")
+        st.error("I couldn't load your classes from Supabase. This is usually temporary.")
+        if st.button("Retry class connection", key="teacher_warmup_retry_classes"):
+            st.session_state["tdfc_force_fresh_store_once"] = True
+            st.rerun()
+        return
     if not classes:
         st.info("Create a class first.")
         return

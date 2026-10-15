@@ -12,7 +12,7 @@ def check(name, condition):
         raise AssertionError(name)
     checks.append(name)
 
-check("release version", APP_VERSION == "2.24.4")
+check("release version", APP_VERSION == "2.24.5")
 check("warmup compare type", COMPARE_QUESTION_TYPE in QUESTION_TYPES)
 check("warmup order type", ORDER_QUESTION_TYPE in QUESTION_TYPES)
 

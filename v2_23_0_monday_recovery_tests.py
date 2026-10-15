@@ -73,7 +73,7 @@ def save_quiz_answers(store, klass, student, friday, quiz, correct_flags):
 
 
 def test_release_and_route_contract():
-    assert APP_VERSION == "2.24.4"
+    assert APP_VERSION == "2.24.5"
     source = (ROOT / "app.py").read_text(encoding="utf-8")
     assert source.index("render_quick_warmup(store, day)") < source.index("render_monday_recovery(store, day)")
     assert source.index("render_monday_recovery(store, day)") < source.index("load_student_daily_context(store)")

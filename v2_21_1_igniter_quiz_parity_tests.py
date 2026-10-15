@@ -20,7 +20,7 @@ def check(name, condition):
     assert condition, name
     checks.append(name)
 
-check("current version", APP_VERSION == "2.24.4")
+check("current version", APP_VERSION == "2.24.5")
 
 # Teacher editor must be live just like Friday Quiz; no form may trap answer-type
 # changes until Save is clicked.

@@ -12,7 +12,7 @@ def check(name, condition):
     checks.append(name)
 
 
-check("release version", 'APP_VERSION = "2.24.4"' in engine)
+check("release version", 'APP_VERSION = "2.24.5"' in engine)
 check("tile handlers rebound", 'tiles().forEach((tile) =>' in source and 'wireTile(tile);' in source)
 check("property mouse handlers", 'tile.ondragstart =' in source and 'tile.ondragend =' in source)
 check("property pointer handlers", 'tile.onpointerdown =' in source and 'tile.onpointermove =' in source and 'tile.onpointerup =' in source)
