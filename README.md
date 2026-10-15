@@ -1,15 +1,9 @@
-# Teal's Daily Fact Challenge v2.24.1 — Igniter Answer-Type Hotfix
+# Teal's Daily Fact Challenge v2.24.2 — Interactive Math Save Constraint Hotfix
 
-This is a focused hotfix on top of v2.24.0 Interactive Math Questions.
+v2.24.2 keeps all v2.24.1 behavior and fixes Supabase answer-table constraints for the two v2.24 interactive question types:
+- **Compare Values**
+- **Order Tiles**
 
-## Fix
-The Igniter/Warm-Up Answer type menu must include:
-- Compare Values
-- Order Tiles
+Run `RUN_THIS_ONCE_IN_SUPABASE_v2_24_2.sql` once in the production Supabase SQL Editor before relying on these types with students. It only broadens existing `question_type` CHECK constraints for Igniter, Quiz of the Week, and Monday Recovery.
 
-A classroom screenshot showed the old pre-v2.24 menu sequence, proving the deployed `warmup.py` was still stale. This package re-ships the complete interactive-math file set and adds a defensive fallback in the shared teacher answer editor.
-
-Expected menu order:
-`Short answer` → `Number` → `Fraction` → `Multiple choice` → `Number + Label` → `Compare Values` → `Order Tiles` → `Expanded Form` → `Equivalent Number` → `Multi-Part — 2 answers`
-
-No new Supabase SQL or Secrets changes are required.
+No Secrets changes and no privacy architecture changes.

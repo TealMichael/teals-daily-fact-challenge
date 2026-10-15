@@ -1,15 +1,17 @@
-Teal's Daily Fact Challenge v2.24.1 — Igniter Answer-Type Hotfix
+Teal's Daily Fact Challenge v2.24.2 — Interactive Math Save Constraint Hotfix
 
-1. Open the normal teals-daily-fact-challenge GitHub repository.
-2. Upload/replace ALL files from this package's UPLOAD_TO_GITHUB folder.
-3. Commit with:
-   v2.24.1 - fix Igniter Compare Values and Order Tiles picker
-4. Wait for Streamlit to redeploy.
-5. Confirm the app footer shows v2.24.1.
-6. Open Teacher → Igniter / Warm-Up and open Answer type.
-7. Confirm Compare Values and Order Tiles appear directly after Number + Label.
-8. Test Compare Values with 0.50 and 0.5; the teacher editor should show = automatically.
-9. Test Order Tiles with 0.45, 0.405, 0.54, 0.5.
+IMMEDIATE CLASSROOM FIX
+1. Open Supabase → SQL Editor.
+2. Run RUN_THIS_ONCE_IN_SUPABASE_v2_24_2.sql.
+3. Return to the blocked student screen and tap Check answer again.
+4. The student should advance normally. No Streamlit restart is required for the database constraint change.
 
-No new Supabase SQL is required.
-No Secrets change is required.
+REPOSITORY UPDATE
+5. Upload everything inside UPLOAD_TO_GITHUB to the root of the normal teals-daily-fact-challenge GitHub repository, replacing matching files.
+6. Commit message:
+   v2.24.2 - fix interactive question answer saving
+7. Let Streamlit redeploy normally.
+8. Confirm the footer shows v2.24.2.
+9. Test one Compare Values Igniter answer and one Order Tiles answer.
+
+No Secrets changes.

@@ -346,7 +346,7 @@ create table if not exists public.warmup_answers (
     answered_at timestamptz not null default now(),
     unique (student_id, warmup_set_id, question_slot),
     constraint warmup_question_slot_range check (question_slot in (1, 2)),
-    constraint warmup_question_type_allowed check (question_type in ('Short answer', 'Multiple choice', 'Expanded Form', 'Equivalent Number', 'Multi-Part — 2 answers')),
+    constraint warmup_question_type_allowed check (question_type in ('Short answer', 'Number', 'Fraction', 'Multiple choice', 'Number + Label', 'Compare Values', 'Order Tiles', 'Expanded Form', 'Equivalent Number', 'Multi-Part — 2 answers')),
     constraint warmup_prompt_not_blank check (length(btrim(prompt)) between 1 and 1000),
     constraint warmup_standard_not_blank check (length(btrim(standard_code)) between 1 and 120)
 );
@@ -392,7 +392,7 @@ create table if not exists public.weekly_quiz_answers (
     answered_at timestamptz not null default now(),
     unique (student_id, quiz_id, question_slot),
     constraint weekly_quiz_slot_range check (question_slot between 1 and 5),
-    constraint weekly_quiz_type_allowed check (question_type in ('Number','Fraction','Multiple choice','Number + Label')),
+    constraint weekly_quiz_type_allowed check (question_type in ('Number','Fraction','Multiple choice','Number + Label','Compare Values','Order Tiles')),
     constraint weekly_quiz_prompt_not_blank check (length(btrim(prompt)) between 1 and 2000)
 );
 create index if not exists weekly_quiz_sets_class_date_idx on public.weekly_quiz_sets(class_id, quiz_date);
@@ -682,7 +682,7 @@ create table if not exists public.standard_recovery_answers (
     constraint standard_recovery_standard_not_blank check (length(btrim(standard_code)) between 1 and 40),
     constraint standard_recovery_bank_id_not_blank check (length(btrim(bank_question_id)) between 1 and 80),
     constraint standard_recovery_type_allowed check (
-        question_type in ('Number','Fraction','Multiple choice','Number + Label')
+        question_type in ('Number','Fraction','Multiple choice','Number + Label','Compare Values','Order Tiles')
     ),
     constraint standard_recovery_prompt_not_blank check (length(btrim(prompt)) between 1 and 2000)
 );
