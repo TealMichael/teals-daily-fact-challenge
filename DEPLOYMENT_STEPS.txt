@@ -1,8 +1,0 @@
-Teal's Daily Fact Challenge v2.24.5
-
-1. Open this package.
-2. Open UPLOAD_TO_GITHUB.
-3. Upload the CONTENTS of UPLOAD_TO_GITHUB to the ROOT of the normal teals-daily-fact-challenge GitHub repository, replacing matching files.
-4. Do not upload the ZIP or the outer package folder itself.
-5. Commit with: v2.24.5 - harden teacher Warm-Up against transient Supabase API errors
-6. No Supabase SQL and no Secrets changes are required.
