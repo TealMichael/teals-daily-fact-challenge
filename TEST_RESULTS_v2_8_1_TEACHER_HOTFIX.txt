@@ -1,0 +1,325 @@
+Teal's Daily Fact Challenge v2.8.1 Teacher Dashboard Hotfix
+
+PASS: Python compilation
+RUN adaptive_learning_tests.py
+adaptive_learning_tests: PASS (27 gradual-mastery/adaptive-flow checks)
+RUN component_contract_tests.py
+component_contract_tests: PASS (26 keypad/hidden-timer checks)
+RUN fact_engine_tests.py
+fact_engine_tests: PASS (5111 checks across 730 Daily Challenges)
+RUN package_smoke_tests.py
+package_smoke_tests: PASS (42 Python files parsed; 21 required app files)
+RUN practice_tests.py
+practice_tests: PASS (15 checks + 2,100 generated Practice facts)
+RUN security_schema_tests.py
+security_schema_tests: PASS (27 security/data-integrity checks)
+RUN store_tests.py
+store_tests: PASS (13/13 core workflow checks)
+RUN teacher_workflow_tests.py
+teacher_workflow_tests: PASS (3 classes, 90 students, Top-10 privacy, full teacher status)
+RUN ui_contract_tests.py
+ui_contract_tests: PASS (18 UI/privacy checks)
+RUN v2_1_research_pin_tests.py
+v2_1_research_pin_tests: PASS (13/13 research-alignment + PIN checks)
+RUN v2_2_1_roster_management_tests.py
+v2_2_1_roster_management_tests: PASS (move, bulk move, duplicate protection, permanent delete, teacher UI)
+RUN v2_2_2_roster_ui_tests.py
+PASS: version bumped
+PASS: roster management visible
+PASS: bulk selector
+PASS: bulk move visible
+PASS: bulk delete visible
+PASS: delete confirmation
+PASS: move preserves history copy
+PASS: move uses store method
+PASS: delete uses bulk store method
+PASS: move fallback if no other class
+PASS: individual move remains
+PASS: individual delete remains
+All 12 v2.2.2 roster UI checks passed.
+RUN v2_2_3_fast_bulk_delete_tests.py
+v2_2_3_fast_bulk_delete_tests: PASS (28-student cleanup, single-call bulk delete, whole-roster clear)
+RUN v2_2_4_student_leaderboard_privacy_tests.py
+PASS: version bumped
+PASS: leaderboard explains private tiebreak
+PASS: student leaderboard rows omit score cell
+PASS: student daily result omits Accuracy card
+PASS: student daily result omits Timed Sprint card
+PASS: student daily result keeps Top 10 status
+PASS: student daily result keeps instructional fixes
+PASS: teacher preview states privacy
+PASS: teacher full results still show accuracy
+PASS: teacher full results still show time
+All 10 v2.2.4 student leaderboard privacy checks passed.
+RUN v2_2_5_classroom_load_reliability_tests.py
+v2.2.5 classroom load reliability: 14/14 checks passed
+RUN v2_2_6_focus_speed_tests.py
+v2.2.6 Focus speed: 12/12 checks passed
+RUN v2_2_classroom_mystery_scale_tests.py
+v2_2_classroom_mystery_scale_tests: PASS (3 classes × 30 students × 5 unlocks; Thursday + Friday guess slots)
+RUN v2_2_weekly_mystery_tests.py
+v2_2_weekly_mystery_tests: PASS (38 current Weekly Mystery checks)
+RUN v2_3_classroom_clarity_tests.py
+PASS: version 2.6
+PASS: four-step routine strip
+PASS: daily shows routine strip
+PASS: done screen is unmistakable
+PASS: done screen says work is finished
+PASS: mystery reward clearly labeled
+PASS: mystery guesses limited to Thu/Fri
+PASS: Friday can reveal without guess
+PASS: final all-done line
+PASS: extra practice labeled optional
+PASS: student leaderboard context strips correct_count
+PASS: student leaderboard context strips timed_seconds
+PASS: student leaderboard render has no score field
+PASS: student leaderboard only builds rank and nickname
+PASS: teacher today defines Done
+PASS: teacher today says mystery optional
+PASS: teacher today has done working not-started
+PASS: teacher performance details are teacher-only
+PASS: teacher Top 10 preview states exact privacy
+PASS: teacher tabs reorganized
+PASS: classes keeps class creation
+PASS: classes keeps bulk move
+PASS: classes keeps bulk delete
+PASS: classes keeps clear roster
+PASS: student support keeps nickname
+PASS: student support keeps visible PIN
+PASS: student support keeps PIN reset
+PASS: student support keeps daily reset
+PASS: student support keeps focus override
+PASS: student support keeps move
+PASS: student support keeps deactivate/reactivate
+PASS: student support keeps permanent delete
+PASS: mastery keeps global override
+PASS: mastery keeps class override
+v2.3 classroom clarity: 34/34 checks passed
+RUN v2_4_persistent_login_tests.py
+PASS: token valid inside 30 days
+PASS: remember period exactly 30 days
+PASS: token expires after 30 days
+PASS: PIN reset invalidates old token
+PASS: secret rotation invalidates old token
+PASS: tampered token rejected
+PASS: student id can be peeked before validation
+PASS: PIN not present in browser token
+PASS: version 2.6
+PASS: remember checkbox shown
+PASS: shared-device warning shown
+PASS: sign out clears remembered login
+PASS: manual nonremembered login clears old token
+PASS: remembered login re-checks active student
+PASS: remembered login re-checks active class
+PASS: current PIN verifies remembered token
+PASS: no PIN stored by browser component
+PASS: browser component uses localStorage
+PASS: browser component supports clear
+PASS: browser component supports read
+PASS: component communicates with Streamlit
+PASS: no database migration required
+v2.4 persistent login: 22/22 checks passed
+RUN v2_5_1_1_pin_pad_tap_hotfix_tests.py
+v2.5.1.2 PIN tap hotfix: 13/13 checks passed
+RUN v2_5_1_2_pin_state_persistence_tests.py
+v2.5.1.2 PIN persistence regression: 13/13 checks passed
+RUN v2_5_1_3_pin_submit_login_tests.py
+v2.6 PIN submit/login regression: 17/17 checks passed
+RUN v2_5_1_ipad_mystery_hotfix_tests.py
+PASS: version 2.6
+PASS: answer pad no fixed 310 height
+PASS: answer pad measures scroll height
+PASS: answer pad observes resize
+PASS: answer pad digit taps still local
+PASS: student pin custom component declared
+PASS: student login uses pin pad
+PASS: student password field removed
+PASS: teacher password remains protected
+PASS: pin component contains no input field
+PASS: pin component is four digits
+PASS: pin component touch keypad
+PASS: pin component supports hardware keys
+PASS: pin component only sends completed pin
+PASS: mystery balloons
+PASS: mystery fanfare heading
+PASS: mystery learning heading
+PASS: mystery fun fact
+PASS: Thursday correct gets fanfare
+PASS: Friday correct gets fanfare
+PASS: fanfare only once per solve session
+PASS: all mysteries have learning paragraphs
+PASS: all paragraphs substantial
+PASS: Lincoln teaches presidency
+PASS: Lincoln teaches birth date
+PASS: Lincoln teaches reading
+PASS: Lincoln teaches Honest Abe
+v2.6 iPad/Mystery hotfix: 27/27 checks passed
+RUN v2_5_student_experience_tests.py
+PASS: version 2.6
+PASS: daily has touch keypad
+PASS: daily avoids mobile keyboard
+PASS: daily keypad supports hardware keyboard
+PASS: daily digit taps local
+PASS: shared pad exists
+PASS: shared pad avoids mobile keyboard
+PASS: shared pad submits once
+PASS: shared pad returns local latency
+PASS: fix uses guided touch session
+PASS: focus uses guided touch session
+PASS: guided session preserves touch input
+PASS: optional practice uses guided coach
+PASS: answer forms removed
+PASS: cached top 10 displayed
+PASS: top 10 only once per session
+PASS: student leaderboard privacy retained
+PASS: clear done banner
+PASS: mystery centered as reward
+PASS: growth collapsed
+PASS: daily review collapsed
+PASS: no automatic final leaderboard reload
+PASS: thursday guess only
+PASS: friday guess only
+PASS: Friday earns one real clue
+PASS: Friday optional reveal
+PASS: migration adds guess day
+PASS: migration two guess slots
+PASS: fresh schema two guess slots
+PASS: skipped days mean fewer clues
+PASS: two persistent guess slots
+PASS: Thursday and Friday distinct
+PASS: each slot immutable
+PASS: Mon-Wed guess blocked in store
+v2.5 student experience: 34/34 checks passed
+RUN v2_6_1_finished_screen_hotfix_tests.py
+v2.6.1 finished-screen hotfix: 9/9 checks passed
+RUN v2_6_2_final_screen_polish_tests.py
+v2.7.0 final-screen polish: 5/5 checks passed
+RUN v2_6_guided_practice_tests.py
+PASS: version 2.6
+PASS: guided component declared
+PASS: fix uses guided component
+PASS: focus uses guided component
+PASS: one batch save path
+PASS: migration adds event id
+PASS: component stores local session
+PASS: component keeps array teaching
+PASS: component keeps strategy teaching
+PASS: component requires correct retry
+PASS: component records response time
+PASS: component submits only at session end
+PASS: answer submit stays browser local
+PASS: dynamic component sizing
+PASS: physical keyboard supported
+PASS: batch preserves all teacher evidence
+PASS: first miss stays wrong
+PASS: corrected retry stays teaching evidence
+PASS: response timing preserved
+PASS: batch replay idempotent
+PASS: Lincoln paragraph exact
+v2.6 Guided Practice regression: 21/21 checks passed
+RUN v2_7_after_school_teacher_update_tests.py
+PASS: version 2.7.0
+PASS: all bank mysteries resolve to five clues
+PASS: student clue count includes Friday
+PASS: skipped clues never backfill
+PASS: Friday clue before final guess
+PASS: generic app settings read
+PASS: generic app settings write
+PASS: mystery plan persistence
+PASS: next week planning UI
+PASS: next week can use bank
+PASS: next week can reset automatic
+PASS: next week custom editor
+PASS: five editable daily clues
+PASS: current week remains locked
+PASS: custom plan round trip
+PASS: custom learning paragraph
+PASS: teacher refresh button
+PASS: teacher refresh keeps session
+PASS: live top 10
+PASS: final top 10
+PASS: projector mode
+PASS: projector hides teacher-only metrics
+PASS: projector only rank nickname
+PASS: student leaderboard labeled current
+PASS: class evidence coverage
+PASS: teaching opportunities
+PASS: support section
+PASS: momentum section
+PASS: true class map
+PASS: fact detail
+PASS: strategy connection
+PASS: quick focus action
+PASS: individual why
+PASS: individual targets
+PASS: manual controls secondary
+PASS: teaching/data explanation
+PASS: no placement test claim
+PASS: teacher logout label
+PASS: old Lock label removed
+v2.7 after-school teacher update: 39/39 checks passed
+RUN v2_8_1_teacher_dashboard_filter_hotfix_tests.py
+PASS: explicit family filter mapping
+PASS: family selection uses explicit membership
+PASS: all facts is not parsed as integer
+PASS: brittle suffix test removed
+PASS: all facts fallback shows full map
+PASS: focus-only branch preserved
+PASS: family filter still filters either factor
+v2.8.1 Teacher Dashboard filter hotfix: 7/7 checks passed
+RUN v2_8_1_visual_fact_coach_tests.py
+PASS: version 2.8.1
+PASS: short visual stages
+PASS: whole array transforms after appearing
+PASS: subtraction visibly fades removed groups
+PASS: anchor question waits for visual
+PASS: equations reveal in stages
+PASS: written explanation optional
+PASS: digit taps do not rerender
+PASS: browser local evidence rule retained
+PASS: batch submit retained
+PASS: no sound or audio
+PASS: reduced motion supported
+PASS: low-reading miss card
+PASS: silent visual success
+v2.8.1 Visual Fact Coach regression: 14/14 checks passed
+RUN v2_8_interactive_fact_coach_tests.py
+PASS: version 2.8.0
+PASS: coach module imported
+PASS: guided items receive coach plan
+PASS: fix starts in coach
+PASS: focus resumes in coach
+PASS: extra Practice uses same coach
+PASS: 7x7 uses 5 plus 2
+PASS: 7x7 anchor is 5x7
+PASS: 7x7 combines to 49
+PASS: commutative rotation taught explicitly
+PASS: retry returns to original orientation
+PASS: priority fact strategies
+PASS: all 2-12 plans mathematically consistent
+PASS: library includes anchor and direct teaching
+PASS: browser-local array animation
+PASS: additive split visual
+PASS: subtractive visual
+PASS: student answers anchor
+PASS: wrong anchor is retaught
+PASS: combine stage
+PASS: final retry stage
+PASS: coach motto
+PASS: anchor excluded from mastery evidence
+PASS: first Focus miss still recorded
+PASS: retry remains marked retry
+PASS: component submits batch only at end
+PASS: digit taps remain browser local
+PASS: session recovery retained
+PASS: dynamic height retained
+PASS: keyboard retained
+PASS: teacher strategy aligned to coach
+PASS: old square-only strategy removed
+v2.8 Interactive Fact Coach regression: 32/32 checks passed
+RUN v2_classroom_scale_tests.py
+v2_classroom_scale_tests: PASS (3 classes × 30 students; Daily + adaptive routine + private Top 10)
+RUN v2_ui_contract_tests.py
+v2_ui_contract_tests: PASS (33 v2 learning/UI checks)
+
+ALL TEST SUITES PASSED: 34

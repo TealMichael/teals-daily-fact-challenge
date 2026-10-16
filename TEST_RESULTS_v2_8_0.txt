@@ -1,0 +1,59 @@
+Teal's Daily Fact Challenge v2.8.0 validation
+
+Release focus: Interactive Fact Coach
+
+Automated Python suites: 32/32 PASS
+
+Key suite results:
+- adaptive_learning_tests.py: 27 gradual-mastery/adaptive-flow checks PASS
+- component_contract_tests.py: 26 keypad/hidden-timer checks PASS
+- fact_engine_tests.py: 5,111 checks across 730 Daily Challenges PASS
+- package_smoke_tests.py: 40 Python files parsed; 21 required app files PASS
+- practice_tests.py: 15 checks + 2,100 generated Practice facts PASS
+- security_schema_tests.py: 27 security/data-integrity checks PASS
+- store_tests.py: 13/13 core workflow checks PASS
+- teacher_workflow_tests.py: 3 classes, 90 students, Top-10 privacy, full teacher status PASS
+- v2_2_5_classroom_load_reliability_tests.py: 14/14 PASS
+- v2_2_6_focus_speed_tests.py: 12/12 PASS
+- v2_3_classroom_clarity_tests.py: 34/34 PASS
+- v2_4_persistent_login_tests.py: 22/22 PASS
+- v2_5_student_experience_tests.py: 34/34 PASS
+- v2_6_guided_practice_tests.py: 21/21 PASS
+- v2_7_after_school_teacher_update_tests.py: 39/39 PASS
+- v2_8_interactive_fact_coach_tests.py: 32/32 PASS
+- v2_classroom_scale_tests.py: 3 classes x 30 students PASS
+- v2_ui_contract_tests.py: 33 learning/UI checks PASS
+
+Interactive Fact Coach protections:
+- 7 x 7 uses 5 groups + 2 groups.
+- 7 x 7 anchor is 5 x 7 = 35.
+- 7 x 7 combine step is 2 x 7 = 14, then 35 + 14 = 49.
+- 7 x 7 final retry returns to 7 x 7 = 49.
+- 4 x 7 uses a double-double relationship.
+- 6 x 8 uses 5 + 1.
+- 7 x 8 uses 5 + 2.
+- 8 x 8 uses 10 - 2.
+- 9 x 6 uses 10 - 1.
+- 11/12 extension facts connect to x10 anchors.
+- Commutative rotations are explained explicitly and final retry returns to the student's original orientation.
+- All factor pairs from 2 through 12 produce mathematically consistent coach plans.
+- Scaffolded anchor answers are excluded from mastery evidence.
+- Independent Focus first attempts remain independent evidence.
+- Corrected original-fact retries remain marked as retry/teaching evidence.
+- Optional Practice uses the same Fact Coach but still does not alter formal mastery.
+
+Browser-component validation:
+- All 5 component JavaScript blocks pass Node syntax validation.
+- Guided Practice 7 x 7 browser flow tested: enter 35 anchor -> see 35 + 14 = 49 -> retry 49 -> one correction event returned.
+- Guided Practice 7 x 8 Focus flow tested: independent miss 54 -> wrong scaffold 39 -> corrected scaffold 40 -> retry 56 -> only the independent 54 and retry 56 are returned as evidence; scaffold answers are not returned.
+- Digit taps, coach animation, anchor prompts, combine stage, and retries remain browser-local until the guided step finishes.
+- Dynamic component height and physical-keyboard fallback remain active.
+
+Compilation:
+- 40 Python files compile successfully.
+- 5/5 browser components pass JavaScript syntax validation.
+
+Database/deployment:
+- No new Supabase migration is required from v2.7.0.
+- No new Streamlit Secret is required.
+- Existing v2.6 client_event_id batch schema continues to provide idempotent guided-session saving.

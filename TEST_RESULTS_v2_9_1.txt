@@ -1,0 +1,42 @@
+TEAL'S DAILY FACT CHALLENGE v2.9.1 — TEST RESULTS
+
+RESULT: PASS
+
+Python regression suites
+- 40/40 test suites passed.
+- 38 fast/medium suites passed in the combined regression run.
+- The two long suites were run separately after the combined runner reached its execution-time ceiling:
+  - v2_classroom_scale_tests.py: PASS — 3 classes × 30 students; Daily + adaptive routine + private Top 10.
+  - v2_ui_contract_tests.py: PASS — 33 learning/UI contract checks.
+
+v2.9.1 dedicated regression
+- v2_9_1_performance_student_clarity_tests.py: 29/29 checks passed.
+- Verifies lazy Teacher Dashboard rendering, Today query reuse, local Top 10 derivation, one-dataset Mastery view, lazy manual controls, local 8-fact optional Focus queue, removed lifetime Practice query, simplified student navigation, Mystery Reward labeling, shorter Daily directions, lazy Growth data, and kid-friendly Focus/error wording.
+
+Existing feature regressions retained
+- v2.9 Mystery raffle / typo tolerance / Test Student: 18/18.
+- v2.8.4 take-away clarity: PASS.
+- v2.8.3 click-to-remove Fact Coach: PASS.
+- v2.8.2 staged animation: PASS.
+- v2.8.2.1 Daily continuity: PASS.
+- Teacher Dashboard filter hotfix: PASS.
+- Persistent login / PIN keypad / privacy / roster / Mystery / guided practice / mastery suites: PASS.
+
+Classroom/load checks
+- 90-student classroom-scale workflow: PASS.
+- Teacher workflow: PASS — 3 classes, 90 students, Top-10 privacy, full teacher status.
+- Package smoke: PASS — 48 Python files parsed; 21 required app files.
+
+Syntax checks
+- Python compile: PASS.
+- Browser component JavaScript syntax: 5/5 PASS
+  - daily_sprint_component
+  - answer_pad_component
+  - guided_practice_component
+  - persistent_login_component
+  - pin_entry_component
+
+Database / deployment
+- No new Supabase migration for v2.9.1.
+- No new Streamlit Secret.
+- Existing v2.9 is_test migration remains required only for installations that have not already deployed v2.9.0.

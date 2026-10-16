@@ -1,0 +1,42 @@
+Teal's Daily Fact Challenge v2.20.0 — Verification
+
+FINAL RESULT
+PASS — install-ready.
+
+Regression inventory
+- 89/89 Python regression test files passed after the final v2.20.0 version bump.
+- v2.20.0 Teacher Efficiency & Recovery suite: 72/72 checks passed.
+- v2.19.9 Perfect Score Club suite: 38/38 checks passed.
+- v2.19.8 Student Speed Pass suite: 43/43 checks passed.
+- v2.19.7 Follow-Up Lifecycle + Height suite remains passing as part of the historical inventory.
+- v2.19.6 Alternate Follow-Up Parity suite remains passing as part of the historical inventory.
+- v2.19.4 classroom-hardening suite remains passing as part of the historical inventory.
+
+Package / source checks
+- package_smoke_tests.py: PASS — 123 Python files parsed; 52 required app files present.
+- runtime_name_guard_tests.py: PASS — 33 production modules checked.
+- component_contract_tests.py: PASS — 26 keypad/hidden-timer checks.
+- Browser-component JavaScript syntax: PASS — 8/8 component files.
+- Python compilation: PASS — 123/123 Python files compiled.
+- Protected-source hash check: PASS — 11/11 protected student/multiplication/AWTRIX/dependency files match the v2.19.9 baseline.
+
+Dedicated v2.20 coverage includes
+- 20-cell weekly Daily 10 grid loads with one bulk settings read.
+- Unchanged weekly plans produce zero settings writes.
+- Changed alternate/default cells batch into bulk upsert/delete operations.
+- Bulk app-settings get/set/delete behavior.
+- Bulk roster move behavior and nickname-conflict safety.
+- Bulk Warm-Up save behavior and real-student lock safety.
+- Class-wide Mystery clue repair restores only proven completed routines and is idempotent.
+- Alternate Daily reset leaves multiplication mastery unchanged.
+- Multiplication Daily reset rebuilds mastery after deleted evidence.
+- Raffle saved-winner settings use one bulk read.
+- Teacher Today, Student Support, Warm-Up, Mystery, and recovery code paths use the new bulk helpers.
+- First-try-only multiplication Focus evidence remains preserved in mastery rebuilds.
+- Large Focus history rebuild is paginated.
+- Student/multiplication protected source hashes remain unchanged.
+
+Database / deployment
+- No new Supabase migration is required for v2.20.0.
+- No Streamlit Secrets change is required.
+- AWTRIX_FactTop10.berry is unchanged.

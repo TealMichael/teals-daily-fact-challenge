@@ -1,0 +1,18 @@
+Teal's Daily Fact Challenge v2.13.2 — Class List ReadError Hotfix
+
+Focused regression:
+- v2_13_2_class_list_readerror_hotfix_tests.py: 5/5 passed
+- Exact failure reproduced: httpx.ReadError during SupabaseFactStore.list_classes()
+- Recovery verified after two transient ReadErrors
+- Query rebuild verified on every retry
+
+Full regression inventory:
+- 66/66 test files passed (65 in the complete batch plus v2_classroom_scale_tests.py run immediately after the batch harness time limit)
+- 28/28 critical release-guard suites passed when executed in batches
+- Python compilation passed
+- Protected Hotfix 3 hashes remain unchanged
+
+Deployment:
+- No Supabase SQL
+- No AWTRIX change
+- No Daily 10/mastery/Warm-Up content behavior change

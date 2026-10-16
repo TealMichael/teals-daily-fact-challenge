@@ -1,0 +1,22 @@
+Teal's Daily Fact Challenge v2.8.2 validation
+
+PASS - all 35 automated Python test suites
+PASS - v2.8.2 staged animation regression: 19/19
+PASS - v2.8.1 Visual Fact Coach regression updated for staged engine: 14/14
+PASS - v2.8 Interactive Fact Coach regression: 32/32
+PASS - Teacher Dashboard fact-map filter regression: 7/7
+PASS - Python compilation across the full app
+PASS - JavaScript syntax validation for all 5 browser components
+PASS - existing classroom-scale, adaptive-learning, mastery-data, Mystery, roster, login, leaderboard-privacy, teacher-dashboard, and classroom-load regressions retained
+
+Key v2.8.2 protections:
+- Fact Coach teaching animation begins only after the student taps WATCH IT.
+- Whole array is revealed before the relationship transform.
+- Anchor keypad remains locked until the visual sequence finishes.
+- Subtraction plans visibly remove/fade the extra group after showing the whole array.
+- Additive plans recolor the groups only after the whole array is visible.
+- Post-anchor equations and final answer reveal in stages before TRY AGAIN.
+- REPLAY is browser-local and creates no mastery evidence or database traffic.
+- Reduce Motion still receives staged mathematical reveals, without movement effects.
+- No sound/audio is present.
+- No Supabase migration or new Streamlit Secret is required.

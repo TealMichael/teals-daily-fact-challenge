@@ -1,0 +1,25 @@
+Teal's Daily Fact Challenge v2.12.0 Hotfix 3
+Classroom Safety + Top 10 Chime
+
+Validation completed 2026-08-25.
+
+PASS: release_guard.py — 25/25 critical suites
+PASS: v2_12_0_awtrix_top10_chime_tests.py — 6/6 checks
+PASS: v2_12_0_classroom_safety_audit_tests.py — 7/7 protections
+PASS: v2_11_2_teacher_today_api_resilience_tests.py — 12/12 checks
+PASS: v2_12_0_awtrix_top10_tests.py — 37/37 checks
+PASS: v2_12_0_awtrix_live_hotfix_tests.py — 18/18 checks
+PASS: runtime_name_guard_tests.py — 16 production modules checked
+PASS: v2_classroom_scale_tests.py — 3 classes x 30 students
+PASS: Python compile — 80 files
+
+AWTRIX sound contract:
+- manual Top 10 has one inline RTTTL chime
+- automatic Top 10 has one inline RTTTL chime
+- soundLoop is absent
+- melody: top10:d=8,o=6,b=150:c,e,g
+- separate Class Schedule script is untouched
+
+No new Supabase SQL.
+No new Streamlit Secret.
+Clock Fact Top 10 script must be updated on-device for the chime.

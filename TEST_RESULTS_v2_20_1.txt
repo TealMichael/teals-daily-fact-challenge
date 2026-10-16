@@ -1,0 +1,24 @@
+Teal's Daily Fact Challenge v2.20.1 — Verification
+
+FINAL RESULT
+PASS — install-ready.
+
+Regression inventory
+- 90/90 Python regression test files passed.
+- v2.20.1 Daily Save Recovery suite: 33/33 checks passed.
+- v2.20.0 Teacher Efficiency & Recovery suite remains passing.
+- v2.19.9 Perfect Score Club, v2.19.8 Student Speed Pass, v2.19.7 lifecycle/height, and earlier classroom-hardening suites remain passing.
+
+Recovery behavior verified
+- Simulated Multiplication completion save failure keeps the exact completed payload pending.
+- A visible Try saving again control is rendered.
+- A second save attempt succeeds from the pending payload without re-answering questions.
+- First-answer evidence survives the retry unchanged.
+- Simulated alternate Daily completion save failure/retry follows the same contract.
+- Both browser Daily components still persist and re-emit `completePayload` from localStorage after a hard refresh/new Streamlit session.
+
+Package / source checks
+- app.py remains below the established 3000-line architecture cap.
+- No Supabase migration is required.
+- Multiplication and alternate Daily browser components are byte-for-byte unchanged from v2.20.0.
+- Challenge version remains TDFC-DAILY-v1.

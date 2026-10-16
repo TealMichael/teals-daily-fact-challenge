@@ -1,0 +1,46 @@
+Teal's Daily Fact Challenge v2.19.5 — Final Verification
+Date: 2026-09-04
+
+TARGETED HOTFIX
+- Root cause confirmed: alternate Daily updateEntry() targets #entry, but v2.19.4 rendered the answer box without id="entry".
+- Symptom reproduced structurally: digit state updates and submit reads Number(digits), while the visible placeholder cannot update because #entry is missing.
+- Fix: add id="entry" to the existing answer display. No keypad rerender or scoring behavior changed.
+- Alternate Daily component identity cache-busted to tdfc_alt_daily_v2195 so student devices fetch the corrected browser component.
+- Fix Your Misses and Focus component identities remain unchanged at v2194.
+
+VERIFICATION
+- Dedicated v2.19.5 regression: 11/11 checks passed.
+- Direct browser-logic behavior check: first digit, second digit, delete, minus, and placeholder restoration all update the visible entry state correctly.
+- Full historical/current test inventory: 84/84 test files passed in split batches.
+- v2.19.5 classroom-hardening suite: 48/48 checks passed.
+- Package smoke: 114 Python files parsed; all 50 required app files present.
+- Runtime-name guard: passed.
+- Component contracts: 26/26 checks passed.
+- Python compileall: passed for the full package.
+- JavaScript syntax: all 8 component scripts passed node --check.
+
+CHANGE BOUNDARY
+Production behavior changed only in:
+1. daily_alt_component/index.html — restores the missing entry element id.
+2. student_alt_daily_ui.py — cache-busts only the alternate Daily component identity.
+3. fact_engine.py — version bump to 2.19.5.
+
+Release documentation/test expectations were updated for v2.19.5. The previously identified deployment-folder documentation typo was corrected to UPLOAD_TO_GITHUB.
+
+UNCHANGED / PROTECTED
+- Multiplication Daily and TDFC-DAILY-v1
+- Guided Practice
+- Fact Coach
+- adaptive/mastery engine
+- alternate Fix Your Misses behavior
+- alternate Focus Practice behavior
+- Weekly Mystery
+- requirements/dependency pins
+- Supabase schema/migrations
+- AWTRIX
+
+DEPLOYMENT
+No Supabase SQL.
+No Streamlit Secret changes.
+No AWTRIX changes.
+Install directly over v2.19.4 and refresh/reopen student devices after Streamlit redeploys.

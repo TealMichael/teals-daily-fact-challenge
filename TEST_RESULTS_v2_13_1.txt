@@ -1,0 +1,44 @@
+TEAL'S DAILY FACT CHALLENGE v2.13.1 — FINAL RELEASE TEST SUMMARY
+
+BASELINE
+- Built directly from the packaged v2.13.0 release already installed in the classroom app.
+- No Supabase schema migration is required.
+- fact_engine.py changes only APP_VERSION 2.13.0 -> 2.13.1.
+- CHALLENGE_VERSION remains TDFC-DAILY-v1.
+
+COMPLETE REGRESSION INVENTORY
+- 65/65 regression test files passed.
+- v2.13 feature/protection regression: 50/50 checks passed.
+- v2.13.1 delayed-raffle/dashboard regression: 17/17 checks passed.
+- Prior mystery raffle/test-student regression: 18/18 checks passed.
+- Teacher redesign/Fact Coach quality regression: 35/35 checks passed.
+
+FINAL STATIC / PACKAGE CHECKS
+- Package smoke: PASS; 85 top-level Python files parsed and 37 required app/release files verified.
+- Runtime-name audit: PASS across 19 production modules.
+- Browser JavaScript syntax: 6/6 components passed.
+- Python compile checks passed for changed production files; the complete test inventory imported/executed successfully.
+
+DELAYED RAFFLE BEHAVIOR VERIFIED
+- A prior-week class with an eligible correct solver and no valid saved winner is detected as pending.
+- Saving a valid winner clears the pending state.
+- A stale/invalid saved winner remains pending so the teacher can replace it.
+- Draw availability is based on the raffle week's Friday date, so a Friday raffle remains drawable Monday or later.
+- The prior-week drawing is stored under the prior week's existing class-specific raffle key and does not alter the new week's Mystery.
+
+DASHBOARD CLEANUP VERIFIED
+- Main teacher navigation contains eight focused sections.
+- Today and Warm-Up are the first two sections.
+- Daily 10 Setup is removed from the top-level teacher navigation.
+- The existing Daily 10 Setup component is rendered under Classes & Rosters without changing its configuration logic.
+- Log out no longer stretches across the full header column.
+
+PROTECTED BEHAVIOR
+- The v2.13 50/50 protection suite still verifies the proven Hotfix 3 multiplication/classroom surfaces by SHA-256.
+- No Daily 10 generator, Fact Coach, adaptive engine, Guided Practice, login/PIN component, Weekly Mystery engine, AWTRIX script, dependency, teacher multiplication-insight, or Learning Data file was changed by this patch.
+
+DEPLOYMENT
+- Code-only v2.13.1 patch.
+- No SQL.
+- No new Streamlit Secret.
+- No AWTRIX reinstall.

@@ -1,0 +1,24 @@
+Teal's Daily Fact Challenge v2.19.0 — Adaptive Focus Practice
+
+Final verification summary
+- Historical/current regression inventory: 79/79 test files passing
+- Dedicated v2.19 Adaptive Focus Practice: 121/121 checks passing
+- v2.18 Teaching Models compatibility: 130/130 checks passing
+- v2.17 Follow-Up Foundation compatibility: 108/108 checks passing
+- Critical release suites: 41/41 verified passing (long guard verified in batches after shell-window timeout)
+- Python compile/package parse: 109 Python files clean; 50 required app files present
+- Runtime name guard: 29 production modules clean
+- Browser component JavaScript syntax: 8/8 clean
+- app.py architecture guard: 2,875 lines (under 3,000)
+- Multiplication gold-standard protected hashes: unchanged from v2.18.0/v2.17.0
+- No v2.19 Supabase migration
+
+Adaptive Focus contract
+- Alternate Focus Practice has exactly 8 unique questions.
+- Current Daily misses are the strongest signal.
+- Recent independent Daily/Focus misses raise priority.
+- Fix Your Misses corrections and coached Focus retries are ignored by the adaptive planner.
+- First independent Focus attempts are stored as adaptive evidence; retry attempts are stored separately as teaching/correction evidence.
+- Mixed Focus questions keep their true domains and never write into multiplication mastery.
+- Perfect alternate Dailies auto-clear an empty Fix step but still require Focus Practice, matching multiplication's learning rhythm.
+- Mystery completion waits until Focus Practice is complete.

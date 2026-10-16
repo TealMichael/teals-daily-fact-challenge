@@ -1,0 +1,28 @@
+TEAL'S DAILY FACT CHALLENGE v2.12.0 — TEST RESULTS
+
+RESULT: PASS
+
+Automated validation completed before packaging:
+- Python compile check: PASS for production modules.
+- v2.12.0 AWTRIX Top 10 regression: PASS (35/35).
+- release_guard.py: PASS (21/21 critical suites).
+- Full *_tests.py regression suite: PASS (59/59 test files).
+- Package smoke / Python parse: PASS.
+- Security/schema regression: PASS.
+- Teacher workflow / student leaderboard privacy regressions: PASS.
+- v2.11.2 stability, resilience, data-trust, teacher-safety, and final-Top-10 protections: PASS.
+
+AWTRIX-specific checks include:
+- Block 1/2/3 class mapping and duplicate-mapping protection.
+- Manual “Send Top 10 to Clock Now” queue.
+- Rank + assigned nickname only; no scores/times/student IDs/PINs in clock payload.
+- Test Student excluded.
+- Accuracy-first leaderboard ordering preserved.
+- Separate revocable token is stored as a one-way SHA-256 hash.
+- Public clock RPC grants are narrow; new tables remain RLS-protected with no direct browser policy.
+- Clock script is headless and never contains SUPABASE_SECRET_KEY.
+- Full Top 10 sequence repeats twice and queues behind existing schedule banners.
+- Automatic last-five-minute windows verified for Mon–Thu and Friday schedules.
+
+LIVE DEPLOYMENT NOTE
+The automated suite cannot connect to the user's live Supabase project or physical TC001. After deployment, run RUN_THIS_ONCE_IN_SUPABASE_v2_12.sql, configure Teacher → Clock, install/configure AWTRIX_FactTop10.berry, and use “Send Top 10 to Clock Now” for the physical end-to-end acceptance test.

@@ -1,0 +1,23 @@
+Teal's Daily Fact Challenge v2.19.6 — Verification Results
+Date: 2026-09-04
+
+PASS — 85/85 Python regression test files
+PASS — v2.19.6 Alternate Follow-Up Parity: 47/47 checks
+PASS — Browser interaction audit on desktop + touch emulation
+       • alternate Daily keypad digit / minus / delete / submit controls
+       • Fix Your Misses: no autoplay, WATCH IT, REPLAY, TRY AGAIN, retry keypad, submit
+       • Focus Practice: miss -> teaching model, no autoplay, WATCH IT, REPLAY, TRY AGAIN, retry keypad, submit
+       • representative Addition, Subtraction, Division, Integer positive, Integer negative, and Mixed multiplication items
+       • same-session Streamlit rerender recovery during an active teaching sequence
+PASS — 8/8 browser component JavaScript files syntax-checked with Node
+PASS — 115/115 Python files compiled
+PASS — protected multiplication source hashes unchanged
+
+Protected multiplication hashes:
+  guided_practice_component/index.html  f073b8fa704a7f52ebb45a046082d30bbad8892b8340fa2b933132bbf7c835cd
+  daily_sprint_component/index.html      dc8a59e1dbab86b3dd23f3eec37a4054fdc4fa9e117ffdb8b35395a4c9dcabad
+  answer_pad_component/index.html        81dd828f95dcde11f20ae414bae1e16da3c9534d20400e1c3986989fdb7fe5cd
+  fact_coach.py                          dcbaf3aa62774a4627724d6de65fab31fb87254a25e601c16201980f806af9fb
+  adaptive_engine.py                     b828414cd7207a04c10feb71a797ee8650d09fba81017a503a4eacf274a1e6e9
+
+Deployment: no Supabase SQL, no Streamlit Secret change, no AWTRIX change.

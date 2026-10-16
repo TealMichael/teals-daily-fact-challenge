@@ -1,0 +1,15 @@
+Teal's Daily Fact Challenge
+PATCH: v2.11.0.3 -> v2.11.2
+
+Use with the local GitHub clone that is currently at v2.11.0.3.
+
+1. Open GitHub Desktop and choose the Teal's Daily Fact Challenge repository.
+2. Repository > Show in Finder.
+3. Copy ALL files/folders from this patch folder into the repository root.
+4. Choose Replace/Merge when macOS asks. Do NOT delete the .git folder.
+5. Return to GitHub Desktop and review the Changes tab.
+6. Commit summary: v2.11.2 - rebase stability foundation on proven resilience build
+7. Click Commit to main, then Push origin.
+8. Wait for Streamlit to redeploy.
+
+No Supabase SQL. No new Streamlit secrets.

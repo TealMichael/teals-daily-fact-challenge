@@ -1,0 +1,29 @@
+Teal's Daily Fact Challenge v2.14.0 — Final Verification
+
+FINAL REGRESSION INVENTORY
+- 67/67 *_tests.py files passed from the final documented source tree.
+- v2.14.0 Teacher Command Center regression: 49/49 checks passed.
+- v2.13 Daily 10 / protected multiplication regression: 50/50 checks passed.
+- v2.13.1 delayed-raffle/dashboard regression: 17/17 checks passed.
+- v2.13.2 transient class-list ReadError regression: 5/5 checks passed.
+
+STATIC / PACKAGE CHECKS
+- Python compile: 89/89 Python files parsed successfully.
+- Runtime-name audit: 21 production modules passed.
+- Package smoke: 89 Python files parsed; 39 required app files present.
+- Browser JavaScript syntax: 6/6 components passed node --check.
+- app.py architecture guard preserved below 3,000 lines (2,793 lines).
+
+PROTECTION / RELEASE AUDIT
+- fact_engine.py differs from v2.13.2 only by APP_VERSION: 2.13.2 -> 2.14.0.
+- CHALLENGE_VERSION remains TDFC-DAILY-v1.
+- requirements.txt is byte-for-byte unchanged from v2.13.2.
+- AWTRIX_FactTop10.berry is byte-for-byte unchanged from v2.13.2.
+- Student sign-in, Daily, Practice, alternate Daily, Igniter, Fact Coach,
+  adaptive engine, persistent-login/PIN modules and browser components are
+  protected by v2.14 regression hashes against the v2.13.2 baseline.
+- No v2.14 Supabase migration exists or is required.
+
+FINAL PATCH INTEGRITY
+- PASSED: fresh v2.13.2 + v2.14.0 GitHub Desktop patch reconstructed the
+  packaged v2.14.0 repository with zero missing, extra, or hash-mismatched files.

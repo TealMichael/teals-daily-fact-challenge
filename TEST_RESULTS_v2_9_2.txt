@@ -1,0 +1,51 @@
+TEAL'S DAILY FACT CHALLENGE v2.9.2 — TEST RESULTS
+
+RESULT: PASS
+
+Python regression suites
+- 41/41 Python test suites passed.
+- 39 fast/medium suites passed in the combined regression run.
+- v2_classroom_scale_tests.py: PASS — 3 classes × 30 students; Daily + adaptive routine + private Top 10.
+- v2_ui_contract_tests.py: PASS — 33 learning/UI contract checks.
+
+v2.9.2 dedicated regression
+- v2_9_2_teacher_redesign_fact_coach_quality_tests.py: 35/35 checks passed.
+- Verifies the four-view Mastery redesign, actionable teacher recommendations, advanced-only fact map/overrides, cleaned Student Support action UI, per-class raffle persistence keys, per-class Draw Winner controls, class-raffle student wording, removal of “Easy fact first,” additive decomposition cues, exact take-away quantity feedback, slower teaching/combine beats, retained ×6/×7/×8/×9/×11/×12 strategies, silent behavior, and browser-local execution.
+
+Existing feature regressions retained
+- v2.9.1 performance + student clarity: 29/29.
+- v2.9 raffle / typo tolerance / Test Student: PASS.
+- v2.8 Interactive Fact Coach: 32/32.
+- v2.8.4 take-away clarity: PASS.
+- v2.8.3 click-to-remove Fact Coach: 20/20.
+- v2.8.2 staged animation: 19/19.
+- v2.8.2.1 Daily continuity: PASS.
+- Teacher Dashboard filter hotfix: PASS.
+- Persistent login / PIN keypad / privacy / roster / Mystery / guided practice / mastery suites: PASS.
+
+Classroom/load checks
+- 90-student classroom-scale workflow: PASS.
+- Teacher workflow: PASS — 3 classes, 90 students, Top-10 privacy, full teacher status.
+- Package smoke: PASS — 49 Python files parsed; 21 required app files.
+
+Browser component checks
+- JavaScript syntax: 5/5 PASS
+  - daily_sprint_component
+  - guided_practice_component
+  - answer_pad_component
+  - persistent_login_component
+  - pin_entry_component
+- Live headless-Chromium component rendering: PASS.
+  - 9×9 take-away flow visually verified through WATCH → highlighted removable group → “YOU TOOK AWAY 9” → 90−9 relationship → anchor question.
+  - 7×7 additive flow visually verified through whole array → 5+2 split → “BUILD 7 GROUPS: 5 + 2” → “Start with a fact you know” anchor question.
+- Fact Coach remains silent: no audio element, Web Audio, or speech synthesis.
+- Guided Practice remains browser-local: no fetch calls added.
+
+Syntax / artifact checks
+- Python compile: PASS.
+- Final browser-component JavaScript syntax: PASS.
+
+Database / deployment
+- No new Supabase migration for v2.9.2.
+- No new Streamlit Secret.
+- Existing RUN_THIS_ONCE_IN_SUPABASE_v2_9.sql remains required only for installations that have not already deployed v2.9.0+.

@@ -1,0 +1,34 @@
+TEAL'S DAILY FACT CHALLENGE v2.10.0 — TEST RESULTS
+
+Quick Warm-Up trial regression
+- PASS: 30/30 dedicated Warm-Up checks
+- PASS: 14.40 = 14.4 numeric equivalence
+- PASS: 1/2 = 0.5 numeric equivalence
+- PASS: Spiral Review + Yesterday Check labels
+- PASS: Test Student uses Warm-Up but does not lock it
+- PASS: Test Student excluded from real Warm-Up exports
+- PASS: Real student response locks the class/date Warm-Up
+- PASS: Standards data remains attached to saved answer rows
+- PASS: Warm-Up gate occurs before Daily attempt creation
+- PASS: Weekly CSV/download UI contract
+- PASS: Warm-Up tables protected by RLS
+
+Full application regression
+- PASS: 44/44 Python test suites
+- PASS: 3 classes / 90-student classroom-scale simulation
+- PASS: v2.9 raffle/typo/Test Student regression 18/18
+- PASS: Teacher refresh regression 13/13
+- PASS: v2 UI contract 36 checks
+- PASS: package smoke test
+- PASS: security/data-integrity suite
+- PASS: Python compilation across all app Python files
+- PASS: JavaScript syntax validation for all 5 browser components
+
+Architecture protections
+- Warm-Up is untimed.
+- Warm-Up does not update multiplication mastery.
+- Warm-Up does not affect Daily accuracy, timer, or Top 10.
+- No assigned Warm-Up means the existing Daily flow is unchanged.
+- The first real response locks that class/date Warm-Up.
+- Sandbox responses do not lock or enter real class summaries/CSV.
+- Weekly export contains standards-tagged response evidence and excludes Test Student.

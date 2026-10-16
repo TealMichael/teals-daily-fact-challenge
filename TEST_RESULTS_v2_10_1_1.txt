@@ -1,0 +1,24 @@
+TEAL'S DAILY FACT CHALLENGE v2.10.1.1 — TEST RESULTS
+
+Student Igniter + Login + Outlook Cleanup
+
+- 47/47 Python regression suites passed.
+- New v2.10.1.1 cleanup regression: 22/22 checks passed.
+- Existing v2.10 Warm-Up trial regression: 30 checks passed.
+- Existing v2.10.1 Indiana standards/groups/Outlook regression: 45 checks passed.
+- Store-cache hotfix regression: 9/9 passed.
+- Classroom-scale simulations retained and passed.
+- 57 Python files compiled successfully.
+- All 5 browser components passed JavaScript syntax validation.
+
+Validated behaviors:
+- Today / Practice are hidden until student sign-in.
+- Teacher access remains available before student sign-in.
+- Guest Practice escape is removed from the pre-login flow.
+- Student-facing Warm-Up is simplified to Igniter Question 1 / Igniter Question 2.
+- Student Igniter no longer shows Spiral Review / Yesterday Check labels, standards, or progress-bar clutter.
+- Teacher-entered Markdown markers such as ** do not display literally to students.
+- After Igniter Question 2, students see an Igniter complete -> Start Daily 10 transition.
+- Daily 10 title is not rendered until after sign-in and Igniter completion.
+- Outlook email report contains only the two questions + standards, students to pull, missed-both priority group, and unfinished-student check-in.
+- Outlook draft URLs encode spaces as %20 instead of +.

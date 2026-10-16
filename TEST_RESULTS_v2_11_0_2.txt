@@ -1,0 +1,30 @@
+TEAL'S DAILY FACT CHALLENGE v2.11.0.2 — TEST RESULTS
+
+Daily-Load Resilience Hotfix
+
+- 50/50 Python regression suites passed.
+- New v2.11.0.2 Daily-load resilience hotfix regression: 16/16 checks passed.
+- Existing startup resilience regression: 19/19 checks passed.
+- All 5 browser components passed JavaScript syntax validation.
+- Python compile checks passed for all 61 Python files in the package.
+- Existing classroom-scale, Mystery-scale, Warm-Up/Igniter, Learning Data, Standards Tracker, Outlook, login, privacy, Fact Coach, Daily continuity, and Test Student regressions passed.
+
+Validated hotfix behaviors:
+- PostgREST timeout raised from 6 seconds to 12 seconds.
+- Storage timeout raised from 6 seconds to 12 seconds.
+- Hard timeouts remain limited to at most one retry.
+- The old red Daily-load dead-end message is removed.
+- Daily-load failure now renders a recoverable Try Again control.
+- Retry keeps the current student session and any already-saved Igniter work.
+- Private connection logging records only a coarse failure class + exception type.
+- Daily challenge version remains TDFC-DAILY-v1.
+- Dependency pins remain Streamlit 1.61.1 and supabase-py 2.28.3.
+
+Drift check:
+- No SQL/schema files changed.
+- All 5 browser component files are unchanged from v2.11.0.1.
+- Adaptive engine, Fact Coach, Weekly Mystery, Indiana standards catalog, persistent-login cryptography, teacher insight rules, and warmup logic are unchanged.
+- Production-code changes are limited to app.py, supabase_fact_store.py, and the version string in fact_engine.py.
+- No Yahtzee files are included.
+
+No new Supabase SQL migration. No new Streamlit Secret.

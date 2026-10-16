@@ -1,0 +1,15 @@
+Teal's Daily Fact Challenge v2.18.0 — Teaching Models
+
+Final verification summary
+- Historical/current regression inventory: 78/78 test files passing
+- Dedicated v2.18 Teaching Models: 130/130 checks passing
+- v2.17 Follow-Up Foundation: 106/106 checks passing
+- Model sweep: every generated alternate question across all 365 days of 2026 received a deterministic mathematically valid teaching plan
+- Python compile/package parse: 107 Python files clean
+- Runtime name guard: 28 production modules clean
+- Browser component JavaScript syntax: 7/7 clean
+- app.py architecture guard: 2,875 lines (under 3,000)
+- Multiplication gold-standard protected hashes: unchanged from v2.17.0
+- No v2.18 Supabase migration
+
+Protected multiplication surfaces include Daily sprint, Guided Practice, answer pad, adaptive engine, Fact Coach, Weekly Mystery engine, daily generator, requirements, and AWTRIX script.

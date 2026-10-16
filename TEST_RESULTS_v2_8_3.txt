@@ -1,0 +1,18 @@
+Teal's Daily Fact Challenge v2.8.3 validation
+
+PASS - v2.8.3 click-to-remove Fact Coach regression: 20/20
+PASS - all 37 automated Python test suites (completed across full regression pass + final long-running suites)
+PASS - package smoke test: 45 Python files parsed; 21 required app files present
+PASS - Python compilation
+PASS - JavaScript syntax for all 5 browser components
+PASS - v2.8.2 staged animation retained
+PASS - v2.8.2.1 Daily continuity protection retained
+PASS - v2.7 teacher dashboard / Mystery planning retained
+PASS - silent Fact Coach: no audio or speech synthesis added
+
+v2.8.3 behavior:
+- subtraction-style coach lessons require a meaningful touch before the anchor question
+- x9: student taps the one removable group
+- 10-2 / x8 strategy when selected: student taps both removable groups
+- anchor question stays locked until the required group(s) are removed
+- interaction remains browser-local and creates no extra Supabase/Streamlit traffic or mastery evidence

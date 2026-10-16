@@ -1,0 +1,25 @@
+TEAL'S DAILY FACT CHALLENGE v2.11.0 — TEST RESULTS
+
+Afterschool Teacher Data Update
+
+- 48/48 Python regression suites passed.
+- New v2.11.0 afterschool regression: 32/32 checks passed.
+- 59 Python files compiled successfully.
+- All 5 browser components passed JavaScript syntax validation.
+- Existing classroom-scale and mystery-scale simulations passed.
+
+Validated new behaviors:
+- Teacher navigation now uses 📈 Learning Data.
+- Fact Fluency separates repeated accuracy needs from accurate-but-slow retrieval.
+- Ordinary Building/developing facts alone do not place a student in Students to Pull.
+- Students to Pull is sorted with repeated misses ahead of speed-only concerns.
+- Fact/student drill-downs and advanced Focus controls remain available behind collapsed controls.
+- Standards Tracker uses standards-tagged Igniter response history from the current school year.
+- Standards history includes each current student, correct/incorrect sequence, per-student accuracy, and date/question drill-down.
+- Standards evidence is labeled as evidence history rather than automatic standard mastery.
+- Warm-Up has the true Supabase Refresh data control and marks refresh complete only after current Warm-Up/results reads succeed.
+- Student Igniter shows explicit Correct / Not quite feedback for Question 1 and Question 2.
+- Igniter complete is visually neutral and separate from correctness feedback.
+- Supabase Warm-Up history reads paginate in 1,000-row pages.
+
+No new Supabase SQL migration. No new Streamlit Secret.

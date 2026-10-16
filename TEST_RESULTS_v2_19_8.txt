@@ -1,0 +1,34 @@
+Teal's Daily Fact Challenge v2.19.8 — Verification Results
+
+FULL REGRESSION
+PASS — 87/87 *_tests.py files
+
+TARGETED REGRESSIONS
+PASS — v2.19.8 Student Speed Pass: 43/43
+PASS — v2.19.7 Follow-Up Lifecycle + Height: 67/67
+PASS — Alternate Follow-Up Parity: 47/47
+PASS — Classroom Hardening: 48/48
+PASS — Student Morning Reliability: 11/11
+PASS — Performance + Student Clarity: 30/30
+PASS — Component Contracts: 26 checks
+
+STATIC / PACKAGE
+PASS — Package smoke: 117 Python files parsed; 50 required app files
+PASS — Runtime-name guard: 29 production modules
+PASS — Python compilation: 117/117 files
+PASS — Browser component JavaScript syntax: 8/8 components
+PASS — Protected/UI source hashes: 11/11 unchanged
+
+SAFETY CHECKS
+PASS — Multiplication protected files unchanged byte-for-byte
+PASS — Alternate Daily / Fix / Focus browser components unchanged byte-for-byte
+PASS — Alternate attempt is re-read on stage transitions (not session-cached)
+PASS — Teacher Reopen Daily path detects missing attempt and recreates from current configured mode
+PASS — Fix/Focus progress cache is attempt-scoped
+PASS — Slim Focus evidence produces the identical planner output as full history
+
+DEPLOYMENT
+No Supabase SQL.
+No Streamlit Secret change.
+No AWTRIX change.
+Install directly over v2.19.7.

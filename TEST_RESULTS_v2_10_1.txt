@@ -1,0 +1,24 @@
+TEAL'S DAILY FACT CHALLENGE v2.10.1 — TEST RESULTS
+
+RESULT: PASS
+
+- 46/46 Python regression suites passed.
+- v2.10.1 standards/groups/Outlook regression: 44/44 checks passed.
+- Existing v2.10 Warm-Up trial regression: 30 checks passed.
+- Existing v2.10.0.1 store-cache regression: 9/9 checks passed.
+- 3 classes × 30 students classroom-scale simulation passed.
+- All Python source files compile successfully.
+- All 5 browser components pass JavaScript syntax validation.
+- No new database schema or Streamlit Secret is required.
+
+Focused v2.10.1 coverage:
+- Grades 4–7 standards bank and searchable picker
+- recently-used standard ordering and custom escape hatch
+- unfinished students separated from incorrect students
+- missed-both priority group and per-question support groups
+- class-specific push-in teacher recipient
+- global primary teacher recipient
+- Microsoft 365/Outlook draft URL encoding
+- explicit unfinished-student check-in language
+- weekly CSV Grade + standard context
+- Test Student remains excluded from real reporting

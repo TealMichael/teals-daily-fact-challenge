@@ -1,0 +1,37 @@
+TEAL'S DAILY FACT CHALLENGE v2.9.3.1 — TEST RESULTS
+
+RESULT: PASS
+
+Python regression suites
+- 43/43 Python test suites passed.
+- The combined regression run completed the first 38 suites successfully before the execution window ended; the remaining 5 suites were then run separately and all passed.
+- v2_2_classroom_mystery_scale_tests.py: PASS — 3 classes × 30 students × 5 clue unlocks; Thursday + Friday guess slots.
+- v2_classroom_scale_tests.py: PASS — 3 classes × 30 students; Daily + adaptive routine + private Top 10.
+
+v2.9.3.1 dedicated regression
+- v2_9_3_1_teacher_refresh_hotfix_tests.py: 13/13 checks passed.
+- Verifies Refresh Data clears the cached Supabase store before rerun, uses the pre-rerun Streamlit callback, preserves teacher auth and selected class state, completes only after fresh reads, and applies the same behavior to projector Top 10.
+
+Existing feature regressions retained
+- v2.9.3 finish-screen cleanup: PASS.
+- v2.9.2 teacher usability + Fact Coach quality: PASS.
+- v2.9.1 performance + student clarity: PASS.
+- v2.9 raffle / typo tolerance / Test Student: PASS.
+- Daily continuity, PIN/login, privacy, roster, Mystery, guided practice, mastery, and Teacher Dashboard suites: PASS.
+
+Browser component checks
+- JavaScript syntax: 5/5 PASS
+  - daily_sprint_component
+  - guided_practice_component
+  - answer_pad_component
+  - persistent_login_component
+  - pin_entry_component
+
+Syntax / package checks
+- Python compile: PASS — 51 Python files.
+- Package smoke: PASS — 51 Python files parsed; 21 required app files.
+
+Database / deployment
+- No new Supabase migration for v2.9.3.1.
+- No new Streamlit Secret.
+- Existing RUN_THIS_ONCE_IN_SUPABASE_v2_9.sql remains required only for installations that have not already deployed v2.9.0+.

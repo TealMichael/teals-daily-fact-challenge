@@ -1,0 +1,40 @@
+Teal's Daily Fact Challenge v2.16.2 — Mystery Clue Reliability Hotfix
+=====================================================================
+
+Final source-tree verification
+------------------------------
+- Full regression inventory: 74/74 test files passed (run in batches to avoid shell time limits).
+- Critical release inventory: 36/36 critical suites passed; the combined runner reached the shell time limit after its long-running suites, and the remaining suites were verified separately.
+- Dedicated v2.16.2 Mystery clue reliability regression: 19/19 checks passed.
+- Existing Weekly Mystery regression: 38/38 checks passed.
+- Existing raffle-safety regression: 19/19 checks passed.
+- Existing Mystery/navigation regression: 18/18 checks passed.
+- Existing UI-language protection regression: 70/70 checks passed.
+- Classroom Mystery scale: 3 classes × 30 students × 5 unlocks passed.
+- General classroom scale: 3 classes × 30 students passed.
+- Python package smoke: 101 Python files parsed; 44 required app files present.
+- Runtime-name guard: 26 production modules passed.
+- Browser JavaScript syntax: 6/6 protected browser components passed node --check.
+- Multiplication challenge contract: TDFC-DAILY-v1 unchanged.
+- No RUN_THIS_ONCE_IN_SUPABASE_v2_16_2.sql file exists.
+- requirements.txt unchanged.
+- AWTRIX_FactTop10.berry unchanged.
+
+Bug reproduced and protected
+----------------------------
+- A transient Weekly Mystery read can fail and then recover on retry.
+- A clue insert that succeeds server-side but loses its HTTP response is re-read and recovered instead of losing the reward.
+- A student who completed Monday but lost Monday's clue receipt can recover that clue on Tuesday.
+- A student who genuinely skipped a day does not receive a backfilled clue.
+- Alternate Daily completion qualifies for its day's clue without creating multiplication learning progress.
+- Multiplication requires the saved completed learning routine before a prior-day repair can qualify.
+
+Production scope
+----------------
+Behavior changes are limited to app.py's Mystery reward path, the Mystery persistence/reconciliation methods in supabase_fact_store.py and the matching in-memory reference method in fact_store.py, plus the APP_VERSION bump. Weekly Mystery content, browser components, adaptive/mastery logic, Fact Coach, Daily modes, Warm-Up, student Igniter, requirements, and AWTRIX remain unchanged.
+
+Final packaged-ZIP verification
+-------------------------------
+- Fresh v2.16.1 + packaged v2.16.2 patch reconstructed the packaged v2.16.2 repository exactly.
+- 164 repository files compared; 0 missing, 0 extra, 0 hash mismatches.
+- Extracted final ZIP re-passed package smoke, v2.16.2 Mystery reliability, current Weekly Mystery regression, and runtime-name guard.
