@@ -23,6 +23,7 @@ from curriculum_question_types import (
     pack_order_response,
 )
 from interactive_math_questions import render_order_tiles
+from student_curriculum_support import render_curriculum_retry
 from warmup import (correct_answer_for_storage, display_student_response, grade_question, pack_multi_part_response, question_for_slot)
 
 def render_quick_warmup(store: SupabaseFactStore, day: date) -> bool:
@@ -48,9 +49,7 @@ def render_quick_warmup(store: SupabaseFactStore, day: date) -> bool:
     try:
         warmup = store.get_warmup_set(class_id, day)
     except Exception as exc:
-        st.error("Today's Igniter could not be loaded. Show your teacher this screen.")
-        if str(st.query_params.get("dbcheck", "0")) == "1":
-            st.exception(exc)
+        render_curriculum_retry("Today's Igniter could not be loaded.", exc, key="retry_igniter_set")
         return False
     if warmup is None:
         return True
@@ -58,15 +57,13 @@ def render_quick_warmup(store: SupabaseFactStore, day: date) -> bool:
     try:
         answers = store.get_warmup_answers(student_id, warmup.warmup_set_id)
     except Exception as exc:
-        st.error("Your Igniter progress could not be loaded. Show your teacher this screen.")
-        if str(st.query_params.get("dbcheck", "0")) == "1":
-            st.exception(exc)
+        render_curriculum_retry("Your Igniter progress could not be loaded.", exc, key="retry_igniter_progress")
         return False
 
     answered_slots = {int(row.question_slot) for row in answers}
     completed = len(answered_slots) >= 2
     feedback = st.session_state.get("warmup_feedback")
-    feedback_matches = isinstance(feedback, dict) and feedback.get("warmup_set_id") == warmup.warmup_set_id
+    feedback_matches = isinstance(feedback, dict) and feedback.get("warmup_set_id") == warmup.warmup_set_id and feedback.get("student_id") == student_id
 
     if completed:
         if st.session_state.get("warmup_just_completed") == warmup.warmup_set_id:
@@ -154,7 +151,7 @@ def render_quick_warmup(store: SupabaseFactStore, day: date) -> bool:
             options = [str(value) for value in (question.get("options") or [])]
             response = st.radio(
                 "Choose your answer", options, index=None,
-                key=f"warmup_choice_{warmup.warmup_set_id}_{slot}",
+                key=f"warmup_choice_{warmup.warmup_set_id}_{student_id}_{slot}",
             ) if options else ""
         elif qtype == COMPARE_QUESTION_TYPE:
             compare_left = str(question.get("compare_left") or "")
@@ -166,7 +163,7 @@ def render_quick_warmup(store: SupabaseFactStore, day: date) -> bool:
             )
             response = st.radio(
                 "Choose the symbol", list(COMPARISON_SYMBOLS), index=None, horizontal=True,
-                key=f"warmup_compare_{warmup.warmup_set_id}_{slot}",
+                key=f"warmup_compare_{warmup.warmup_set_id}_{student_id}_{slot}",
             )
         elif qtype == ORDER_QUESTION_TYPE:
             response = order_response
@@ -175,18 +172,18 @@ def render_quick_warmup(store: SupabaseFactStore, day: date) -> bool:
             left, right = st.columns([1.15, 1])
             with left:
                 response = st.text_input(
-                    "Number", key=f"warmup_number_{warmup.warmup_set_id}_{slot}",
+                    "Number", key=f"warmup_number_{warmup.warmup_set_id}_{student_id}_{slot}",
                     placeholder="Type the number",
                 )
             with right:
                 labels = [str(item) for item in (question.get("label_options") or [])]
                 response_two = st.selectbox(
                     "Label / unit", labels, index=None, placeholder="Choose a label",
-                    key=f"warmup_label_{warmup.warmup_set_id}_{slot}",
+                    key=f"warmup_label_{warmup.warmup_set_id}_{student_id}_{slot}",
                 ) if labels else ""
         elif qtype == "Multi-Part — 2 answers":
-            response = st.text_input("Part 1", key=f"warmup_text_{warmup.warmup_set_id}_{slot}_1", placeholder="First answer")
-            response_two = st.text_input("Part 2", key=f"warmup_text_{warmup.warmup_set_id}_{slot}_2", placeholder="Second answer")
+            response = st.text_input("Part 1", key=f"warmup_text_{warmup.warmup_set_id}_{student_id}_{slot}_1", placeholder="First answer")
+            response_two = st.text_input("Part 2", key=f"warmup_text_{warmup.warmup_set_id}_{student_id}_{slot}_2", placeholder="Second answer")
         else:
             if qtype == "Expanded Form":
                 placeholder = "Type the expanded form"
@@ -194,7 +191,7 @@ def render_quick_warmup(store: SupabaseFactStore, day: date) -> bool:
                 placeholder = "Example: 3/4 or 2 1/3"
             else:
                 placeholder = "Type your answer"
-            response = st.text_input("Your answer", key=f"warmup_text_{warmup.warmup_set_id}_{slot}", placeholder=placeholder)
+            response = st.text_input("Your answer", key=f"warmup_text_{warmup.warmup_set_id}_{student_id}_{slot}", placeholder=placeholder)
             if qtype in {"Number", "Fraction"}:
                 st.caption("Equivalent numerical values count the same when mathematically equal (for example, 3 and 3.0).")
         submitted = st.form_submit_button("Check answer →", type="primary", use_container_width=True)
@@ -234,6 +231,7 @@ def render_quick_warmup(store: SupabaseFactStore, day: date) -> bool:
             return False
         st.session_state.warmup_feedback = {
             "warmup_set_id": warmup.warmup_set_id,
+            "student_id": student_id,
             "correct": bool(correct),
             "correct_answer": display_student_response(correct_answer, qtype),
         }

@@ -13,6 +13,7 @@ import hashlib
 import json
 import random
 import re
+import unicodedata
 from typing import Sequence
 
 COMPARE_QUESTION_TYPE = "Compare Values"
@@ -36,9 +37,22 @@ def clean_text(value: str) -> str:
 
 def numeric_value(value: str) -> Fraction | None:
     """Parse whole numbers, decimals, fractions, and mixed numbers exactly."""
-    text = str(value or "").strip().replace(",", "")
-    if not text:
+    text = str(value if value is not None else "").strip()
+    if not text or len(text) > 200:
         return None
+    text = text.translate(str.maketrans({"−": "-", "–": "-", "﹣": "-", "－": "-", "⁄": "/", "∕": "/"}))
+    text = re.sub(r"^([+-])\s+(?=\d|[¼-¾⅐-⅞])", r"\1", text)
+    # Pasted iPad fraction glyphs are single values; separate the whole part
+    # before expansion so 2½ becomes 2 1/2, never 21/2.
+    glyph = re.fullmatch(r"([+-]?)(\d*)\s*([¼½¾⅐⅑⅒⅓⅔⅕⅖⅗⅘⅙⅚⅛⅜⅝⅞])", text)
+    if glyph:
+        fraction = unicodedata.normalize("NFKC", glyph.group(3)).replace("⁄", "/")
+        text = glyph.group(1) + (glyph.group(2) + " " if glyph.group(2) else "") + fraction
+    # Only valid thousands grouping may be removed. "1,5" must not become 15.
+    if "," in text:
+        if not re.fullmatch(r"[+-]?\d{1,3}(?:,\d{3})+(?:\.\d+)?", text):
+            return None
+        text = text.replace(",", "")
     text = re.sub(r"\s*/\s*", "/", text)
     mixed = re.fullmatch(r"([+-]?\d+)\s+(\d+)\/(\d+)", text)
     if mixed:
@@ -48,7 +62,13 @@ def numeric_value(value: str) -> Fraction | None:
         if denominator == 0:
             return None
         frac = Fraction(numerator, denominator)
-        return Fraction(whole, 1) - frac if whole < 0 else Fraction(whole, 1) + frac
+        magnitude = Fraction(abs(whole), 1) + frac
+        return -magnitude if mixed.group(1).startswith("-") else magnitude
+    # Fraction accepts scientific notation; bound exponents before parsing to
+    # keep a mistyped answer from allocating an enormous integer on the server.
+    exponent = re.search(r"[eE]([+-]?\d+)$", text)
+    if exponent and abs(int(exponent.group(1))) > 100:
+        return None
     try:
         return Fraction(text)
     except (ValueError, ZeroDivisionError):

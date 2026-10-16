@@ -18,10 +18,13 @@ from teacher_command_center import (
     summarize_daily_status,
     summarize_routine_for_mode,
     routine_label_for_mode,
+    curriculum_answer_counts,
+    classroom_routine_label,
 )
 from teacher_warmup_ui import _render_warmup_groups_and_email
 from ui_helpers import format_seconds
 from weekly_mystery import week_start_for
+from weekly_quiz import QUIZ_QUESTION_COUNT, quiz_is_friday
 
 
 def render_teacher_today_command_center(
@@ -48,7 +51,14 @@ def render_teacher_today_command_center(
         st.info("Create your first class in Classes & Rosters.")
         return
 
-    day, facts, challenge = ensure_today_fn(store)
+    try:
+        day, facts, challenge = ensure_today_fn(store)
+    except Exception as exc:
+        st.warning("Today's class data could not load. Tap Refresh data and try again.")
+        st.session_state.pop("teacher_refresh_pending", False)
+        if str(st.query_params.get("dbcheck", "0")) == "1":
+            st.exception(exc)
+        return
     day_label = day.strftime("%A, %B %d").replace(" 0", " ")
     st.caption(f"📅 {day_label}")
 
@@ -120,8 +130,7 @@ def render_teacher_today_command_center(
                     "Daily 10": class_snapshot[str(class_record.class_id)]["mode"],
                     "Finished": "—", "In progress": "—", "Not started": "—",
                 })
-        if not overview_errors:
-            overview_errors.append(("All Classes", bulk_exc))
+        # A successful per-class fallback is a fresh usable snapshot.
 
     st.markdown("#### All Classes")
     st.dataframe(pd.DataFrame(overview_rows), hide_index=True, use_container_width=True)
@@ -163,13 +172,43 @@ def render_teacher_today_command_center(
         learning_stats = {}
 
     warmup_error = None
+    quiz_error = None
+    quiz_today = None
+    quiz_rows = []
+    if quiz_is_friday(day):
+        try:
+            quiz_today = store.get_weekly_quiz_set(selected.class_id, day)
+            if quiz_today is not None:
+                quiz_rows = store.list_weekly_quiz_answers(quiz_today.quiz_id)
+        except Exception as exc:
+            quiz_error = exc
     try:
-        warmup_today = store.get_warmup_set(selected.class_id, day)
+        # Match the student route: an assigned Friday quiz replaces the Igniter.
+        warmup_today = store.get_warmup_set(selected.class_id, day) if quiz_today is None and quiz_error is None else None
         warmup_rows = store.list_warmup_answers(day, day, class_id=selected.class_id) if warmup_today is not None else []
     except Exception as exc:
         warmup_today = None
         warmup_rows = []
         warmup_error = exc
+
+    lesson_name = "Quiz of the Week" if quiz_today is not None else "Igniter"
+    lesson_question_count = QUIZ_QUESTION_COUNT if quiz_today is not None else 2
+    lesson_counts = {}
+    if quiz_today is not None:
+        lesson_counts = curriculum_answer_counts(
+            students, quiz_rows, question_count=QUIZ_QUESTION_COUNT,
+            assignment_id=quiz_today.quiz_id, assignment_field="quiz_id",
+        )
+    elif warmup_today is not None:
+        lesson_counts = curriculum_answer_counts(
+            students, warmup_rows, question_count=2,
+            assignment_id=warmup_today.warmup_set_id, assignment_field="warmup_set_id",
+        )
+    lesson_error = quiz_error is not None or warmup_error is not None
+    before_daily_ids = {
+        str(row["student_id"]) for row in status
+        if row.get("status") == "Not started" and lesson_counts.get(str(row["student_id"]), 0) > 0
+    }
 
     if daily_status_error is None:
         if st.session_state.get("teacher_refresh_pending"):
@@ -191,12 +230,12 @@ def render_teacher_today_command_center(
         present_status = list(status)
         completed_rows = [row for row in present_status if row.get("status") == "Complete"]
         total = daily_summary["present"]
-        not_started = daily_summary["not_started"]
+        not_started = daily_summary["not_started"] - len(before_daily_ids)
         daily_complete = daily_summary["complete"]
         if progress_error is None:
             routine_summary = summarize_routine_for_mode(status, progress_map, daily_mode)
             full_complete = routine_summary["done"]
-            working = routine_summary["daily"] + routine_summary["fix"] + routine_summary["focus"]
+            working = routine_summary["daily"] + routine_summary["fix"] + routine_summary["focus"] + len(before_daily_ids)
         else:
             routine_summary = {"done": 0, "daily": 0, "fix": 0, "focus": 0, "not_started": not_started}
             full_complete = working = None
@@ -239,7 +278,7 @@ def render_teacher_today_command_center(
     not_started_names = [
         str(row.get("nickname") or "").strip()
         for row in status
-        if str(row.get("status") or "") == "Not started" and str(row.get("nickname") or "").strip()
+        if str(row.get("status") or "") == "Not started" and str(row.get("student_id")) not in before_daily_ids and str(row.get("nickname") or "").strip()
     ]
     follow_up_names = []
     if progress_error is None:
@@ -257,7 +296,8 @@ def render_teacher_today_command_center(
 
     st.markdown(f"#### {selected.class_name} · Quick follow-ups")
     actions = build_today_action_items(
-        daily_summary=daily_summary,
+        daily_summary={**daily_summary, "not_started": not_started,
+                       "in_progress": daily_summary.get("in_progress", 0) + len(before_daily_ids)},
         routine_summary=routine_summary,
         warmup_assigned=warmup_today is not None,
         warmup_finished=len(warmup_done),
@@ -266,6 +306,16 @@ def render_teacher_today_command_center(
         follow_up_names=follow_up_names,
         warmup_missing_names=warmup_missing_names,
     ) if daily_status_error is None else []
+    if quiz_today is not None and quiz_error is None:
+        missing_quiz = [student.nickname for student in students if lesson_counts.get(str(student.student_id), 0) < QUIZ_QUESTION_COUNT]
+        if missing_quiz and any(lesson_counts.values()):
+            actions = [item for item in actions if item["route"]]
+            actions.insert(0, {
+                "icon": "📝", "title": f"Quiz not submitted · {len(missing_quiz)}",
+                "detail": ", ".join(missing_quiz), "route": "Quiz of the Week",
+            })
+    if lesson_error or progress_error is not None:
+        actions = [item for item in actions if item["route"]]
     if actions:
         action_html = "".join(
             f"<div style='padding:.42rem 0'><strong>{html.escape(item['icon'])} {html.escape(item['title'])}</strong>"
@@ -277,8 +327,9 @@ def render_teacher_today_command_center(
     qa1, qa2, qa3, qa4 = st.columns(4)
     with qa1:
         st.button(
-            "🧠 Warm-Up", use_container_width=True, key="today_go_warmup",
-            on_click=go_teacher_tool, args=("Warm-Up", selected.class_name),
+            "📝 Quiz of the Week" if quiz_today is not None else "🧠 Warm-Up",
+            use_container_width=True, key="today_go_warmup",
+            on_click=go_teacher_tool, args=("Quiz of the Week" if quiz_today is not None else "Warm-Up", selected.class_name),
         )
     with qa2:
         st.button("🛠️ Student Support", use_container_width=True, key="today_go_support", on_click=go_teacher_tool, args=("Student Support",))
@@ -290,10 +341,11 @@ def render_teacher_today_command_center(
     c1, c2, c3, c4 = st.columns(4)
     if daily_status_error is None:
         c1.metric("🟢 Done", "—" if full_complete is None else f"{full_complete}/{total}")
-        c2.metric("🟡 Working", "—" if working is None else working)
-        c3.metric("⚪ Not started", not_started)
+        c2.metric("🟡 Working", "—" if working is None or lesson_error else working)
+        c3.metric("⚪ Not started", "—" if lesson_error else not_started)
         c4.metric("Daily 10 finished", f"{daily_complete}/{total}")
         st.caption(f"Students: {total} · Daily 10 mode: **{daily_mode}**")
+        st.caption("Working includes saved Igniter or quiz answers before Daily 10. Counts reflect saved work, not who has the app open. Monday Recovery is not tracked here.")
     else:
         c1.metric("🟢 Done", "—")
         c2.metric("🟡 Working", "—")
@@ -314,6 +366,20 @@ def render_teacher_today_command_center(
         st.warning("Warm-Up results could not load just now. The rest of Today is still available; tap Refresh data and try again.")
         if str(st.query_params.get("dbcheck", "0")) == "1":
             st.exception(warmup_error)
+
+    if quiz_error is not None:
+        st.warning("Quiz progress could not load just now. Tap Refresh data to check the latest submissions.")
+        if str(st.query_params.get("dbcheck", "0")) == "1":
+            st.exception(quiz_error)
+    elif quiz_today is not None:
+        st.markdown("#### 📝 Quiz of the Week")
+        submitted_count = sum(count == QUIZ_QUESTION_COUNT for count in lesson_counts.values())
+        started_count = sum(0 < count < QUIZ_QUESTION_COUNT for count in lesson_counts.values())
+        q1, q2, q3 = st.columns(3)
+        q1.metric("Submitted", f"{submitted_count}/{len(lesson_counts)}")
+        q2.metric("In progress", started_count)
+        q3.metric("No answers saved", sum(count == 0 for count in lesson_counts.values()))
+        st.caption("Students reviewing all five answers remain In progress until they tap Submit Quiz. Open Quiz of the Week for results and export.")
 
     if warmup_today is not None:
         st.markdown("#### 🧠 Quick Warm-Up")
@@ -376,7 +442,11 @@ def render_teacher_today_command_center(
     for row in status:
         sid = row["student_id"]
         progress = progress_map.get(sid)
-        routine = routine_label_for_mode(row, progress, daily_mode)
+        routine = classroom_routine_label(
+            row, progress, daily_mode, lesson_name=lesson_name,
+            lesson_counts=lesson_counts, question_count=lesson_question_count,
+            lesson_error=lesson_error,
+        )
         stats = learning_stats.get(sid, {"current_streak": 0, "stars": 0})
         student_record = teacher_students.get(sid)
         pin = student_record.pin_code if student_record and student_record.pin_code else "Reset once"

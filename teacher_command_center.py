@@ -122,6 +122,38 @@ def routine_label_for_mode(row: Mapping, progress, daily_mode: str) -> str:
         return "🟡 Focus Practice"
     return "🟡 Fix Your Misses"
 
+
+def curriculum_answer_counts(students, answers, *, question_count: int, assignment_id: str,
+                             assignment_field: str) -> dict[str, int]:
+    """Count distinct saved slots for the current class and selected assignment."""
+    slots = {
+        str(student.student_id): set() for student in students
+        if not getattr(student, "is_test", False)
+    }
+    for answer in answers:
+        sid = str(answer.student_id)
+        if sid not in slots or str(getattr(answer, assignment_field, "")) != str(assignment_id):
+            continue
+        slot = int(answer.question_slot)
+        if 1 <= slot <= question_count:
+            slots[sid].add(slot)
+    return {sid: len(saved) for sid, saved in slots.items()}
+
+
+def classroom_routine_label(row: Mapping, progress, daily_mode: str, *, lesson_name: str,
+                            lesson_counts: Mapping, question_count: int, lesson_error=False) -> str:
+    """Use saved curriculum evidence when Daily 10 has not started yet."""
+    if str(row.get("status") or "") != "Not started" or getattr(progress, "completed_at", None):
+        return routine_label_for_mode(row, progress, daily_mode)
+    if lesson_error:
+        return "⚪ Daily 10 not started · lesson status unavailable"
+    count = int(lesson_counts.get(str(row.get("student_id") or ""), 0))
+    if count and count < question_count:
+        return f"🟡 {lesson_name} · {count}/{question_count} saved"
+    if count:
+        return "🟡 Before Daily 10"
+    return "⚪ No saved work yet"
+
 def _action_name_line(names: Iterable[str], fallback: str) -> str:
     cleaned = [str(name).strip() for name in names if str(name).strip()]
     return ", ".join(cleaned) if cleaned else fallback

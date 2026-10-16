@@ -2003,6 +2003,11 @@ def _go_teacher_tool(tool: str, class_name: str | None = None) -> None:
     st.session_state["teacher_primary_section"] = primary
     if tool == "Warm-Up" and class_name:
         st.session_state["teacher_warmup_class"] = str(class_name)
+    if tool == "Quiz of the Week" and class_name:
+        st.session_state["weekly_quiz_teacher_section"] = "📊 Results & Export"
+        target = current_daily_date()
+        st.session_state["weekly_quiz_results_date"] = target
+        st.session_state[f"weekly_quiz_results_class_{target}"] = str(class_name)
     if primary == "📈 Learning" and secondary:
         st.session_state["teacher_learning_section"] = secondary
     if primary == "⚙️ Manage" and secondary:

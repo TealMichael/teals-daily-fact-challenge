@@ -15,6 +15,7 @@ from supabase_fact_store import SupabaseFactStore
 from teacher_question_editor import render_answer_editor
 from question_images import maybe_cleanup_question_images, signed_question_image_url, upload_question_image
 from indiana_question_bank import resolve_bank_image_path, seed_editor_state, question_by_id
+from student_curriculum_support import render_curriculum_retry
 from indiana_math_standards import BY_CODE as INDIANA_STANDARD_BY_CODE
 try:
     from teacher_question_bank_ui import render_inline_question_bank_picker
@@ -307,9 +308,10 @@ def _render_builder(store: SupabaseFactStore, classes) -> None:
             st.info("🔒 This class's quiz is locked because at least one real student has started it.")
 
 
-def _result_rows(store: SupabaseFactStore, class_record, quiz):
+def _result_rows(store: SupabaseFactStore, class_record, quiz, *, answers=None):
     students = store.list_students(class_record.class_id, include_test=False)
-    answers = store.list_weekly_quiz_answers(quiz.quiz_id)
+    if answers is None:
+        answers = store.list_weekly_quiz_answers(quiz.quiz_id)
     by_student = defaultdict(list)
     for row in answers:
         by_student[str(row.student_id)].append(row)
@@ -346,7 +348,12 @@ def _render_results(store: SupabaseFactStore, classes) -> None:
         st.info("No Quiz of the Week is saved for this class and date.")
         return
 
-    rows = _result_rows(store, class_record, quiz)
+    try:
+        all_answer_rows = store.list_weekly_quiz_answers(quiz.quiz_id)
+        rows = _result_rows(store, class_record, quiz, answers=all_answer_rows)
+    except Exception as exc:
+        render_curriculum_retry("Quiz results could not load.", exc, key="retry_teacher_quiz_results")
+        return
     completed = [row for row in rows if row["completed"]]
     avg = (sum(row["correct_count"] for row in completed) / len(completed)) if completed else None
     a, b, c = st.columns(3)
@@ -371,7 +378,7 @@ def _render_results(store: SupabaseFactStore, classes) -> None:
     # Keep Test Student completely out of real-class item analysis.  A teacher
     # may preview Friday's quiz before students arrive; those sandbox answers
     # must never change the real class percentages shown here.
-    all_answer_rows = store.list_weekly_quiz_answers(quiz.quiz_id)
+    # Reuse the same snapshot for item analysis and separate Test Student verification.
     real_student_ids = {str(row["student"].student_id) for row in rows}
     answer_rows = [row for row in all_answer_rows if str(row.student_id) in real_student_ids]
     for slot in range(1, QUIZ_QUESTION_COUNT + 1):
@@ -472,7 +479,11 @@ def _render_student_keys(store: SupabaseFactStore, classes) -> None:
 def render_teacher_weekly_quiz(store: SupabaseFactStore) -> None:
     st.markdown("### 📝 Quiz of the Week")
     st.caption("Friday assessment → Daily 10 → normal Friday learning routine → final Weekly Mystery guess")
-    classes = store.list_classes()
+    try:
+        classes = store.list_classes()
+    except Exception as exc:
+        render_curriculum_retry("Classes could not load.", exc, key="retry_teacher_quiz_classes")
+        return
     if not classes:
         st.info("Create a class first.")
         return
