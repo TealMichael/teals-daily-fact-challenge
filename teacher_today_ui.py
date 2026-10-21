@@ -383,6 +383,10 @@ def render_teacher_today_command_center(
 
     if warmup_today is not None:
         st.markdown("#### 🧠 Quick Warm-Up")
+        if st.button("Display Igniter", key="today_display_igniter", use_container_width=True):
+            from igniter_presentation import open_igniter_presentation
+            open_igniter_presentation(selected.class_id, day)
+            st.rerun()
         w1, w2, w3 = st.columns(3)
         w1.metric("Finished", f"{len(warmup_done)}/{total}")
         w2.metric("Spiral accuracy", "—" if q1_accuracy is None else f"{q1_accuracy:.0f}%")

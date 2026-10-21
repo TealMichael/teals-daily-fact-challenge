@@ -2905,6 +2905,11 @@ def render_teacher(store: SupabaseFactStore | None) -> None:
         render_teacher_test_student_mode(store)
         return
 
+    if st.session_state.get("igniter_presentation"):
+        from igniter_presentation import render_igniter_presentation
+        render_igniter_presentation(store)
+        return
+
     if st.session_state.get("teacher_projector_mode"):
         render_teacher_projector(store)
         return
@@ -2917,9 +2922,10 @@ def render_teacher(store: SupabaseFactStore | None) -> None:
         if st.button("Log out"):
             st.session_state.teacher_authed = False
             st.session_state["teacher_projector_mode"] = False
+            st.session_state.pop("igniter_presentation", None)
             st.rerun()
 
-    teacher_primary_sections = ["📊 Today", "🧠 Warm-Up", "📝 Quiz of the Week", "📚 Question Bank", "📈 Learning", "🕵️ Weekly Mystery", "⚙️ Manage"]
+    teacher_primary_sections = ["📊 Today", "📅 Weekly Planning", "🧠 Warm-Up", "📝 Quiz of the Week", "📚 Question Bank", "📈 Learning", "🕵️ Weekly Mystery", "⚙️ Manage"]
     redirect = st.session_state.pop("teacher_primary_redirect", None)
     if redirect in teacher_primary_sections:
         st.session_state["teacher_primary_section"] = redirect
@@ -2933,6 +2939,9 @@ def render_teacher(store: SupabaseFactStore | None) -> None:
 
     if primary == "📊 Today":
         render_teacher_today(store)
+    elif primary == "📅 Weekly Planning":
+        from teacher_weekly_planning_ui import render_weekly_planning
+        render_weekly_planning(store)
     elif primary == "🧠 Warm-Up":
         render_teacher_warmup(store)
     elif primary == "📝 Quiz of the Week":
@@ -2998,7 +3007,12 @@ def maybe_render_db_diagnostic(store: SupabaseFactStore | None) -> None:
 # Render the visible shell before any database-dependent startup work.  If
 # Streamlit or Supabase is slow, students should see the Fact Challenge title
 # and navigation rather than a blank page with only the framework spinner.
-mode = render_header()
+_teacher_igniter_display = (st.session_state.get("teacher_authed") and st.session_state.get("app_mode") == "Teacher"
+                           and st.session_state.get("igniter_presentation") and not st.session_state.get("teacher_test_student_mode"))
+if _teacher_igniter_display:
+    mode = "Teacher"
+else:
+    mode = render_header()
 store = _timed_app_call("create_store", get_store, log_after_seconds=0.75)
 if mode != "Teacher":
     _timed_app_call(

@@ -1,8 +1,32 @@
-Teal's Daily Fact Challenge v2.24.5
+Teal's Daily Fact Challenge v2.25.1 — Weekly Planning + Igniter Presentation
 
-1. Open this package.
-2. Open UPLOAD_TO_GITHUB.
-3. Upload the CONTENTS of UPLOAD_TO_GITHUB to the ROOT of the normal teals-daily-fact-challenge GitHub repository, replacing matching files.
-4. Do not upload the ZIP or the outer package folder itself.
-5. Commit with: v2.24.5 - harden teacher Warm-Up against transient Supabase API errors
-6. No Supabase SQL and no Secrets changes are required.
+Verified development baseline: the saved v2.25.0 full app, which already includes
+the v2.24.5 fixes. This release uses v2.25.1 to avoid reusing v2.25.0.
+The version currently deployed in the classroom has not been verified remotely.
+
+1. Back up the currently deployed GitHub source and note its commit. Take a private
+   Supabase backup/export before the migration. The supplied original ZIP is the
+   development baseline; it is not a backup of your live database.
+2. Run ONLY RUN_THIS_ONCE_IN_SUPABASE_v2_25_1.sql in the existing Supabase project.
+   It adds private planning tables and three functions. It does not rewrite
+   historical answers, existing assignments, mastery, or student records.
+   Do not rerun the older SQL files bundled with the complete source.
+3. Upload this UPLOAD_TO_GITHUB folder's CONTENTS into the existing repository
+   root, replacing matching files and preserving the nested asset directories.
+   Keep existing Streamlit Secrets. No dependency or credential changes are needed.
+   If using the smaller GITHUB_BROWSER_UPDATE folder from the release package,
+   follow README_FIRST.md; that update supports the verified v2.24.5/v2.25.0 line.
+4. Commit as: v2.25.1 - Weekly Planning Center and Igniter Presentation Mode
+5. Let Streamlit redeploy. Confirm the teacher footer shows v2.25.1.
+6. Test with the existing Test Student and check the classroom projector before
+   classroom use. Follow CLASSROOM_ACCEPTANCE_CHECKLIST.md in the release package.
+
+Quick start: Teacher > Weekly Planning > choose class/week > Standards > Suggest
+questions > Edit questions (Apply each edit) > Save draft > Preview & publish >
+confirm > Publish week. Display Igniter reads published content from Today or the
+selected published day in the planner; answers always open hidden.
+
+Rollback: revert the application commit. Leave the additive planning tables in
+place; the previous app ignores them. An application rollback does not undo assignments
+already published. Never restore an older database over newer student responses.
+See ARCHITECTURE_AND_ROLLBACK.md for the complete plan.

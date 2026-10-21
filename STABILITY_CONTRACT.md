@@ -274,3 +274,24 @@ The dedicated regression is `v2_19_4_classroom_hardening_tests.py`.
 - `weekly_quiz_sets` and `weekly_quiz_answers` have RLS enabled and no anon/authenticated browser policies.
 - Multiplication Daily, alternate Daily, Guided Practice, alternate Fix/Focus components, Fact Coach, adaptive/mastery logic, Weekly Mystery, persistent login, Perfect Score Club/Top 10, AWTRIX, and requirements remain protected from unrelated redesign.
 - The dedicated regression is `v2_21_0_quiz_of_week_tests.py`.
+
+
+## v2.25.0 classroom workflow protections
+
+- Friday completion remains five distinct persisted slots; slot 5 is withheld until explicit final submission after review. Save earlier revisions before slot 5, and keep retries duplicate-safe.
+- Quiz review reveals student responses only, with no answer-key feedback. Session drafts are scoped by student/quiz/revision and survive question navigation, but are not promised across a lost session.
+- Teacher progress before Daily uses distinct saved answers for the selected assignment and real active class roster. Quiz and Igniter counts must never fabricate activity from a failed read.
+- Shared curriculum grading normalizes supported number symbols without changing mathematical value or accepting malformed commas. Historic scores remain untouched.
+- The latest uploaded v2.24.5 is the cumulative baseline for preserved-file/function snapshots; old release-only hash assertions were reconciled to that baseline. Existing source-size budgets now allow 3,200 lines in app.py and 800 in teacher_warmup_ui.py.
+- The v2.25 behavioral suites supplement all preserved functional checks.
+
+## v2.25.1 planning and presentation protections
+
+- Weekly suggestions and editor changes are drafts until the teacher explicitly saves, reviews, confirms, and publishes. Existing assignments are never replaced by generating suggestions.
+- Monday–Thursday Igniters have two questions; Friday quizzes have five. Prior-week Mon–Thu instruction supplies Friday's default standards. No current-week fallback is permitted.
+- Each classroom/week has an independent draft with a revision guard. Publication must be atomic, detect changes made by other editors, and preserve all assignments if any requested change fails.
+- Real student answers lock the relevant assignment. Changed unstarted assignments receive fresh IDs so stale submissions cannot attach to replacement questions. Before/after question JSON is retained in private publication receipts.
+- Presentation reads only published assignments after teacher authentication. Both reveal states start hidden on opening or date changes; they remain local to the teacher component and are never written to student data or shared storage.
+- Existing student routes, graders, Daily 10, Recovery, mastery, question banks, Order Tiles interactions, and image retention stay intact. Moving a temporary image to another scheduled date copies it using the existing upload rules and keeps the original image's expiration unchanged.
+- The new planner fails closed if the additive migration is unavailable. Presentation remains usable without that migration.
+- The three v2_25_1 test suites extend release_guard.py; existing protected student function/file hashes are retained.
