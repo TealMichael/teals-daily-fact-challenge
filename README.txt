@@ -1,22 +1,19 @@
-Teal's Daily Fact Challenge — v2.26.0 Today Scroll Hotfix
+Teal's Daily Fact Challenge — v2.26.0 Today Header Restore
 
-One-file update for a classroom installation already running v2.26.0.
+One-file update for an existing v2.26.0 installation. This app.py includes
+BOTH of the October 23 fixes:
 
-The new compact Today page no longer contains the old tall title. The app's
-global top padding was only 0.7rem, which allowed Streamlit's fixed header
-to cover the top controls (including Log out), even at the top of the scroll.
-
-This fix gives the Today screen enough top clearance without changing
-other teacher pages, student pages, or the Igniter presentation window.
+1. Keeps the Today controls beneath Streamlit's fixed header so the complete
+   Log out button remains visible, even at the top of the page.
+2. Restores the familiar "Teal's Daily Fact Challenge" title in a compact
+   single line beside Log out, without returning the oversized old banner.
 
 INSTALL:
 1. Open your existing GitHub repository at the root containing app.py.
 2. Choose Add file > Upload files.
-3. Upload ONLY the app.py file beside this README, replacing the existing one.
-4. Commit: v2.26.0 hotfix - Restore Today page top scrolling
-5. Wait for Streamlit to update, refresh the page, and verify you can see
-   the complete Log out button above the teacher navigation.
+3. Upload ONLY app.py from this folder, replacing the existing one.
+4. Commit: v2.26.0 hotfix - Restore Today title and top spacing
+5. Wait for Streamlit to update and refresh your browser.
 
-No Supabase SQL, Secrets, requirements, or version-number changes.
-
-Rollback: revert the hotfix commit if needed. No student data changes.
+No other files, Supabase SQL, Secrets, or requirements updates.
+The displayed app version remains v2.26.0; this is a single-file UI hotfix.

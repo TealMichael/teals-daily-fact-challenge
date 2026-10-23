@@ -2931,7 +2931,13 @@ def render_teacher(store: SupabaseFactStore | None) -> None:
 
     top_left, top_right = st.columns([7, 1])
     with top_left:
-        if st.session_state.get("teacher_primary_section", "📊 Today") != "📊 Today":
+        if st.session_state.get("teacher_primary_section", "📊 Today") == "📊 Today":
+            # Keep the familiar app identity without the former oversized title
+            # and tagline pushing the daily classroom controls far downscreen.
+            st.markdown("""<div style="font-size:1.55rem;font-weight:850;
+                line-height:2.5rem;letter-spacing:-0.025em;color:#19334d">
+                Teal's Daily Fact Challenge</div>""", unsafe_allow_html=True)
+        else:
             st.markdown("## Teacher Dashboard")
             st.caption("Your everyday classroom tools stay one tap away.")
     with top_right:
