@@ -22,6 +22,7 @@ from teacher_planning import monday_for
 from weekly_planning import (new_plan, plan_repository, suggest_questions, normalize_question,
                              validate_plan, duplicate_slots, content, state_label)
 from weekly_planning_editor import PLANNER_CSS, render_question_card, mark_edited
+from weekly_planning_bulk import preview_targets, publish_targets
 
 
 def _message(exc):
@@ -346,7 +347,67 @@ def _preview(store, plan):
             st.markdown('<div class="wp-summary">'+''.join(body)+'</div>', unsafe_allow_html=True)
 
 
-def _render_review(store, state, repository, prefix):
+def _render_multi_block_publish(store, state, repository, prefix, class_ids, class_names):
+    st.markdown(f'#### Publish to {len(class_ids)} blocks')
+    st.caption('The questions will be identical. Each block keeps its own saved plan, student work, and future editing.')
+    try:
+        preview = preview_targets(store, repository, state['plan'], class_ids,
+                                  source_revision=state['revision'])
+    except Exception as exc:
+        st.error('Cannot verify the selected blocks right now. '+_message(exc))
+        return
+    for item in preview:
+        name = class_names[item['class_id']]
+        count = len(item['changes'])
+        st.write(f"**{name}:** {count} activity update{'s' if count != 1 else ''}" if count else
+                 f'**{name}:** Already matches this week · no changes needed')
+        for reason in item['blockers']:
+            st.error(f'{name} · {reason}')
+    blocked = any(item['blockers'] for item in preview)
+    existing_drafts = [class_names[item['class_id']] for item in preview if item['draft_conflict']]
+    confirm_drafts = not existing_drafts
+    if existing_drafts:
+        st.warning('These blocks already have different saved planning drafts: '+', '.join(existing_drafts)+'.')
+        confirm_drafts = st.checkbox('Replace those saved drafts with the shared questions',
+                                     key=prefix+'bulk_confirm_drafts')
+    replacements = [class_names[item['class_id']] for item in preview if item['needs_confirmation']]
+    confirm_replacements = not replacements
+    if replacements:
+        st.caption('Published or today’s assignments would change in: '+', '.join(replacements)+'.')
+        confirm_replacements = st.checkbox('Confirm changes to unstarted published or today’s assignments',
+                                            key=prefix+'bulk_confirm_published')
+    if any(item['changes'] for item in preview) and st.button(
+        f'Publish to {len(class_ids)} blocks', type='primary', key=prefix+'bulk_publish',
+        disabled=blocked or not confirm_drafts or not confirm_replacements or bool(state.get('save_error')),
+    ):
+        results = publish_targets(repository, preview, confirm_replacements=confirm_replacements,
+                                  confirm_drafts=confirm_drafts)
+        for result in results:
+            if result['class_id'] == state['plan']['class_id'] and result['status'] == 'published':
+                _accept_record(state, result['draft'])
+                state.pop('lock_cache', None)
+        state['bulk_results'] = [{k: v for k, v in result.items() if k != 'draft'} for result in results]
+        if all(result['status'] != 'failed' for result in results):
+            _change_view(state, 'edit')
+            state['notice'] = 'Shared week published. Each selected block can now be edited independently.'
+        st.rerun()
+    if state.get('bulk_results'):
+        st.markdown('**Last publish attempt**')
+        for result in state['bulk_results']:
+            name = class_names.get(result['class_id'], 'A selected block')
+            if result['status'] == 'published':
+                st.success(f"{name}: Published {result['changed']} activity(s).")
+            elif result['status'] == 'unchanged':
+                st.caption(f'{name}: Already up to date.')
+            elif result['status'] == 'failed':
+                st.error(f"{name}: Not published — {_message(result['error'])}")
+            else:
+                st.warning(f'{name}: Not attempted because the editing block could not publish.')
+        if any(result['status'] == 'failed' for result in state['bulk_results']):
+            st.caption('Other successful blocks are safe. Resolve the error and preview again to publish only what remains.')
+
+
+def _render_review(store, state, repository, prefix, class_ids, class_names):
     if st.button('← Back to editing', key=prefix+'back'):
         _change_view(state, 'edit')
         st.rerun()
@@ -362,6 +423,10 @@ def _render_review(store, state, repository, prefix):
     except (ValueError, TypeError, KeyError) as exc:
         st.warning('Finish these questions before publishing: '+str(exc))
         valid = False
+    if len(class_ids) > 1:
+        if valid:
+            _render_multi_block_publish(store, state, repository, prefix, class_ids, class_names)
+        return
     changes = _changes(plan)
     confirm_needed = any(plan['baseline'][i] or plan['days'][i]['date'] == current_daily_date().isoformat() for i in changes)
     confirmed = False
@@ -419,15 +484,25 @@ def render_weekly_planning(store):
         names = {str(c.class_id): c.class_name for c in classes}
         selection = st.session_state.get('weekly_planner_selection', {})
         ids = list(names)
+        defaults = [cid for cid in selection.get('target_ids', [selection.get('class_id', ids[0])]) if cid in names]
+        if not defaults:
+            defaults = [ids[0]]
         a, b = st.columns(2)
         with a:
-            class_id = st.selectbox('Classroom', ids, format_func=names.get,
-                                   index=ids.index(selection['class_id']) if selection.get('class_id') in ids else 0, key='weekly_planner_class')
+            class_ids = st.multiselect('Plan for these blocks', ids, default=defaults,
+                                       format_func=names.get, key='weekly_planner_targets')
         with b:
             selected = st.date_input('Instructional week', selection.get('day', current_daily_date()), key='weekly_planner_week')
-        st.session_state['weekly_planner_selection'] = {'class_id': class_id, 'day': selected}
+        if not class_ids:
+            st.info('Select at least one classroom block to plan the week.')
+            return
+        class_id = class_ids[0]
+        st.session_state['weekly_planner_selection'] = {'class_id': class_id, 'target_ids': class_ids, 'day': selected}
         week = monday_for(selected)
-        st.caption(f"{names[class_id]} · {week:%b %d}–{week+timedelta(days=4):%b %d}")
+        if len(class_ids) > 1:
+            st.caption(f"Editing {names[class_id]} for all {len(class_ids)} selected blocks · {week:%b %d}–{week+timedelta(days=4):%b %d}. The first selected block is the editing copy.")
+        else:
+            st.caption(f"{names[class_id]} · {week:%b %d}–{week+timedelta(days=4):%b %d}")
         session_key = f'weekly_planner::{class_id}::{week}'
         repository = plan_repository(store)
         failed_drafts = _flush_working_drafts(store, repository)
@@ -454,7 +529,7 @@ def render_weekly_planning(store):
         if not state.get('save_error') and not state.get('image_error'):
             st.caption('Draft saved automatically' if state['revision'] else 'Your questions will save here as you work.')
         if state.get('view') == 'preview':
-            _render_review(store, state, repository, prefix)
+            _render_review(store, state, repository, prefix, class_ids, names)
         else:
             _render_sheet(store, state, repository, prefix)
         if token := state.pop('scroll_to_top', None):

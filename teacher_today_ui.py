@@ -60,9 +60,13 @@ def _render_class_cards(lessons) -> object:
         selected_id = str(lessons[0].class_record.class_id)
         st.session_state["teacher_today_class_id"] = selected_id
 
-    for start in range(0, len(lessons), 3):
-        row = lessons[start:start + 3]
-        cols = st.columns(len(row), gap="medium")
+    # Four classroom blocks look balanced as two equal rows of two cards.
+    # Always retain the empty columns in a partial final row so no card expands
+    # to the full page width when another class is added later.
+    per_row = 2 if len(lessons) == 4 else 3
+    for start in range(0, len(lessons), per_row):
+        row = lessons[start:start + per_row]
+        cols = st.columns(per_row, gap="medium")
         for offset, lesson in enumerate(row):
             index = start + offset
             cid = str(lesson.class_record.class_id)

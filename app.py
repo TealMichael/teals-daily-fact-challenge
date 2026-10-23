@@ -1954,7 +1954,7 @@ def _leaderboard_from_status(status: list[dict], *, limit: int = 10) -> list[dic
     return [dict(row, rank=index) for index, row in enumerate(completed[:limit], start=1)]
 
 def _set_teacher_refresh_stamp() -> None:
-    st.session_state["teacher_last_refresh_at"] = datetime.now(DAILY_TIMEZONE).strftime("%I:%M:%S %p").lstrip("0")
+    st.session_state["teacher_last_refresh_at"] = datetime.now(DAILY_TIMEZONE).strftime("%I:%M %p").lstrip("0")
 
 def _request_teacher_refresh() -> None:
     """Force the next teacher render to use a brand-new Supabase client.
@@ -1976,7 +1976,7 @@ def _finish_teacher_refresh() -> None:
 
 def _teacher_refresh_control(*, key: str) -> None:
     st.button(
-        "🔄 Refresh data",
+        "↻ Refresh" if key == "teacher_today_refresh" else "🔄 Refresh data",
         use_container_width=True,
         key=key,
         on_click=_request_teacher_refresh,
@@ -1986,7 +1986,7 @@ def _teacher_refresh_control(*, key: str) -> None:
     if pending:
         st.caption("Refreshing latest data…")
     elif stamp:
-        st.caption(f"✅ Data updated {stamp}")
+        st.caption(f"Updated {stamp}" if key == "teacher_today_refresh" else f"✅ Data updated {stamp}")
 
 
 def _go_teacher_tool(tool: str, class_name: str | None = None) -> None:
@@ -2920,26 +2920,33 @@ def render_teacher(store: SupabaseFactStore | None) -> None:
         render_teacher_projector(store)
         return
 
-    # The compact Today header no longer supplies the vertical clearance that
-    # the former oversized app title created. Keep the first controls below
-    # Streamlit's fixed toolbar, instead of letting Log out disappear behind it
-    # even when the page is scrolled all the way to its actual top.
-    if st.session_state.get("teacher_primary_section", "📊 Today") == "📊 Today":
-        st.markdown("""<style>
+    # A consistent compact shell on all teacher pages. Retain enough vertical
+    # clearance for Streamlit's fixed toolbar (including its collapsed header).
+    st.markdown("""<style>
         .block-container { padding-top: 4.25rem !important; }
-        </style>""", unsafe_allow_html=True)
+        .st-key-teacher_primary_section [role="radiogroup"] {
+            display: grid !important;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 0.35rem 0.45rem;
+            width: 100%;
+            align-items: center;
+        }
+        .st-key-teacher_primary_section [role="radiogroup"] > label {
+            padding: 0.25rem 0.2rem;
+            min-width: 0;
+        }
+        @media (max-width: 560px) {
+            .st-key-teacher_primary_section [role="radiogroup"] {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+        }
+    </style>""", unsafe_allow_html=True)
 
     top_left, top_right = st.columns([7, 1])
     with top_left:
-        if st.session_state.get("teacher_primary_section", "📊 Today") == "📊 Today":
-            # Keep the familiar app identity without the former oversized title
-            # and tagline pushing the daily classroom controls far downscreen.
-            st.markdown("""<div style="font-size:1.55rem;font-weight:850;
-                line-height:2.5rem;letter-spacing:-0.025em;color:#19334d">
-                Teal's Daily Fact Challenge</div>""", unsafe_allow_html=True)
-        else:
-            st.markdown("## Teacher Dashboard")
-            st.caption("Your everyday classroom tools stay one tap away.")
+        st.markdown("""<div style="font-size:1.55rem;font-weight:850;
+            line-height:2.5rem;letter-spacing:-0.025em;color:#19334d">
+            Teal's Daily Fact Challenge</div>""", unsafe_allow_html=True)
     with top_right:
         if st.button("Log out"):
             st.session_state.teacher_authed = False
