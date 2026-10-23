@@ -1,489 +1,189 @@
 from __future__ import annotations
 
-"""Teacher-only Today Command Center UI introduced in v2.14."""
+"""v2.26 minimal teacher Today: lesson completion, reteach, and one Outlook link.
 
-from datetime import timedelta
+Other teacher tools retain their own pages. No Daily 10, Top 10, mastery, or
+student writes occur here.
+"""
+
 import html
+from datetime import date
 
-import pandas as pd
 import streamlit as st
 
-from daily_modes import configured_daily_mode
-from teacher_planning import load_daily_modes
-from fact_engine import daily_mix_summary
-from supabase_fact_store import SupabaseFactStore
-from teacher_clock_ui import queue_clock_top10_for_class
-from teacher_command_center import (
-    build_today_action_items,
-    summarize_daily_status,
-    summarize_routine_for_mode,
-    routine_label_for_mode,
-    curriculum_answer_counts,
-    classroom_routine_label,
+from fact_engine import current_daily_date
+from igniter_popout import render_igniter_window_button
+from teacher_today_overview import load_today_lessons, recent_mastery_checkins, today_reteach
+from teacher_warmup_ui import (
+    _warmup_email_recipients,
+    _warmup_grouping,
+    _warmup_outlook_url,
+    _warmup_report_text,
 )
-from teacher_warmup_ui import _render_warmup_groups_and_email
-from ui_helpers import format_seconds
-from weekly_mystery import week_start_for
-from weekly_quiz import QUIZ_QUESTION_COUNT, quiz_is_friday
+
+
+def _date_label(day: date) -> str:
+    return day.strftime("%A, %B %d").replace(" 0", " ")
+
+
+def _card_label(lesson) -> str:
+    name = str(lesson.class_record.class_name)
+    if lesson.error:
+        return f"{name}\n\nUnavailable · Refresh"
+    if lesson.assignment is None:
+        return f"{name}\n\nNo activity assigned"
+    noun = "Quiz submitted" if lesson.kind == "Quiz" else "Igniter complete"
+    return f"{name}\n\n{lesson.complete}/{lesson.total} {noun}"
+
+
+def _render_class_cards(lessons) -> object:
+    st.markdown("""<style>
+    div[class*="st-key-today_card_"] button {
+        min-height: 112px;
+        border-radius: 14px;
+        border-width: 1.5px;
+        white-space: pre-line;
+        font-size: 1.04rem;
+        line-height: 1.65;
+        font-weight: 650;
+    }
+    div[class*="st-key-today_card_active"] button {
+        border: 2px solid #087968;
+        background: #e6f5ef;
+        color: #163f36;
+    }
+    </style>""", unsafe_allow_html=True)
+
+    known = {str(lesson.class_record.class_id) for lesson in lessons}
+    selected_id = str(st.session_state.get("teacher_today_class_id") or "")
+    if selected_id not in known:
+        selected_id = str(lessons[0].class_record.class_id)
+        st.session_state["teacher_today_class_id"] = selected_id
+
+    for start in range(0, len(lessons), 3):
+        row = lessons[start:start + 3]
+        cols = st.columns(len(row), gap="medium")
+        for offset, lesson in enumerate(row):
+            index = start + offset
+            cid = str(lesson.class_record.class_id)
+            with cols[offset]:
+                state = "active" if cid == selected_id else "other"
+                with st.container(key=f"today_card_{state}_{index}"):
+                    if st.button(
+                        _card_label(lesson), width="stretch",
+                        key=f"today_pick_class_{index}",
+                        help=f"Show {lesson.class_record.class_name} reteaching needs",
+                    ):
+                        st.session_state["teacher_today_class_id"] = cid
+                        st.rerun()
+    return next(lesson for lesson in lessons if str(lesson.class_record.class_id) == selected_id)
+
+
+def _render_standard_groups(groups: list[dict]) -> None:
+    for group in groups:
+        code = html.escape(str(group["code"]))
+        description = html.escape(str(group.get("description") or ""))
+        names = ", ".join(group["names"])
+        title = f"{code} — {description}" if description else code
+        st.markdown(f"**{title}**")
+        st.write(names)
+
+
+def _render_warmup_outlook_link(store, lesson, day: date) -> None:
+    if lesson.kind != "Igniter" or lesson.assignment is None or lesson.error:
+        return
+    klass = lesson.class_record
+    primary, secondary = _warmup_email_recipients(store, klass.class_id)
+    if not primary:
+        st.caption("Set your Outlook recipients in Warm-Up to enable the email.")
+        return
+    # Reuse the exact existing report/subject/Outlook URL, without an alternate
+    # copy of its formatting rules. Nothing is sent automatically.
+    grouping = _warmup_grouping(lesson.students, lesson.rows)
+    if not lesson.rows:
+        st.caption("The Outlook report will be available after students submit their Igniter.")
+        return
+    report = _warmup_report_text(klass, day, lesson.assignment, grouping)
+    subject = f"Warm-Up Results — {klass.class_name} — {day.strftime('%b %d')}"
+    st.link_button(
+        "📧 Prepare Warm-Up Email",
+        _warmup_outlook_url(primary, secondary, subject, report),
+        type="secondary",
+        width="content",
+    )
+    st.caption("Opens the familiar draft in Outlook for your review. Nothing is sent automatically.")
 
 
 def render_teacher_today_command_center(
-    store: SupabaseFactStore, *, ensure_today_fn, refresh_control, finish_refresh,
+    store, *, ensure_today_fn, refresh_control, finish_refresh,
     set_refresh_stamp, leaderboard_from_status, leaderboard_is_final,
     leaderboard_final_key, mystery_pending_draw, go_teacher_tool,
 ) -> None:
-    header_left, header_right = st.columns([4.2, 1.4])
-    with header_left:
-        st.markdown("### 📊 Today Command Center")
-        st.caption("See the school day at a glance, then open a class for details.")
-    with header_right:
+    # Legacy callback parameters remain for the other teacher modules and
+    # compatibility tests. Today no longer needs leaderboard or Daily reads.
+    day = current_daily_date()
+    st.session_state.setdefault("teacher_today_day", day)
+    # A new school date should not retain stale selected-slide state.
+    st.session_state["teacher_today_day"] = day
+    title, refresh = st.columns([5, 1.5], vertical_alignment="center")
+    with title:
+        st.markdown("## Today")
+        st.caption(_date_label(day))
+    with refresh:
         refresh_control(key="teacher_today_refresh")
 
     try:
         classes = store.list_classes()
-    except Exception as exc:
-        st.error("Classes could not load just now. Tap Refresh data and try again.")
-        st.session_state.pop("teacher_refresh_pending", False)
-        if str(st.query_params.get("dbcheck", "0")) == "1":
-            st.exception(exc)
-        return
-    if not classes:
-        st.info("Create your first class in Classes & Rosters.")
-        return
-
-    try:
-        day, facts, challenge = ensure_today_fn(store)
-    except Exception as exc:
-        st.warning("Today's class data could not load. Tap Refresh data and try again.")
-        st.session_state.pop("teacher_refresh_pending", False)
-        if str(st.query_params.get("dbcheck", "0")) == "1":
-            st.exception(exc)
-        return
-    day_label = day.strftime("%A, %B %d").replace(" 0", " ")
-    st.caption(f"📅 {day_label}")
-
-    # Load all class lists, today's attempts, and today's Daily modes in bulk.
-    # The selected class reuses the same fresh snapshot below.
-    overview_rows = []
-    class_snapshot = {}
-    overview_errors = []
-    class_ids = [str(class_record.class_id) for class_record in classes]
-    try:
-        roster_loader = getattr(store, "list_students_for_classes", None)
-        status_loader = getattr(store, "daily_status_for_classes", None)
-        if callable(roster_loader) and callable(status_loader):
-            rosters = roster_loader(class_ids)
-            statuses = status_loader(class_ids, challenge.challenge_id, students_by_class=rosters)
-            modes = load_daily_modes(store, class_ids, [day])
-            for class_record in classes:
-                class_id = str(class_record.class_id)
-                roster = list(rosters.get(class_id, []))
-                status_rows = list(statuses.get(class_id, []))
-                summary = summarize_daily_status(status_rows)
-                mode = modes[(class_id, day)]
-                class_snapshot[class_id] = {
-                    "students": roster,
-                    "status": status_rows,
-                    "summary": summary,
-                    "mode": mode,
-                }
-                overview_rows.append({
-                    "Class": class_record.class_name,
-                    "Daily 10": mode,
-                    "Finished": f"{summary['complete']}/{summary['present']}",
-                    "In progress": summary["in_progress"],
-                    "Not started": summary["not_started"],
-                })
-        else:
-            raise AttributeError("Bulk teacher snapshot helpers are not available.")
-    except Exception as bulk_exc:
-        # Compatibility fallback for simple test doubles and unusual local stores.
-        overview_rows = []
-        class_snapshot = {}
-        for class_record in classes:
-            try:
-                roster = store.list_students(class_record.class_id)
-                status_rows = store.daily_status(class_record.class_id, challenge.challenge_id, students=roster)
-                summary = summarize_daily_status(status_rows)
-                mode = configured_daily_mode(store, class_record.class_id, day)
-                class_snapshot[str(class_record.class_id)] = {
-                    "students": roster,
-                    "status": status_rows,
-                    "summary": summary,
-                    "mode": mode,
-                }
-                overview_rows.append({
-                    "Class": class_record.class_name,
-                    "Daily 10": mode,
-                    "Finished": f"{summary['complete']}/{summary['present']}",
-                    "In progress": summary["in_progress"],
-                    "Not started": summary["not_started"],
-                })
-            except Exception as exc:
-                overview_errors.append((class_record.class_name, exc))
-                class_snapshot[str(class_record.class_id)] = {
-                    "students": [], "status": [], "summary": None,
-                    "mode": configured_daily_mode(store, class_record.class_id, day), "error": exc,
-                }
-                overview_rows.append({
-                    "Class": class_record.class_name,
-                    "Daily 10": class_snapshot[str(class_record.class_id)]["mode"],
-                    "Finished": "—", "In progress": "—", "Not started": "—",
-                })
-        # A successful per-class fallback is a fresh usable snapshot.
-
-    st.markdown("#### All Classes")
-    st.dataframe(pd.DataFrame(overview_rows), hide_index=True, use_container_width=True)
-    if overview_errors:
-        st.caption("⚠️ Some class totals could not refresh. Available class details are still shown below.")
-
-    class_by_name = {item.class_name: item for item in classes}
-    selected_name = st.selectbox("Open class", list(class_by_name), key="teacher_today_class")
-    selected = class_by_name[selected_name]
-    selected_snapshot = class_snapshot.get(str(selected.class_id), {})
-    students = list(selected_snapshot.get("students") or [])
-    status = list(selected_snapshot.get("status") or [])
-    absent_ids: set[str] = set()
-    daily_status_error = selected_snapshot.get("error")
-    daily_mode = str(selected_snapshot.get("mode") or configured_daily_mode(store, selected.class_id, day))
-    multiplication_routine = daily_mode == "Multiplication"
-    st.caption("Done means Daily 10 + Fix Your Misses + Focus Practice are complete. The Mystery guess is optional.")
-
-    progress_error = None
-    learning_stats_error = None
-    if daily_status_error is None:
-        try:
-            if multiplication_routine:
-                progress_map = store.class_learning_progress(selected.class_id, challenge.challenge_id, students=students)
-            else:
-                progress_map = store.class_alternate_learning_progress(
-                    selected.class_id, challenge.challenge_id, students=students
-                )
-        except Exception as exc:
-            progress_map = {}
-            progress_error = exc
-        try:
-            learning_stats = store.class_learning_stats(selected.class_id, day, students=students)
-        except Exception as exc:
-            learning_stats = {}
-            learning_stats_error = exc
-    else:
-        progress_map = {}
-        learning_stats = {}
-
-    warmup_error = None
-    quiz_error = None
-    quiz_today = None
-    quiz_rows = []
-    if quiz_is_friday(day):
-        try:
-            quiz_today = store.get_weekly_quiz_set(selected.class_id, day)
-            if quiz_today is not None:
-                quiz_rows = store.list_weekly_quiz_answers(quiz_today.quiz_id)
-        except Exception as exc:
-            quiz_error = exc
-    try:
-        # Match the student route: an assigned Friday quiz replaces the Igniter.
-        warmup_today = store.get_warmup_set(selected.class_id, day) if quiz_today is None and quiz_error is None else None
-        warmup_rows = store.list_warmup_answers(day, day, class_id=selected.class_id) if warmup_today is not None else []
-    except Exception as exc:
-        warmup_today = None
-        warmup_rows = []
-        warmup_error = exc
-
-    lesson_name = "Quiz of the Week" if quiz_today is not None else "Igniter"
-    lesson_question_count = QUIZ_QUESTION_COUNT if quiz_today is not None else 2
-    lesson_counts = {}
-    if quiz_today is not None:
-        lesson_counts = curriculum_answer_counts(
-            students, quiz_rows, question_count=QUIZ_QUESTION_COUNT,
-            assignment_id=quiz_today.quiz_id, assignment_field="quiz_id",
-        )
-    elif warmup_today is not None:
-        lesson_counts = curriculum_answer_counts(
-            students, warmup_rows, question_count=2,
-            assignment_id=warmup_today.warmup_set_id, assignment_field="warmup_set_id",
-        )
-    lesson_error = quiz_error is not None or warmup_error is not None
-    before_daily_ids = {
-        str(row["student_id"]) for row in status
-        if row.get("status") == "Not started" and lesson_counts.get(str(row["student_id"]), 0) > 0
-    }
-
-    if daily_status_error is None:
-        if st.session_state.get("teacher_refresh_pending"):
-            finish_refresh()
-        else:
-            set_refresh_stamp()
-    else:
-        st.session_state.pop("teacher_refresh_pending", False)
-
-    stamp = st.session_state.get("teacher_last_refresh_at")
-    if stamp:
-        st.caption(f"🟢 Updated {stamp}")
-
-    # v2.14.1 intentionally keeps Today roster-based. Teachers do not need to
-    # maintain a separate attendance list just to understand the class snapshot.
-
-    if daily_status_error is None:
-        daily_summary = summarize_daily_status(status)
-        present_status = list(status)
-        completed_rows = [row for row in present_status if row.get("status") == "Complete"]
-        total = daily_summary["present"]
-        not_started = daily_summary["not_started"] - len(before_daily_ids)
-        daily_complete = daily_summary["complete"]
-        if progress_error is None:
-            routine_summary = summarize_routine_for_mode(status, progress_map, daily_mode)
-            full_complete = routine_summary["done"]
-            working = routine_summary["daily"] + routine_summary["fix"] + routine_summary["focus"] + len(before_daily_ids)
-        else:
-            routine_summary = {"done": 0, "daily": 0, "fix": 0, "focus": 0, "not_started": not_started}
-            full_complete = working = None
-    else:
-        daily_summary = {"enrolled": len(students), "absent": 0, "present": len(students), "complete": 0, "in_progress": 0, "not_started": 0}
-        routine_summary = {"done": 0, "daily": 0, "fix": 0, "focus": 0, "not_started": 0}
-        present_status = status
-        completed_rows = []
-        total = len(students)
-        full_complete = working = None
-        not_started = daily_complete = 0
-
-    average_accuracy = (
-        sum(int(row["correct_count"]) for row in completed_rows) / len(completed_rows)
-        if completed_rows else 0
-    )
-    median_time = (
-        float(pd.Series([row["timed_seconds"] for row in completed_rows]).median())
-        if completed_rows else 0
-    )
-
-    warmup_done = set()
-    q1_accuracy = q2_accuracy = None
-    if warmup_today is not None:
-        real_ids = {student.student_id for student in students}
-        warmup_rows = [row for row in warmup_rows if row.student_id in real_ids]
-        q1_rows = [row for row in warmup_rows if row.question_slot == 1]
-        q2_rows = [row for row in warmup_rows if row.question_slot == 2]
-        warmup_done = {row.student_id for row in q1_rows} & {row.student_id for row in q2_rows}
-        q1_accuracy = (sum(row.correct for row in q1_rows) / len(q1_rows) * 100) if q1_rows else None
-        q2_accuracy = (sum(row.correct for row in q2_rows) / len(q2_rows) * 100) if q2_rows else None
-
-    pending_prior_raffle = False
-    try:
-        current_week = week_start_for(day)
-        pending_prior_raffle = mystery_pending_draw(store, current_week - timedelta(days=7))
+        if not classes:
+            st.info("Create a class in Manage to get started.")
+            return
+        lessons = load_today_lessons(store, day, classes)
     except Exception:
-        pending_prior_raffle = False
+        st.warning("Classroom progress could not refresh just now. Choose Refresh data to try again.")
+        st.session_state.pop("teacher_refresh_pending", None)
+        return
 
-    not_started_names = [
-        str(row.get("nickname") or "").strip()
-        for row in status
-        if str(row.get("status") or "") == "Not started" and str(row.get("student_id")) not in before_daily_ids and str(row.get("nickname") or "").strip()
-    ]
-    follow_up_names = []
-    if progress_error is None:
-        for row in status:
-            if str(row.get("status") or "") != "Complete":
-                continue
-            progress = progress_map.get(str(row.get("student_id") or ""))
-            if progress is None or not getattr(progress, "completed_at", None):
-                nickname = str(row.get("nickname") or "").strip()
-                if nickname:
-                    follow_up_names.append(nickname)
-    warmup_missing_names = [
-        student.nickname for student in students if student.student_id not in warmup_done
-    ] if warmup_today is not None else []
-
-    st.markdown(f"#### {selected.class_name} · Quick follow-ups")
-    actions = build_today_action_items(
-        daily_summary={**daily_summary, "not_started": not_started,
-                       "in_progress": daily_summary.get("in_progress", 0) + len(before_daily_ids)},
-        routine_summary=routine_summary,
-        warmup_assigned=warmup_today is not None,
-        warmup_finished=len(warmup_done),
-        pending_prior_raffle=pending_prior_raffle,
-        not_started_names=not_started_names,
-        follow_up_names=follow_up_names,
-        warmup_missing_names=warmup_missing_names,
-    ) if daily_status_error is None else []
-    if quiz_today is not None and quiz_error is None:
-        missing_quiz = [student.nickname for student in students if lesson_counts.get(str(student.student_id), 0) < QUIZ_QUESTION_COUNT]
-        if missing_quiz and any(lesson_counts.values()):
-            actions = [item for item in actions if item["route"]]
-            actions.insert(0, {
-                "icon": "📝", "title": f"Quiz not submitted · {len(missing_quiz)}",
-                "detail": ", ".join(missing_quiz), "route": "Quiz of the Week",
-            })
-    if lesson_error or progress_error is not None:
-        actions = [item for item in actions if item["route"]]
-    if actions:
-        action_html = "".join(
-            f"<div style='padding:.42rem 0'><strong>{html.escape(item['icon'])} {html.escape(item['title'])}</strong>"
-            f"<div style='color:#6b7280;font-size:.92rem'>{html.escape(item['detail'])}</div></div>"
-            for item in actions[:4]
-        )
-        st.markdown(f"<div class='soft-card'>{action_html}</div>", unsafe_allow_html=True)
-
-    qa1, qa2, qa3, qa4 = st.columns(4)
-    with qa1:
-        st.button(
-            "📝 Quiz of the Week" if quiz_today is not None else "🧠 Warm-Up",
-            use_container_width=True, key="today_go_warmup",
-            on_click=go_teacher_tool, args=("Quiz of the Week" if quiz_today is not None else "Warm-Up", selected.class_name),
-        )
-    with qa2:
-        st.button("🛠️ Student Support", use_container_width=True, key="today_go_support", on_click=go_teacher_tool, args=("Student Support",))
-    with qa3:
-        st.button("🎟️ Mystery", use_container_width=True, key="today_go_mystery", on_click=go_teacher_tool, args=("Weekly Mystery",))
-    with qa4:
-        st.button("🎯 Daily 10 Setup", use_container_width=True, key="today_go_daily_setup", on_click=go_teacher_tool, args=("Daily 10 Setup",))
-
-    c1, c2, c3, c4 = st.columns(4)
-    if daily_status_error is None:
-        c1.metric("🟢 Done", "—" if full_complete is None else f"{full_complete}/{total}")
-        c2.metric("🟡 Working", "—" if working is None or lesson_error else working)
-        c3.metric("⚪ Not started", "—" if lesson_error else not_started)
-        c4.metric("Daily 10 finished", f"{daily_complete}/{total}")
-        st.caption(f"Students: {total} · Daily 10 mode: **{daily_mode}**")
-        st.caption("Working includes saved Igniter or quiz answers before Daily 10. Counts reflect saved work, not who has the app open. Monday Recovery is not tracked here.")
+    if st.session_state.get("teacher_refresh_pending"):
+        finish_refresh()
     else:
-        c1.metric("🟢 Done", "—")
-        c2.metric("🟡 Working", "—")
-        c3.metric("⚪ Not started", "—")
-        c4.metric("Daily 10 finished", "—")
-        st.warning("Daily 10 status could not load just now. Warm-Up and other teacher tools are still available; tap Refresh data and try again.")
-        if str(st.query_params.get("dbcheck", "0")) == "1":
-            st.exception(daily_status_error)
+        set_refresh_stamp()
+    selected = _render_class_cards(lessons)
 
-    if progress_error is not None:
-        st.warning("Daily progress could not load just now. Daily 10 completion is still available; Done/Working will return after Refresh data.")
-        if str(st.query_params.get("dbcheck", "0")) == "1":
-            st.exception(progress_error)
-    if learning_stats_error is not None:
-        st.caption("⚠️ Streak and Days Completed could not refresh; the rest of Today is still available.")
+    st.markdown(f"### {html.escape(selected.class_record.class_name)}")
+    if selected.error:
+        st.warning("This class's Igniter or Quiz results are temporarily unavailable. Refresh to try again.")
+        return
 
-    if warmup_error is not None:
-        st.warning("Warm-Up results could not load just now. The rest of Today is still available; tap Refresh data and try again.")
-        if str(st.query_params.get("dbcheck", "0")) == "1":
-            st.exception(warmup_error)
-
-    if quiz_error is not None:
-        st.warning("Quiz progress could not load just now. Tap Refresh data to check the latest submissions.")
-        if str(st.query_params.get("dbcheck", "0")) == "1":
-            st.exception(quiz_error)
-    elif quiz_today is not None:
-        st.markdown("#### 📝 Quiz of the Week")
-        submitted_count = sum(count == QUIZ_QUESTION_COUNT for count in lesson_counts.values())
-        started_count = sum(0 < count < QUIZ_QUESTION_COUNT for count in lesson_counts.values())
-        q1, q2, q3 = st.columns(3)
-        q1.metric("Submitted", f"{submitted_count}/{len(lesson_counts)}")
-        q2.metric("In progress", started_count)
-        q3.metric("No answers saved", sum(count == 0 for count in lesson_counts.values()))
-        st.caption("Students reviewing all five answers remain In progress until they tap Submit Quiz. Open Quiz of the Week for results and export.")
-
-    if warmup_today is not None:
-        st.markdown("#### 🧠 Quick Warm-Up")
-        if st.button("Display Igniter", key="today_display_igniter", use_container_width=True):
-            from igniter_presentation import open_igniter_presentation
-            open_igniter_presentation(selected.class_id, day)
-            st.rerun()
-        w1, w2, w3 = st.columns(3)
-        w1.metric("Finished", f"{len(warmup_done)}/{total}")
-        w2.metric("Spiral accuracy", "—" if q1_accuracy is None else f"{q1_accuracy:.0f}%")
-        w3.metric("Yesterday accuracy", "—" if q2_accuracy is None else f"{q2_accuracy:.0f}%")
-        st.caption("Students who have not finished are kept separate from incorrect answers. Open the groups when you are ready to plan next steps.")
-        if st.toggle("🎯 Show Warm-Up groups & email", key=f"teacher_today_warmup_groups_{selected.class_id}"):
-            _render_warmup_groups_and_email(
-                store, selected, day, warmup_today, warmup_rows, students,
-                key_prefix=f"teacher_today_warmup_{selected.class_id}_{day.isoformat()}",
-            )
-
-    st.markdown("#### 🏆 Class Top 10")
-    if daily_status_error is not None:
-        st.caption("Daily standings are temporarily unavailable. Warm-Up results are still available; tap Refresh data and try again.")
-    else:
-        board = leaderboard_from_status(present_status, limit=10)
-        final = leaderboard_is_final(store, day, selected.class_id, completed=daily_complete, total=total)
-        if final:
-            st.success("**Final Top 10** · final standings for today")
-        else:
-            st.info(f"**Live Top 10** · {daily_complete} of {total} students finished · standings may change")
-        board_frame = pd.DataFrame([{"Rank": row["rank"], "Nickname": row["nickname"]} for row in board]) if board else pd.DataFrame(columns=["Rank", "Nickname"])
-        if board:
-            st.dataframe(board_frame, hide_index=True, use_container_width=True)
-        else:
-            st.caption("No completed Daily attempts yet today.")
-
-        top10_a, top10_b = st.columns(2)
-        with top10_a:
-            if st.button("🏆 Display Top 10", use_container_width=True, key=f"display_top10_{selected.class_id}"):
-                st.session_state["teacher_projector_mode"] = True
-                st.session_state["teacher_projector_class_id"] = selected.class_id
-                st.session_state["teacher_projector_class_name"] = selected.class_name
-                st.rerun()
-        with top10_b:
-            if final and not (total > 0 and daily_complete >= total):
-                if st.button("Return standings to Live", use_container_width=True, key=f"unfinal_top10_{selected.class_id}"):
-                    store.set_app_setting(leaderboard_final_key(day, selected.class_id), False)
-                    st.rerun()
-            elif not final:
-                if st.button("Mark standings Final", use_container_width=True, key=f"final_top10_{selected.class_id}"):
-                    store.set_app_setting(leaderboard_final_key(day, selected.class_id), True)
-                    st.rerun()
-            else:
-                st.caption("Everyone has finished the Daily 10, so standings are automatically Final.")
-
-    if st.button("📟 Send Top 10 to Clock Now", use_container_width=True, key=f"send_clock_top10_{selected.class_id}"):
+    if selected.kind == "Igniter":
+        render_igniter_window_button(selected.class_record.class_id, day)
         try:
-            block = queue_clock_top10_for_class(store, selected.class_id)
-            st.success(f"Block {block} Top 10 queued for the classroom clock. An online clock should pick it up within about 15 seconds.")
-        except Exception as exc:
-            st.warning(f"Clock send is not ready yet: {exc}")
+            _render_warmup_outlook_link(store, selected, day)
+        except Exception:
+            st.caption("The Warm-Up email is temporarily unavailable. Its original tool remains in Warm-Up.")
+    if selected.assignment is None:
+        st.info("No Igniter or Friday Quiz is published for this class today.")
+    else:
+        activity = "Friday Quiz" if selected.kind == "Quiz" else "Igniter"
+        if selected.complete == 0:
+            st.caption(f"No completed {activity} responses yet. Unfinished answers are never counted as incorrect.")
+        else:
+            st.caption(f"{selected.complete} of {selected.total} students finished the {activity}.")
 
-    teacher_students = {student.student_id: student for student in students}
-    summary_rows = []
-    performance_rows = []
-    for row in status:
-        sid = row["student_id"]
-        progress = progress_map.get(sid)
-        routine = classroom_routine_label(
-            row, progress, daily_mode, lesson_name=lesson_name,
-            lesson_counts=lesson_counts, question_count=lesson_question_count,
-            lesson_error=lesson_error,
-        )
-        stats = learning_stats.get(sid, {"current_streak": 0, "stars": 0})
-        student_record = teacher_students.get(sid)
-        pin = student_record.pin_code if student_record and student_record.pin_code else "Reset once"
-        summary_rows.append({
-            "Nickname": row["nickname"],
-            "PIN": pin,
-            "Status": routine,
-            "Streak": f"🔥 {stats.get('current_streak', 0)}" if stats.get("current_streak", 0) else "—",
-            "Days Completed": int(stats.get("stars", 0)),
-        })
-        performance_rows.append({
-            "Nickname": row["nickname"],
-            "PIN": pin,
-            "Daily accuracy": "" if row["correct_count"] is None else f"{int(row['correct_count'])}/10",
-            "Time": "" if row["timed_seconds"] is None else format_seconds(float(row["timed_seconds"])),
-        })
-    if summary_rows:
-        st.markdown("#### Where everyone is")
-        st.dataframe(pd.DataFrame(summary_rows), hide_index=True, use_container_width=True)
-
-    with st.expander("Accuracy & timing", expanded=False):
-        st.caption("Accuracy determines rank; time only breaks ties.")
-        if completed_rows:
-            st.caption(f"Class average: {average_accuracy:.1f}/10 · median time: {format_seconds(median_time)}")
-        st.dataframe(pd.DataFrame(performance_rows), hide_index=True, use_container_width=True)
-
-    with st.expander("Preview today's 10", expanded=False):
-        if daily_mode != "Multiplication":
-            st.caption(f"{daily_mode} is assigned today. This preview shows the standard Multiplication Daily 10, not today's alternate questions.")
-        mix = daily_mix_summary(facts)
-        st.caption(
-            f"Mix: {mix['easy']} easier · {mix['medium']} medium · {mix['hard']} harder"
-            + (f" · includes {mix['extension']} 11/12 fact{'s' if mix['extension'] != 1 else ''}" if mix["extension"] else " · no 11/12 fact today")
-        )
-        for index, fact in enumerate(facts, start=1):
-            st.write(f"{index}. **{fact.label} = {fact.product}**")
+    st.markdown("#### Teaching priorities")
+    today_groups = today_reteach(selected)
+    if today_groups:
+        st.caption("Today's needs · Based on students who completed the Igniter or Quiz")
+        _render_standard_groups(today_groups)
+    else:
+        try:
+            recent = recent_mastery_checkins(store, selected, day)
+        except Exception:
+            recent = []
+            st.caption("Recent mastery suggestions are temporarily unavailable.")
+        if recent:
+            st.caption("Worth checking in with · Repeated earlier misses from the Mastery Tracker")
+            _render_standard_groups(recent)
+        elif selected.assignment is not None and selected.complete:
+            st.success("No reteaching priorities from completed work today.")
+        else:
+            st.caption("Today's needs will appear as students finish the Igniter or Quiz.")

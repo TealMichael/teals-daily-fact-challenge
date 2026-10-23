@@ -5,6 +5,7 @@ export default function({parentElement, data, setTriggerValue}) {
   // DOM-local only: no storage, cookies, shared state, or reveal events sent to Python.
   const reset = root.dataset.identity !== data.identity;
   root.dataset.identity = data.identity;
+  root.dataset.scoped = data.scoped ? 'true' : 'false';
   byId('class-name').textContent = data.className || '';
   byId('lesson-date').textContent = data.date || '';
   ['one', 'two'].forEach((word, i) => {
@@ -31,8 +32,18 @@ export default function({parentElement, data, setTriggerValue}) {
   };
   // Rebind handlers on every component rerender, matching the existing Order Tiles fix.
   ['previous', 'next', 'today', 'exit'].forEach(action => {
-    byId(action).onclick = async () => {
+    const control = byId(action);
+    if (action !== 'exit') control.hidden = !!data.scoped;
+    if (action === 'exit') control.textContent = data.scoped ? 'Close window' : 'Dashboard';
+    control.onclick = async () => {
       if (isFull()) {try {await document.exitFullscreen();} catch (_) {}}
+      if (data.scoped) {
+        if (action === 'exit') {
+          window.close();
+          byId('screen-status').textContent = 'You can close this presentation window. Your dashboard is still open.';
+        }
+        return;
+      }
       setTriggerValue('action', {action, identity: data.identity});
     };
   });

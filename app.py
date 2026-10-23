@@ -666,8 +666,14 @@ def render_array(fact: Fact) -> None:
     )
 
 def render_header() -> str:
-    st.markdown("<h1 class='top-title'>Teal's Daily Fact Challenge</h1>", unsafe_allow_html=True)
-    st.markdown("<div class='subtitle'>10 facts a day · accuracy first · speed breaks ties</div>", unsafe_allow_html=True)
+    minimal_teacher_today = (
+        st.session_state.get("app_mode") == "Teacher"
+        and st.session_state.get("teacher_authed")
+        and st.session_state.get("teacher_primary_section", "📊 Today") == "📊 Today"
+    )
+    if not minimal_teacher_today:
+        st.markdown("<h1 class='top-title'>Teal's Daily Fact Challenge</h1>", unsafe_allow_html=True)
+        st.markdown("<div class='subtitle'>10 facts a day · accuracy first · speed breaks ties</div>", unsafe_allow_html=True)
 
     signed_in = student_signed_in()
     mode = st.session_state.app_mode
@@ -2916,8 +2922,9 @@ def render_teacher(store: SupabaseFactStore | None) -> None:
 
     top_left, top_right = st.columns([7, 1])
     with top_left:
-        st.markdown("## Teacher Dashboard")
-        st.caption("Your everyday classroom tools stay one tap away.")
+        if st.session_state.get("teacher_primary_section", "📊 Today") != "📊 Today":
+            st.markdown("## Teacher Dashboard")
+            st.caption("Your everyday classroom tools stay one tap away.")
     with top_right:
         if st.button("Log out"):
             st.session_state.teacher_authed = False
@@ -3003,6 +3010,35 @@ def maybe_render_db_diagnostic(store: SupabaseFactStore | None) -> None:
                 st.info("The saved service address was adjusted automatically and is working.")
         except Exception as exc:
             st.exception(exc)
+
+# An independent projector window gets only its signed class/date's published
+# slide, not a second authenticated teacher dashboard. A new Streamlit window
+# always has its own session, so teacher_authed cannot be reused there.
+_slide_token = str(st.query_params.get("igniter_window") or "")
+if _slide_token:
+    from igniter_popout import launch_secret, verify_launch_grant
+    _slide_grant = verify_launch_grant(_slide_token, launch_secret())
+    if not _slide_grant:
+        st.error("This Igniter display link has expired. Open a new window from the teacher dashboard.")
+        st.stop()
+    _scope = st.session_state.get("teacher_slide_only")
+    if _scope and _scope != _slide_grant:
+        st.error("This window is already assigned to a different Igniter. Open another display window.")
+        st.stop()
+    st.session_state["teacher_slide_only"] = _slide_grant
+    st.session_state["igniter_presentation"] = {
+        **_slide_grant, "nonce": "projector-" + _slide_grant["class_id"] + "-" + _slide_grant["day"],
+    }
+    st.query_params.clear()
+
+if st.session_state.get("teacher_slide_only"):
+    from igniter_presentation import render_igniter_presentation
+    _slide_store = _timed_app_call("create_store", get_store, log_after_seconds=0.75)
+    if _slide_store is None:
+        st.error("The classroom connection is unavailable. Close this window and try again.")
+    else:
+        _timed_app_call("render_slide_only", lambda: render_igniter_presentation(_slide_store), log_after_seconds=1.25)
+    st.stop()
 
 # Render the visible shell before any database-dependent startup work.  If
 # Streamlit or Supabase is slow, students should see the Fact Challenge title

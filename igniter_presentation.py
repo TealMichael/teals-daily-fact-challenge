@@ -19,6 +19,8 @@ from warmup import correct_answer_for_storage, display_student_response
 
 
 def teacher_can_present() -> bool:
+    if st.session_state.get("teacher_slide_only"):
+        return not bool(st.session_state.get("teacher_test_student_mode"))
     return bool(st.session_state.get("teacher_authed")) and not bool(
         st.session_state.get("teacher_test_student_mode")
     ) and st.session_state.get("app_mode", "Teacher") == "Teacher"
@@ -142,7 +144,15 @@ def render_igniter_presentation(store) -> None:
         st.warning("Sign in as a teacher to display an Igniter.")
         return
     context = st.session_state.get("igniter_presentation") or {}
+    scoped = st.session_state.get("teacher_slide_only")
+    if scoped and (context.get("class_id") != scoped.get("class_id")
+                   or context.get("day") != scoped.get("day")):
+        st.error("This presentation window is limited to the selected lesson.")
+        return
     def dashboard_fallback():
+        if scoped:
+            st.info("Close this window and reopen Display Igniter from the teacher dashboard.")
+            return
         if st.button("← Teacher Dashboard", key="igniter_presentation_exit_fallback"):
             st.session_state.pop("igniter_presentation", None)
             st.rerun()
@@ -161,6 +171,8 @@ def render_igniter_presentation(store) -> None:
     if warmup is None:
         st.info(f"No published Igniter for {day.strftime('%A, %B %d')}. Choose another date.")
         dashboard_fallback()
+        if scoped:
+            return
         chosen = st.date_input("Presentation date", day, key="empty_igniter_date")
         if st.button("Display selected date"):
             open_igniter_presentation(class_id, chosen)
@@ -177,13 +189,15 @@ def render_igniter_presentation(store) -> None:
     result = _component()(
         data={"identity": identity,
               "className": klass.class_name, "date": day.strftime("%A · %B %d, %Y"),
-              "cards": cards}, key="teacher_igniter_slide",
+              "cards": cards, "scoped": bool(scoped)}, key="teacher_igniter_slide",
         on_action_change=lambda: None,
     )
     event = getattr(result, "action", None)
     # Trigger values can survive an explicit Streamlit rerun. A navigation event
     # belongs only to the slide that emitted it, so it can never advance twice.
     action = event.get("action") if isinstance(event, dict) and event.get("identity") == identity else None
+    if scoped:
+        return
     if action == "exit":
         st.session_state.pop("igniter_presentation", None)
         st.rerun()
