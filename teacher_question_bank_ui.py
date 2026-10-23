@@ -125,7 +125,10 @@ def render_inline_question_bank_picker(
 def _queue_question(question: dict, destination: str) -> None:
     st.session_state["question_bank_pending"] = dict(question)
     st.session_state["question_bank_destination"] = destination
-    st.session_state["teacher_primary_redirect"] = "🧠 Warm-Up" if destination == "warmup" else "📝 Quiz of the Week"
+    # v2.27 groups both individual editors under Plan. Retain the pending
+    # question so its original destination editor can pick it up unchanged.
+    st.session_state["teacher_plan_redirect"] = "Warm-Up Editor" if destination == "warmup" else "Quiz Builder"
+    st.session_state["teacher_primary_redirect"] = "Plan"
 
 
 def _render_teacher_answer(question: dict) -> None:

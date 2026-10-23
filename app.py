@@ -469,9 +469,11 @@ def init_state() -> None:
         "practice_focus_queue_batch": 0,
         "student_nav": "Today",
         "teacher_section": "📊 Today",
-        "teacher_primary_section": "📊 Today",
-        "teacher_learning_section": "📈 Learning Data",
-        "teacher_manage_section": "🕵️ Weekly Mystery",
+        "teacher_primary_section": "Today",
+        "teacher_plan_tool": "Weekly Planner",
+        "teacher_results_tool": "Overview",
+        "teacher_learning_section": "Standards Mastery",
+        "teacher_manage_section": "Classes & Rosters",
         "bulk_created_credentials": None,
         "practice_retry_correct": False,
         "practice_retry_count": 0,
@@ -666,12 +668,11 @@ def render_array(fact: Fact) -> None:
     )
 
 def render_header() -> str:
-    minimal_teacher_today = (
+    compact_teacher_header = (
         st.session_state.get("app_mode") == "Teacher"
         and st.session_state.get("teacher_authed")
-        and st.session_state.get("teacher_primary_section", "📊 Today") == "📊 Today"
     )
-    if not minimal_teacher_today:
+    if not compact_teacher_header:
         st.markdown("<h1 class='top-title'>Teal's Daily Fact Challenge</h1>", unsafe_allow_html=True)
         st.markdown("<div class='subtitle'>10 facts a day · accuracy first · speed breaks ties</div>", unsafe_allow_html=True)
 
@@ -1992,21 +1993,23 @@ def _teacher_refresh_control(*, key: str) -> None:
 def _go_teacher_tool(tool: str, class_name: str | None = None) -> None:
     """Route a teacher quick action while preserving class context when useful."""
     routes = {
-        "Today": ("📊 Today", None, None),
-        "Warm-Up": ("🧠 Warm-Up", None, None),
-        "Quiz of the Week": ("📝 Quiz of the Week", None, None),
-        "Next Steps": ("📈 Learning", "🧭 Next Steps", None),
-        "Learning Data": ("📈 Learning", "📈 Learning Data", None),
-        "Student Support": ("📈 Learning", "🛠️ Student Support", None),
-        "Class History": ("📈 Learning", "🗓️ Class History", None),
-        "Weekly Mystery": ("🕵️ Weekly Mystery", None, None),
-        "Classes & Rosters": ("⚙️ Manage", "👥 Classes & Rosters", "👥 Rosters"),
-        "Daily 10 Setup": ("⚙️ Manage", "👥 Classes & Rosters", "🎯 Daily 10 Setup"),
-        "Clock": ("⚙️ Manage", "🖥️ Clock", None),
-        "Test Student": ("⚙️ Manage", "🧪 Test Student", None),
+        "Today": ("Today", None),
+        "Warm-Up": ("Results", "Warm-Up Details"),
+        "Quiz of the Week": ("Results", "Quiz & Skyward"),
+        "Next Steps": ("Learning", "What to Teach Next"),
+        "Learning Data": ("Learning", "Standards Mastery"),
+        "Student Support": ("Learning", "Student Support"),
+        "Class History": ("Learning", "Class History"),
+        "Weekly Mystery": ("Plan", "Weekly Mystery"),
+        "Classes & Rosters": ("Manage", "Classes & Rosters"),
+        "Daily 10 Setup": ("Manage", "Daily 10 Setup"),
+        "Clock": ("Manage", "Clock"),
+        "Test Student": ("Manage", "Test Student"),
     }
-    primary, secondary, class_tool = routes.get(str(tool), ("📊 Today", None, None))
-    st.session_state["teacher_primary_section"] = primary
+    primary, secondary = routes.get(str(tool), ("Today", None))
+    # Defer navigation until the next rerun. The selected navigation widget
+    # may already be mounted when a deep tool invokes this helper.
+    st.session_state["teacher_primary_redirect"] = primary
     if tool == "Warm-Up" and class_name:
         st.session_state["teacher_warmup_class"] = str(class_name)
     if tool == "Quiz of the Week" and class_name:
@@ -2014,12 +2017,14 @@ def _go_teacher_tool(tool: str, class_name: str | None = None) -> None:
         target = current_daily_date()
         st.session_state["weekly_quiz_results_date"] = target
         st.session_state[f"weekly_quiz_results_class_{target}"] = str(class_name)
-    if primary == "📈 Learning" and secondary:
-        st.session_state["teacher_learning_section"] = secondary
-    if primary == "⚙️ Manage" and secondary:
-        st.session_state["teacher_manage_section"] = secondary
-    if class_tool:
-        st.session_state["teacher_class_tool"] = class_tool
+    if primary == "Learning" and secondary:
+        st.session_state["teacher_learning_redirect"] = secondary
+    if primary == "Manage" and secondary:
+        st.session_state["teacher_manage_redirect"] = secondary
+    if primary == "Results" and secondary:
+        st.session_state["teacher_results_redirect"] = secondary
+    if primary == "Plan" and secondary:
+        st.session_state["teacher_plan_redirect"] = secondary
 
 def render_teacher_projector(store: SupabaseFactStore) -> None:
     class_id = st.session_state.get("teacher_projector_class_id")
@@ -2924,21 +2929,8 @@ def render_teacher(store: SupabaseFactStore | None) -> None:
     # clearance for Streamlit's fixed toolbar (including its collapsed header).
     st.markdown("""<style>
         .block-container { padding-top: 4.25rem !important; }
-        .st-key-teacher_primary_section [role="radiogroup"] {
-            display: grid !important;
-            grid-template-columns: repeat(4, minmax(0, 1fr));
-            gap: 0.35rem 0.45rem;
-            width: 100%;
-            align-items: center;
-        }
-        .st-key-teacher_primary_section [role="radiogroup"] > label {
-            padding: 0.25rem 0.2rem;
-            min-width: 0;
-        }
-        @media (max-width: 560px) {
-            .st-key-teacher_primary_section [role="radiogroup"] {
-                grid-template-columns: repeat(2, minmax(0, 1fr));
-            }
+        .st-key-teacher_primary_section [data-testid="stSegmentedControl"] {
+            margin: 0.2rem 0 0.6rem;
         }
     </style>""", unsafe_allow_html=True)
 
@@ -2954,60 +2946,119 @@ def render_teacher(store: SupabaseFactStore | None) -> None:
             st.session_state.pop("igniter_presentation", None)
             st.rerun()
 
-    teacher_primary_sections = ["📊 Today", "📅 Weekly Planning", "🧠 Warm-Up", "📝 Quiz of the Week", "📚 Question Bank", "📈 Learning", "🕵️ Weekly Mystery", "⚙️ Manage"]
+    teacher_primary_sections = ["Today", "Plan", "Results", "Learning", "Manage"]
+    legacy_routes = {
+        "📊 Today": ("Today", None, None),
+        "📅 Weekly Planning": ("Plan", "teacher_plan_tool", "Weekly Planner"),
+        "🧠 Warm-Up": ("Results", "teacher_results_tool", "Warm-Up Details"),
+        "📝 Quiz of the Week": ("Results", "teacher_results_tool", "Quiz & Skyward"),
+        "📚 Question Bank": ("Plan", "teacher_plan_tool", "Question Bank"),
+        "📈 Learning": ("Learning", None, None),
+        "🕵️ Weekly Mystery": ("Plan", "teacher_plan_tool", "Weekly Mystery"),
+        "⚙️ Manage": ("Manage", None, None),
+    }
     redirect = st.session_state.pop("teacher_primary_redirect", None)
-    if redirect in teacher_primary_sections:
+    if redirect in legacy_routes:
+        parent, key, child = legacy_routes[redirect]
+        st.session_state["teacher_primary_section"] = parent
+        if key:
+            st.session_state[key] = child
+    elif redirect in teacher_primary_sections:
         st.session_state["teacher_primary_section"] = redirect
     current_primary = st.session_state.get("teacher_primary_section")
-    if current_primary not in teacher_primary_sections:
-        st.session_state["teacher_primary_section"] = "📊 Today"
-    primary = st.radio(
-        "Teacher section", teacher_primary_sections, horizontal=True,
-        label_visibility="collapsed", key="teacher_primary_section",
+    if current_primary in legacy_routes:
+        parent, key, child = legacy_routes[current_primary]
+        st.session_state["teacher_primary_section"] = parent
+        if key:
+            st.session_state[key] = child
+    elif current_primary not in teacher_primary_sections:
+        st.session_state["teacher_primary_section"] = "Today"
+    primary = st.segmented_control(
+        "Teacher section", teacher_primary_sections, required=True,
+        label_visibility="collapsed", width="stretch", key="teacher_primary_section",
     )
 
-    if primary == "📊 Today":
+    if primary == "Today":
         render_teacher_today(store)
-    elif primary == "📅 Weekly Planning":
-        from teacher_weekly_planning_ui import render_weekly_planning
-        render_weekly_planning(store)
-    elif primary == "🧠 Warm-Up":
-        render_teacher_warmup(store)
-    elif primary == "📝 Quiz of the Week":
-        render_teacher_weekly_quiz(store)
-    elif primary == "📚 Question Bank":
-        render_teacher_question_bank(store)
-    elif primary == "📈 Learning":
-        learning_sections = ["🧭 Next Steps", "📈 Learning Data", "🛠️ Student Support", "📅 Weekly Recap"] + ["🗓️ Class History"]
+    elif primary == "Plan":
+        tools = ["Weekly Planner", "Question Bank", "Weekly Mystery", "Warm-Up Editor", "Quiz Builder"]
+        plan_redirect = st.session_state.pop('teacher_plan_redirect', None)
+        if plan_redirect in tools:
+            st.session_state['teacher_plan_tool'] = plan_redirect
+        if st.session_state.get("teacher_plan_tool") not in tools:
+            st.session_state["teacher_plan_tool"] = "Weekly Planner"
+        chosen = st.selectbox('Planning tool', tools, key='teacher_plan_tool')
+        if chosen == "Weekly Planner":
+            from teacher_weekly_planning_ui import render_weekly_planning
+            render_weekly_planning(store)
+        elif chosen == "Question Bank":
+            render_teacher_question_bank(store)
+        elif chosen == "Weekly Mystery":
+            render_teacher_weekly_mystery(store)
+        elif chosen == "Warm-Up Editor":
+            render_teacher_warmup(store)
+        else:
+            from teacher_weekly_quiz_ui import _render_builder
+            classes = store.list_classes()
+            if classes:
+                _render_builder(store, classes)
+            else:
+                st.info('Create a class first.')
+    elif primary == "Results":
+        tools = ["Overview", "Warm-Up Details", "Quiz & Skyward", "Student Keys"]
+        results_redirect = st.session_state.pop('teacher_results_redirect', None)
+        if results_redirect in tools:
+            st.session_state['teacher_results_tool'] = results_redirect
+        if st.session_state.get("teacher_results_tool") not in tools:
+            st.session_state["teacher_results_tool"] = "Overview"
+        chosen = st.selectbox('Results view', tools, key='teacher_results_tool')
+        if chosen == "Overview":
+            from teacher_results_ui import render_results_overview
+            render_results_overview(store)
+        elif chosen == "Warm-Up Details":
+            render_teacher_warmup(store)
+        else:
+            from teacher_weekly_quiz_ui import _render_results, _render_student_keys
+            classes = store.list_classes()
+            if not classes:
+                st.info('Create a class first.')
+            elif chosen == "Quiz & Skyward":
+                _render_results(store, classes)
+            else:
+                _render_student_keys(store, classes)
+    elif primary == "Learning":
+        learning_sections = ["Standards Mastery", "What to Teach Next", "Fact Fluency", "Student Support", "Weekly Recap", "Class History"]
+        learning_redirect = st.session_state.pop('teacher_learning_redirect', None)
+        if learning_redirect in learning_sections:
+            st.session_state['teacher_learning_section'] = learning_redirect
         if st.session_state.get("teacher_learning_section") not in learning_sections:
-            st.session_state["teacher_learning_section"] = "🧭 Next Steps"
-        learning_section = st.radio(
-            "Learning tools", learning_sections, horizontal=True,
-            label_visibility="collapsed", key="teacher_learning_section",
-        )
-        if learning_section == "🧭 Next Steps":
+            st.session_state["teacher_learning_section"] = "Standards Mastery"
+        learning_section = st.selectbox('Learning view', learning_sections, key='teacher_learning_section')
+        if learning_section == "What to Teach Next":
             render_teacher_next_steps(store)
-        elif learning_section == "📈 Learning Data":
-            render_teacher_mastery_focus(store)
-        elif learning_section == "🛠️ Student Support":
+        elif learning_section == "Standards Mastery":
+            render_teacher_mastery_focus(store, view='📚 Standards Tracker')
+        elif learning_section == "Fact Fluency":
+            render_teacher_mastery_focus(store, view='⚡ Fact Fluency')
+        elif learning_section == "Student Support":
             render_teacher_student_tools(store)
-        elif learning_section == "📅 Weekly Recap":
+        elif learning_section == "Weekly Recap":
             render_teacher_weekly_recap(store)
         else:
             render_teacher_class_history(store)
-    elif primary == "🕵️ Weekly Mystery":
-        render_teacher_weekly_mystery(store)
     else:
-        manage_sections = ["👥 Classes & Rosters", "🖥️ Clock", "🧪 Test Student"]
+        manage_sections = ["Classes & Rosters", "Daily 10 Setup", "Clock", "Test Student"]
+        manage_redirect = st.session_state.pop('teacher_manage_redirect', None)
+        if manage_redirect in manage_sections:
+            st.session_state['teacher_manage_section'] = manage_redirect
         if st.session_state.get("teacher_manage_section") not in manage_sections:
-            st.session_state["teacher_manage_section"] = "👥 Classes & Rosters"
-        manage_section = st.radio(
-            "Manage tools", manage_sections, horizontal=True,
-            label_visibility="collapsed", key="teacher_manage_section",
-        )
-        if manage_section == "👥 Classes & Rosters":
-            render_teacher_class_hub(store)
-        elif manage_section == "🖥️ Clock":
+            st.session_state["teacher_manage_section"] = "Classes & Rosters"
+        manage_section = st.selectbox('Manage tool', manage_sections, key='teacher_manage_section')
+        if manage_section == "Classes & Rosters":
+            render_teacher_classes(store)
+        elif manage_section == "Daily 10 Setup":
+            render_teacher_daily_setup(store)
+        elif manage_section == "Clock":
             render_teacher_clock(store)
         else:
             render_teacher_test_student_launcher(store)

@@ -474,7 +474,7 @@ def _render_teacher_standards_tracker(store: SupabaseFactStore, selected, studen
     st.caption(f"History shown from {start_date.strftime('%b %d, %Y')} through {today.strftime('%b %d, %Y')}.")
 
 
-def render_teacher_mastery_focus(store: SupabaseFactStore) -> None:
+def render_teacher_mastery_focus(store: SupabaseFactStore, *, view: str | None = None) -> None:
     st.markdown("### 📈 Learning Data")
     st.caption("A simple view of multiplication fact fluency plus Indiana-standard evidence from Igniters, Quiz of the Week, and Recovery.")
     classes = store.list_classes()
@@ -490,13 +490,15 @@ def render_teacher_mastery_focus(store: SupabaseFactStore) -> None:
         st.info("No students are in this class yet.")
         return
 
-    view = st.radio(
-        "Learning data view",
-        ["⚡ Fact Fluency", "📚 Standards Tracker"],
-        horizontal=True,
-        label_visibility="collapsed",
-        key="teacher_learning_data_view",
-    )
+    if view is None:
+        # Retain the standalone Learning Data entry point used by older flows.
+        view = st.radio(
+            "Learning data view",
+            ["⚡ Fact Fluency", "📚 Standards Tracker"],
+            horizontal=True,
+            label_visibility="collapsed",
+            key="teacher_learning_data_view",
+        )
     if view == "⚡ Fact Fluency":
         _render_teacher_fact_fluency(store, selected, students)
     else:
