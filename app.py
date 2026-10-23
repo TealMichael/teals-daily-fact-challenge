@@ -2920,6 +2920,15 @@ def render_teacher(store: SupabaseFactStore | None) -> None:
         render_teacher_projector(store)
         return
 
+    # The compact Today header no longer supplies the vertical clearance that
+    # the former oversized app title created. Keep the first controls below
+    # Streamlit's fixed toolbar, instead of letting Log out disappear behind it
+    # even when the page is scrolled all the way to its actual top.
+    if st.session_state.get("teacher_primary_section", "📊 Today") == "📊 Today":
+        st.markdown("""<style>
+        .block-container { padding-top: 4.25rem !important; }
+        </style>""", unsafe_allow_html=True)
+
     top_left, top_right = st.columns([7, 1])
     with top_left:
         if st.session_state.get("teacher_primary_section", "📊 Today") != "📊 Today":
