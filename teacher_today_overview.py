@@ -17,6 +17,8 @@ from standards_recovery import (
     question_standard_metadata,
 )
 from weekly_quiz import QUIZ_QUESTION_COUNT, quiz_is_friday
+from teacher_evidence import standard_rows
+from teacher_lesson_reads import lesson_assignments
 
 
 @dataclass
@@ -73,27 +75,25 @@ def load_today_lessons(store, day: date, classes: list) -> list[TodayLesson]:
         rosters = {cid: store.list_students(cid) for cid in ids}
     lessons = [TodayLesson(record, list(rosters.get(str(record.class_id), []))) for record in classes]
 
+    assignments, errors = lesson_assignments(store, day, ids)
     for lesson in lessons:
         cid = str(lesson.class_record.class_id)
-        try:
-            if quiz_is_friday(day):
-                quiz = store.get_weekly_quiz_set(cid, day)
-                if quiz is not None:
-                    lesson.kind, lesson.assignment, lesson.question_count = "Quiz", quiz, QUIZ_QUESTION_COUNT
-                    continue
-            warmup = store.get_warmup_set(cid, day)
-            if warmup is not None:
-                lesson.kind, lesson.assignment, lesson.question_count = "Igniter", warmup, 2
-        except Exception:
-            # On Friday a failed quiz lookup must not masquerade as an Igniter day.
+        if cid in errors:
             lesson.error = True
+        elif cid in assignments:
+            kind, assignment = assignments[cid]
+            lesson.kind, lesson.assignment = kind, assignment
+            lesson.question_count = QUIZ_QUESTION_COUNT if kind == "Quiz" else 2
 
     for kind, method in (("Igniter", "list_warmup_answers"), ("Quiz", "list_weekly_quiz_answers_range")):
         group = [lesson for lesson in lessons if lesson.kind == kind and not lesson.error]
         if not group:
             continue
         try:
-            rows = getattr(store, method)(day, day)
+            # _real_rows filters through the fresh active, non-test roster.
+            # Single-class Results should not download every other class's work.
+            scope = str(group[0].class_record.class_id) if len(group) == 1 else None
+            rows = getattr(store, method)(day, day, class_id=scope, include_test=True)
         except Exception:
             for lesson in group:
                 lesson.error = True
@@ -148,11 +148,11 @@ def recent_mastery_checkins(store, lesson: TodayLesson, day: date, *, limit: int
     cid = str(lesson.class_record.class_id)
     if not lesson.students:
         return []
-    warmups = store.list_warmup_answers(start, end, class_id=cid)
-    quizzes = store.list_weekly_quiz_sets(start, end, class_id=cid)
-    quiz_answers = store.list_weekly_quiz_answers_range(start, end, class_id=cid)
+    warmups = standard_rows(store, "list_warmup_answers", start, end, class_id=cid, students=lesson.students)
+    quizzes = standard_rows(store, "list_weekly_quiz_sets", start, end, class_id=cid, students=lesson.students)
+    quiz_answers = standard_rows(store, "list_weekly_quiz_answers_range", start, end, class_id=cid, students=lesson.students)
     try:
-        recoveries = store.list_standard_recovery_answers(start, end, class_id=cid)
+        recoveries = standard_rows(store, "list_standard_recovery_answers", start, end, class_id=cid, students=lesson.students)
     except Exception:
         recoveries = []
     evidence = combine_standards_evidence(

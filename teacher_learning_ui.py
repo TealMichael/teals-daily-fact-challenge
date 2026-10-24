@@ -25,6 +25,7 @@ from teacher_insights import (
     standard_student_history, summarize_student_fluency, teacher_fact_band,
 )
 from standards_recovery import combine_standards_evidence, mastery_evidence_status
+from teacher_evidence import standard_rows
 from ui_helpers import format_seconds, strategy_tip
 
 def _override_label(value: int | None) -> str:
@@ -335,9 +336,9 @@ def _render_teacher_standards_tracker(store: SupabaseFactStore, selected, studen
     today = current_daily_date()
     start_date = _school_year_start(today)
     try:
-        warmup_rows = store.list_warmup_answers(start_date, today, class_id=selected.class_id)
-        quiz_sets = store.list_weekly_quiz_sets(start_date, today, class_id=selected.class_id)
-        quiz_rows = store.list_weekly_quiz_answers_range(start_date, today, class_id=selected.class_id)
+        warmup_rows = standard_rows(store, "list_warmup_answers", start_date, today, class_id=selected.class_id, students=students)
+        quiz_sets = standard_rows(store, "list_weekly_quiz_sets", start_date, today, class_id=selected.class_id, students=students)
+        quiz_rows = standard_rows(store, "list_weekly_quiz_answers_range", start_date, today, class_id=selected.class_id, students=students)
     except Exception as exc:
         st.error("Standards history could not be loaded. Try Refresh data and open this view again.")
         if str(st.query_params.get("dbcheck", "0")) == "1":
@@ -345,7 +346,7 @@ def _render_teacher_standards_tracker(store: SupabaseFactStore, selected, studen
         return
 
     try:
-        recovery_rows = store.list_standard_recovery_answers(start_date, today, class_id=selected.class_id)
+        recovery_rows = standard_rows(store, "list_standard_recovery_answers", start_date, today, class_id=selected.class_id, students=students)
     except Exception as exc:
         # Recovery is additive. Keep the pre-existing tracker available if the
         # new migration has not been applied yet or the supplemental table has
@@ -475,31 +476,6 @@ def _render_teacher_standards_tracker(store: SupabaseFactStore, selected, studen
 
 
 def render_teacher_mastery_focus(store: SupabaseFactStore, *, view: str | None = None) -> None:
-    st.markdown("### 📈 Learning Data")
-    st.caption("A simple view of multiplication fact fluency plus Indiana-standard evidence from Igniters, Quiz of the Week, and Recovery.")
-    classes = store.list_classes()
-    if not classes:
-        st.info("Create a class first.")
-        return
-
-    class_by_name = {item.class_name: item for item in classes}
-    class_name = st.selectbox("Class", list(class_by_name), key="teacher_mastery_class")
-    selected = class_by_name[class_name]
-    students = store.list_students(selected.class_id)
-    if not students:
-        st.info("No students are in this class yet.")
-        return
-
-    if view is None:
-        # Retain the standalone Learning Data entry point used by older flows.
-        view = st.radio(
-            "Learning data view",
-            ["⚡ Fact Fluency", "📚 Standards Tracker"],
-            horizontal=True,
-            label_visibility="collapsed",
-            key="teacher_learning_data_view",
-        )
-    if view == "⚡ Fact Fluency":
-        _render_teacher_fact_fluency(store, selected, students)
-    else:
-        _render_teacher_standards_tracker(store, selected, students)
+    """Compatibility entry point for older callers; new routes are explicit."""
+    from teacher_learning_views import render_learning_view
+    render_learning_view(store, view)

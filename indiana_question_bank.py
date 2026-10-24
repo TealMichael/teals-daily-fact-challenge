@@ -19,9 +19,11 @@ BANK_FILE = Path(__file__).with_name("indiana_question_bank.json")
 BANK_ASSET_DIR = Path(__file__).with_name("question_bank_assets")
 SUPPORTED_BANK_TYPES = frozenset({"Number", "Fraction", "Multiple choice", "Number + Label", "Compare Values", "Order Tiles"})
 BANK_GRADES = (5, 6, 7)
-QUESTIONS_PER_STANDARD = 10
+QUESTIONS_PER_STANDARD = 10  # Legacy/default size for Grades 6–7 and supplemental skills.
+GRADE5_QUESTIONS_PER_STANDARD = 40
+SUPPLEMENTAL_CODES = frozenset({"5.NS.5", "5.G.2", "5.M.6"})
 EXPECTED_STANDARD_COUNT = 75
-EXPECTED_QUESTION_COUNT = 750
+EXPECTED_QUESTION_COUNT = 1440
 
 
 @lru_cache(maxsize=1)
@@ -192,6 +194,8 @@ def bank_summary() -> dict:
         "standards": len({row.get("standard_code") for row in rows}),
         "essential_standards": len(essential_codes()),
         "essential_questions": sum(bool(row.get("essential")) for row in rows),
+        "curriculum_standards": len({row.get("standard_code") for row in rows} - SUPPLEMENTAL_CODES),
+        "supplemental_skills": len({row.get("standard_code") for row in rows} & SUPPLEMENTAL_CODES),
     }
 
 
@@ -199,5 +203,5 @@ def standard_label(code: str) -> str:
     standard = BY_CODE.get(str(code or ""))
     if standard is None:
         return str(code or "")
-    prefix = "★ Essential · " if is_essential_standard(standard.code) else ""
+    prefix = "Supplemental · " if standard.code in SUPPLEMENTAL_CODES else ("★ Essential · " if is_essential_standard(standard.code) else "")
     return f"{prefix}{standard.code} — {standard.description}"

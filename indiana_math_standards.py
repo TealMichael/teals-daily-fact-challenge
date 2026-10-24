@@ -3,12 +3,14 @@ from __future__ import annotations
 """Curated 2023 Indiana Academic Standards for Mathematics, Grades 4–7.
 
 The app uses concise teacher-facing skill summaries so the standards picker stays
-readable on a classroom dashboard.  Codes/domain/grade are the official 2023
-Indiana Mathematics content-standard identifiers; Process Standards are kept
+readable on a classroom dashboard.  Three legacy Grade 5 codes are retained as supplemental skills for saved lessons,
+and are labeled accordingly. Process Standards are kept
 separate and intentionally are not included in the Warm-Up picker.
 """
 
 from dataclasses import dataclass
+
+SUPPLEMENTAL_CODES = frozenset({"5.NS.5", "5.G.2", "5.M.6"})
 
 
 @dataclass(frozen=True)
@@ -20,7 +22,8 @@ class IndianaMathStandard:
 
     @property
     def label(self) -> str:
-        return f"Grade {self.grade} · {self.code} — {self.description}"
+        prefix = "Supplemental · " if self.code in SUPPLEMENTAL_CODES else ""
+        return f"{prefix}Grade {self.grade} · {self.code} — {self.description}"
 
 
 S = IndianaMathStandard

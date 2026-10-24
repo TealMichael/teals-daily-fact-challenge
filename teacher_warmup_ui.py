@@ -427,9 +427,16 @@ def _warmup_export_frame(store: SupabaseFactStore, start_date: date, end_date: d
     classes = store.list_classes(include_inactive=True)
     class_names = {item.class_id: item.class_name for item in classes}
     student_names: dict[str, str] = {}
-    for class_record in classes:
-        for student in store.list_students(class_record.class_id, include_inactive=True, include_test=False):
-            student_names[student.student_id] = student.nickname
+    if rows:
+        bulk_rosters = getattr(store, "list_students_for_classes", None)
+        if callable(bulk_rosters):
+            rosters = bulk_rosters([item.class_id for item in classes], include_inactive=True, include_test=False)
+        else:
+            rosters = {item.class_id: store.list_students(item.class_id, include_inactive=True, include_test=False)
+                       for item in classes}
+        for roster in rosters.values():
+            for student in roster:
+                student_names[student.student_id] = student.nickname
     data = []
     for row in rows:
         data.append({

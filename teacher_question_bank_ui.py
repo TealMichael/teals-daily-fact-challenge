@@ -8,6 +8,7 @@ import streamlit as st
 from indiana_math_standards import BY_CODE
 from indiana_question_bank import (
     BANK_GRADES,
+    SUPPLEMENTAL_CODES,
     bank_summary,
     domains_for_grade,
     questions_for_standard,
@@ -91,7 +92,7 @@ def render_inline_question_bank_picker(
 
         selected = None
         if choice == "Random":
-            st.caption("Random chooses one of this standard's 10 questions when you press Load.")
+            st.caption(f"Random chooses one of this standard's {len(questions)} questions when you press Load.")
         else:
             selected = questions[int(choice) - 1]
             image_note = " · 🖼 diagram" if selected.get("bank_image_path") else ""
@@ -148,13 +149,21 @@ def _render_teacher_answer(question: dict) -> None:
         except ValueError:
             answer = "Invalid order question"
     st.markdown(f"**Answer:** {answer}")
+    if question.get("worked_solution"):
+        st.write(question["worked_solution"])
+    if question.get("dok"):
+        st.caption(f"Estimated DOK {question['dok']} · {question.get('dok_rationale', '')}")
+    if question.get("teacher_extension"):
+        st.markdown("**Optional discussion:** " + question["teacher_extension"])
+        st.caption("Teacher-led extension; not part of the auto-scored question.")
     alternates = list(question.get("accepted_answers") or ())
     if alternates:
         st.caption("Also accepts: " + " · ".join(str(item) for item in alternates))
 
 
 def _render_question(question: dict) -> None:
-    st.markdown(f"### Question {int(question.get('question_number') or 1)} of 10")
+    count = len(questions_for_standard(question.get("standard_code") or ""))
+    st.markdown(f"### Question {int(question.get('question_number') or 1)} of {count}")
     meta = [str(question.get("flavor") or "Practice"), str(question.get("difficulty") or "On-level"), str(question.get("question_type") or "Number")]
     st.caption(" · ".join(meta))
     st.markdown(f"**{question.get('prompt', '')}**")
@@ -184,12 +193,12 @@ def _render_question(question: dict) -> None:
 def render_teacher_question_bank(store=None) -> None:
     summary = bank_summary()
     st.markdown("### 📚 Indiana Standards Question Bank")
-    st.caption("Ready-to-use Grade 5–7 questions aligned to the 2023 Indiana Academic Standards. Built-in bank content contains no student data and does not use Supabase storage.")
+    st.caption("Grade 5: 40 questions for each of the 23 standards in the supplied current framework, plus 30 retained supplemental questions. Grades 6–7 retain 10 questions per standard. Built-in content contains no student data and does not use Supabase storage.")
     st.caption("Fastest multi-question workflow: open Igniter or Quiz of the Week and use the inline Question Bank picker inside each question slot.")
 
     a, b, c = st.columns(3)
     a.metric("Questions", summary["questions"])
-    b.metric("Standards", summary["standards"])
+    b.metric("Standards", summary["curriculum_standards"])
     c.metric("Essential standards", summary["essential_standards"])
 
     grade = st.radio("Grade", BANK_GRADES, horizontal=True, format_func=lambda value: f"Grade {value}", key="question_bank_grade")
@@ -208,8 +217,10 @@ def render_teacher_question_bank(store=None) -> None:
     )
     standard = BY_CODE.get(selected_code)
     if standard is not None:
-        badge = " · ★ Essential" if is_essential_standard(selected_code) else ""
+        badge = " · Supplemental" if selected_code in SUPPLEMENTAL_CODES else (" · ★ Essential" if is_essential_standard(selected_code) else "")
         st.info(f"**{selected_code}{badge}** — {standard.description}")
+        if selected_code in SUPPLEMENTAL_CODES:
+            st.caption("Retained for existing lessons; this code is not listed among the 23 Grade 5 standards in the supplied current framework.")
 
     questions = list(questions_for_standard(selected_code))
     index_key = f"question_bank_index_{selected_code}"
@@ -244,7 +255,7 @@ def render_teacher_question_bank(store=None) -> None:
                 st.rerun()
         st.caption("The question is copied into the normal editor. You can change any wording, numbers, choices, units, or image before saving.")
 
-    with st.expander("See all 10 questions for this standard", expanded=False):
+    with st.expander(f"See all {len(questions)} questions for this standard", expanded=False):
         for row in questions:
             essential = " ★" if row.get("essential") else ""
             st.markdown(f"**{row['question_number']}. {row['prompt']}**{essential}")

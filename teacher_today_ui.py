@@ -36,6 +36,11 @@ def _card_label(lesson) -> str:
     return f"{name}\n\n{lesson.complete}/{lesson.total} {noun}"
 
 
+def _select_today_class(class_id: str) -> None:
+    # Callbacks run before the render, so choosing a card needs one live refresh.
+    st.session_state["teacher_today_class_id"] = class_id
+
+
 def _render_class_cards(lessons) -> object:
     st.markdown("""<style>
     div[class*="st-key-today_card_"] button {
@@ -73,13 +78,12 @@ def _render_class_cards(lessons) -> object:
             with cols[offset]:
                 state = "active" if cid == selected_id else "other"
                 with st.container(key=f"today_card_{state}_{index}"):
-                    if st.button(
+                    st.button(
                         _card_label(lesson), width="stretch",
                         key=f"today_pick_class_{index}",
                         help=f"Show {lesson.class_record.class_name} reteaching needs",
-                    ):
-                        st.session_state["teacher_today_class_id"] = cid
-                        st.rerun()
+                        on_click=_select_today_class, args=(cid,),
+                    )
     return next(lesson for lesson in lessons if str(lesson.class_record.class_id) == selected_id)
 
 

@@ -51,6 +51,7 @@ from daily_modes import configured_daily_mode, questions_for_mode
 from student_alt_daily_ui import render_alternate_daily
 from teacher_daily_setup_ui import render_teacher_daily_setup
 from teacher_learning_ui import render_teacher_mastery_focus, _override_label, _override_value
+from teacher_learning_views import render_teacher_standards_mastery, render_teacher_fact_fluency
 from teacher_intelligence_ui import render_teacher_next_steps, render_teacher_weekly_recap, render_student_learning_snapshot
 from teacher_class_history_ui import render_teacher_class_history
 from teacher_warmup_ui import render_teacher_warmup as _render_teacher_warmup_module
@@ -1966,6 +1967,8 @@ def _request_teacher_refresh() -> None:
     Refresh button a real data refresh rather than merely rerunning the page
     with the same long-lived cached connection.
     """
+    from teacher_read_store import clear_teacher_read_cache
+    clear_teacher_read_cache(st.session_state)
     load_store.clear()
     st.session_state["teacher_refresh_pending"] = True
 
@@ -2910,6 +2913,8 @@ def render_teacher(store: SupabaseFactStore | None) -> None:
         render_db_setup_message()
         return
     if not teacher_login():
+        from teacher_read_store import clear_teacher_read_cache
+        clear_teacher_read_cache(st.session_state)
         return
 
     if st.session_state.get("teacher_test_student_mode"):
@@ -2924,6 +2929,11 @@ def render_teacher(store: SupabaseFactStore | None) -> None:
     if st.session_state.get("teacher_projector_mode"):
         render_teacher_projector(store)
         return
+
+    # Keep read reuse confined to authenticated teacher pages. Student previews,
+    # projection and all normal student routes retain the original store.
+    from teacher_read_store import TeacherReadStore, clear_teacher_read_cache
+    store = TeacherReadStore(store, st.session_state, today=current_daily_date())
 
     # A consistent compact shell on all teacher pages. Retain enough vertical
     # clearance for Streamlit's fixed toolbar (including its collapsed header).
@@ -2941,6 +2951,7 @@ def render_teacher(store: SupabaseFactStore | None) -> None:
             Teal's Daily Fact Challenge</div>""", unsafe_allow_html=True)
     with top_right:
         if st.button("Log out"):
+            clear_teacher_read_cache(st.session_state)
             st.session_state.teacher_authed = False
             st.session_state["teacher_projector_mode"] = False
             st.session_state.pop("igniter_presentation", None)
@@ -3037,9 +3048,9 @@ def render_teacher(store: SupabaseFactStore | None) -> None:
         if learning_section == "What to Teach Next":
             render_teacher_next_steps(store)
         elif learning_section == "Standards Mastery":
-            render_teacher_mastery_focus(store, view='📚 Standards Tracker')
+            render_teacher_standards_mastery(store)
         elif learning_section == "Fact Fluency":
-            render_teacher_mastery_focus(store, view='⚡ Fact Fluency')
+            render_teacher_fact_fluency(store)
         elif learning_section == "Student Support":
             render_teacher_student_tools(store)
         elif learning_section == "Weekly Recap":
