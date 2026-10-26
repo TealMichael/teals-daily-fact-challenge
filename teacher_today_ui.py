@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-"""v2.26 minimal teacher Today: lesson completion, reteach, and one Outlook link.
+"""Teacher Today: class snapshots, Igniter pull groups and prior standards.
 
 Other teacher tools retain their own pages. No Daily 10, Top 10, mastery, or
 student writes occur here.
@@ -17,23 +17,35 @@ from teacher_today_overview import load_today_lessons, recent_mastery_checkins, 
 from teacher_warmup_ui import (
     _warmup_email_recipients,
     _warmup_grouping,
+    _warmup_instruction_recommendation,
     _warmup_outlook_url,
     _warmup_report_text,
 )
+from warmup import question_for_slot
 
 
 def _date_label(day: date) -> str:
     return day.strftime("%A, %B %d").replace(" 0", " ")
 
 
-def _card_label(lesson) -> str:
+def _card_label(lesson, grouping: dict | None = None) -> str:
     name = str(lesson.class_record.class_name)
     if lesson.error:
         return f"{name}\n\nUnavailable · Refresh"
     if lesson.assignment is None:
         return f"{name}\n\nNo activity assigned"
     noun = "Quiz submitted" if lesson.kind == "Quiz" else "Igniter complete"
-    return f"{name}\n\n{lesson.complete}/{lesson.total} {noun}"
+    label = f"{name}\n\n{lesson.complete}/{lesson.total} {noun}"
+    if grouping is not None:
+        if grouping["completed_count"]:
+            label += (
+                f"\n\nMissed Q1 **{len(grouping['q1_support'])}** · "
+                f"Missed Q2 **{len(grouping['q2_support'])}** · "
+                f"Missed both **{len(grouping['missed_both'])}**"
+            )
+        else:
+            label += "\n\nAwaiting completed Igniters" if lesson.total else "\n\nNo active students"
+    return label
 
 
 def _select_today_class(class_id: str) -> None:
@@ -41,21 +53,63 @@ def _select_today_class(class_id: str) -> None:
     st.session_state["teacher_today_class_id"] = class_id
 
 
-def _render_class_cards(lessons) -> object:
+def _render_class_cards(lessons, groupings: dict | None = None) -> object:
     st.markdown("""<style>
+    .block-container:has(div[class*="st-key-today_card_"]) {max-width: 1100px;}
     div[class*="st-key-today_card_"] button {
-        min-height: 112px;
+        min-height: 104px;
         border-radius: 14px;
         border-width: 1.5px;
-        white-space: pre-line;
-        font-size: 1.04rem;
-        line-height: 1.65;
-        font-weight: 650;
+        padding: 15px 18px;
+        text-align: left;
+    }
+    div[class*="st-key-today_card_"] button > div {width: 100%;}
+    div[class*="st-key-today_card_"] button [data-has-shortcut] {width: 100%;}
+    div[class*="st-key-today_card_"] button [data-testid="stMarkdownContainer"] {
+        display: grid; grid-template-columns: 1fr auto;
+        gap: 10px 12px; width: 100%;
+    }
+    div[class*="st-key-today_card_"] button p {margin: 0; line-height: 1.45;}
+    div[class*="st-key-today_card_"] button p:first-child {font-weight: 650;}
+    div[class*="st-key-today_card_"] button p:nth-child(2) {font-size: .94rem; text-align: right;}
+    div[class*="st-key-today_card_"] button p:nth-child(3) {
+        grid-column: 1 / -1; border-top: 1px solid #d4dfdb;
+        padding-top: 9px; font-size: .86rem; color: #536773;
     }
     div[class*="st-key-today_card_active"] button {
         border: 2px solid #087968;
         background: #e6f5ef;
         color: #163f36;
+    }
+    .today-results {display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
+        padding: 4px 0 20px; border-bottom: 1px solid #d6dce0; margin-bottom: 4px;}
+    .today-result {padding: 0 22px; border-left: 1px solid #d6dce0; min-width: 0;}
+    .today-result:first-child {padding-left: 0; border-left: 0;}
+    .today-result-label, .today-result-detail {color: #647080; font-size: .88rem;}
+    .today-result-value {font-size: 2.2rem; font-weight: 700; line-height: 1.25;
+        font-variant-numeric: tabular-nums; color: #111827;}
+    .today-result-detail {font-size: .83rem; margin-top: 3px;}
+    .today-name-list {display: flex; flex-wrap: wrap; gap: 6px;}
+    .today-name {display: inline-block; padding: 3px 8px; border-radius: 5px;
+        background: #f4f7f6; color: #111827; font-size: .94rem; overflow-wrap: anywhere;}
+    .st-key-today_priority {background: #fff8e5; border: 1px solid #ead8a2;
+        border-radius: 10px; padding: 14px 18px;}
+    .st-key-today_priority .today-name {background: #fff;}
+    .st-key-today_priority p strong {color: #765400;}
+    .st-key-today_question_1, .st-key-today_question_2 {
+        border: 1px solid #d6dce0; border-radius: 10px; padding: 14px 18px; height: 100%;}
+    .st-key-today_unfinished {border-top: 1px solid #d6dce0; padding-top: 12px;}
+    .st-key-today_history {border-top: 1px solid #d6dce0; padding-top: 18px; margin-top: 12px;}
+    .today-history-row {background: #f4f7f6; border-radius: 7px; padding: 12px 15px;
+        display: flex; justify-content: space-between; gap: 8px 24px; flex-wrap: wrap;}
+    .today-history-names {color: #647080; overflow-wrap: anywhere;}
+    .st-key-today_actions [data-testid="stLinkButton"] a {min-height: 46px;}
+    @media (max-width: 650px) {
+        div[class*="st-key-today_card_"] button [data-testid="stMarkdownContainer"] {grid-template-columns: 1fr;}
+        div[class*="st-key-today_card_"] button p:nth-child(2) {text-align: left;}
+        .today-result {padding: 0 10px;}
+        .today-result-value {font-size: 1.8rem;}
+        .today-result-label, .today-result-detail {font-size: .8rem;}
     }
     </style>""", unsafe_allow_html=True)
 
@@ -79,7 +133,7 @@ def _render_class_cards(lessons) -> object:
                 state = "active" if cid == selected_id else "other"
                 with st.container(key=f"today_card_{state}_{index}"):
                     st.button(
-                        _card_label(lesson), width="stretch",
+                        _card_label(lesson, (groupings or {}).get(cid)), width="stretch",
                         key=f"today_pick_class_{index}",
                         help=f"Show {lesson.class_record.class_name} reteaching needs",
                         on_click=_select_today_class, args=(cid,),
@@ -97,7 +151,8 @@ def _render_standard_groups(groups: list[dict]) -> None:
         st.write(names)
 
 
-def _render_warmup_outlook_link(store, lesson, day: date) -> None:
+def _render_warmup_outlook_link(store, lesson, day: date, *, grouping: dict | None = None,
+                                compact: bool = False) -> None:
     if lesson.kind != "Igniter" or lesson.assignment is None or lesson.error:
         return
     klass = lesson.class_record
@@ -107,7 +162,8 @@ def _render_warmup_outlook_link(store, lesson, day: date) -> None:
         return
     # Reuse the exact existing report/subject/Outlook URL, without an alternate
     # copy of its formatting rules. Nothing is sent automatically.
-    grouping = _warmup_grouping(lesson.students, lesson.rows)
+    if grouping is None:
+        grouping = _warmup_grouping(lesson.students, lesson.rows)
     if not lesson.rows:
         st.caption("The Outlook report will be available after students submit their Igniter.")
         return
@@ -118,8 +174,113 @@ def _render_warmup_outlook_link(store, lesson, day: date) -> None:
         _warmup_outlook_url(primary, secondary, subject, report),
         type="secondary",
         width="content",
+        **({"help": "Opens the familiar draft in Outlook for your review. Nothing is sent automatically."}
+           if compact else {}),
     )
-    st.caption("Opens the familiar draft in Outlook for your review. Nothing is sent automatically.")
+    if not compact:
+        st.caption("Opens the familiar draft in Outlook for your review. Nothing is sent automatically.")
+
+
+def _render_names(names: list[str]) -> None:
+    """Nicknames are text, never interpreted as Markdown or HTML."""
+    tags = "".join(f'<span class="today-name">{html.escape(str(name))}</span>' for name in names)
+    st.markdown(f'<div class="today-name-list">{tags}</div>', unsafe_allow_html=True)
+
+
+def _render_igniter_snapshot(grouping: dict) -> None:
+    values = [("Igniter complete", f"{grouping['completed_count']}/{grouping['student_count']}",
+               f"{len(grouping['unfinished'])} not finished")]
+    for slot in (1, 2):
+        accuracy = grouping[f"accuracy_q{slot}"]
+        value = "—" if accuracy is None else f"{accuracy:.0f}%"
+        detail = (f"{grouping[f'correct_q{slot}']} correct · {grouping[f'answered_q{slot}']} answered"
+                  if accuracy is not None else "No responses yet")
+        values.append((f"Q{slot} accuracy", value, detail))
+    cells = "".join(
+        '<div class="today-result">'
+        f'<div class="today-result-label">{label}</div>'
+        f'<div class="today-result-value">{value}</div>'
+        f'<div class="today-result-detail">{detail}</div></div>'
+        for label, value, detail in values
+    )
+    st.markdown(f'<div class="today-results" role="group" aria-label="Class results">{cells}</div>',
+                unsafe_allow_html=True)
+    if any(grouping[f"answered_q{slot}"] > grouping["completed_count"] for slot in (1, 2)):
+        st.caption("Accuracy includes submitted answers. Pull groups require both questions to be finished.")
+
+
+def _render_igniter_priorities(lesson, grouping: dict) -> None:
+    """Present the existing completed-student groups, without changing evidence."""
+    st.markdown("#### Who to pull today")
+    both = grouping["missed_both"]
+    if both:
+        with st.container(key="today_priority"):
+            st.markdown(f"**First priority · Missed both questions** · {len(both)} student{'s' if len(both) != 1 else ''}")
+            _render_names(both)
+    else:
+        st.caption("First priority · Missed both questions: none among completed Igniters.")
+
+    columns = st.columns(2, gap="medium")
+    for slot, label in ((1, "Spiral Review"), (2, "Yesterday's Lesson")):
+        with columns[slot - 1], st.container(key=f"today_question_{slot}"):
+            names = grouping[f"q{slot}_only"]
+            st.markdown(f"**Missed Q{slot} only · {len(names)} student{'s' if len(names) != 1 else ''}**")
+            question = question_for_slot(lesson.assignment, slot)
+            code = str(question.get("standard_code") or "").strip()
+            description = str(question.get("standard_description") or "").strip()
+            st.caption(f"{label} · {code}" if code else label)
+            if description:
+                st.caption(description)
+            if names:
+                _render_names(names)
+            else:
+                st.caption(f"No students missed only Question {slot}.")
+
+    if both:
+        st.caption(
+            "Students who missed both are included in each question's totals "
+            "and listed once above."
+        )
+    recommendations = [(f"Q{slot}", _warmup_instruction_recommendation(len(grouping[f"q{slot}_support"])))
+                       for slot in (1, 2) if grouping[f"q{slot}_support"]]
+    if recommendations:
+        if len({text for _, text in recommendations}) == 1:
+            st.caption(recommendations[0][1])
+        else:
+            st.caption(" · ".join(f"{label}: {text}" for label, text in recommendations))
+    if grouping["completed_count"] and not (both or grouping["q1_only"] or grouping["q2_only"]):
+        st.success("No students to pull from completed Igniters today.")
+    with st.container(key="today_unfinished"):
+        st.markdown(f"**Not finished · {len(grouping['unfinished'])}**")
+        if grouping["unfinished"]:
+            _render_names(grouping["unfinished"])
+        st.caption("Incomplete work is separate from incorrect answers.")
+
+
+def _render_historical_checkins(store, lesson, day: date) -> None:
+    """Always show the selected class's bounded, prior-day evidence separately."""
+    with st.container(key="today_history"):
+        st.markdown("##### Previous missed standards")
+        st.caption("Follow up after today's Igniter or Quiz groups · Repeated misses on prior dates; excludes today's results.")
+        _render_historical_rows(store, lesson, day)
+
+
+def _render_historical_rows(store, lesson, day: date) -> None:
+    try:
+        recent = recent_mastery_checkins(store, lesson, day)
+    except Exception:
+        st.caption("Historical check-ins are temporarily unavailable. Refresh to try again.")
+        return
+    if recent:
+        for group in recent:
+            code = html.escape(str(group["code"]))
+            description = html.escape(str(group.get("description") or ""))
+            title = f"<strong>{code}</strong> · {description}" if description else f"<strong>{code}</strong>"
+            names = " · ".join(html.escape(str(name)) for name in group["names"])
+            st.markdown(f'<div class="today-history-row"><span>{title}</span>'
+                        f'<span class="today-history-names">{names}</span></div>', unsafe_allow_html=True)
+    else:
+        st.caption("No historical standards currently meet the check-in criteria.")
 
 
 def render_teacher_today_command_center(
@@ -155,43 +316,68 @@ def render_teacher_today_command_center(
         finish_refresh()
     else:
         set_refresh_stamp()
-    selected = _render_class_cards(lessons)
+    # Compute once per loaded Igniter, from the same live rows already fetched.
+    # Cards, selected results, pull groups and the exact Outlook report share it.
+    groupings = {
+        str(lesson.class_record.class_id): _warmup_grouping(lesson.students, lesson.rows)
+        for lesson in lessons
+        if lesson.kind == "Igniter" and lesson.assignment is not None and not lesson.error
+    }
+    selected = _render_class_cards(lessons, groupings)
 
-    st.markdown(f"### {html.escape(selected.class_record.class_name)}")
+    grouping = groupings.get(str(selected.class_record.class_id))
+    if grouping is not None:
+        heading, actions = st.columns([1, 1.4], vertical_alignment="center")
+        with heading:
+            st.markdown(f"### {html.escape(selected.class_record.class_name)} · Today's Igniter")
+        with actions, st.container(key="today_actions"):
+            display, email = st.columns([1, 1.3], gap="small")
+            with display:
+                render_igniter_window_button(selected.class_record.class_id, day)
+            with email:
+                try:
+                    _render_warmup_outlook_link(store, selected, day, grouping=grouping, compact=True)
+                except Exception:
+                    st.caption("The Warm-Up email is temporarily unavailable. Its original tool remains in Warm-Up.")
+        _render_igniter_snapshot(grouping)
+    else:
+        st.markdown(f"### {html.escape(selected.class_record.class_name)}")
     if selected.error:
         st.warning("This class's Igniter or Quiz results are temporarily unavailable. Refresh to try again.")
+        _render_historical_checkins(store, selected, day)
         return
 
-    if selected.kind == "Igniter":
-        render_igniter_window_button(selected.class_record.class_id, day)
-        try:
-            _render_warmup_outlook_link(store, selected, day)
-        except Exception:
-            st.caption("The Warm-Up email is temporarily unavailable. Its original tool remains in Warm-Up.")
     if selected.assignment is None:
         st.info("No Igniter or Friday Quiz is published for this class today.")
-    else:
-        activity = "Friday Quiz" if selected.kind == "Quiz" else "Igniter"
-        if selected.complete == 0:
-            st.caption(f"No completed {activity} responses yet. Unfinished answers are never counted as incorrect.")
-        else:
-            st.caption(f"{selected.complete} of {selected.total} students finished the {activity}.")
 
-    st.markdown("#### Teaching priorities")
-    today_groups = today_reteach(selected)
-    if today_groups:
-        st.caption("Today's needs · Based on students who completed the Igniter or Quiz")
-        _render_standard_groups(today_groups)
+    if grouping is not None:
+        if grouping["completed_count"]:
+            _render_igniter_priorities(selected, grouping)
+        else:
+            st.markdown("#### Who to pull today")
+            st.info("Awaiting completed Igniters. Pull groups will appear as students finish both questions."
+                    if selected.total else "No active students in this class.")
+            with st.container(key="today_unfinished"):
+                st.markdown(f"**Not finished · {len(grouping['unfinished'])}**")
+                if grouping["unfinished"]:
+                    _render_names(grouping["unfinished"])
+                st.caption("Incomplete work is separate from incorrect answers.")
     else:
-        try:
-            recent = recent_mastery_checkins(store, selected, day)
-        except Exception:
-            recent = []
-            st.caption("Recent mastery suggestions are temporarily unavailable.")
-        if recent:
-            st.caption("Worth checking in with · Repeated earlier misses from the Mastery Tracker")
-            _render_standard_groups(recent)
+        title = "Today's Friday Quiz: Students to Pull" if selected.kind == "Quiz" else "Today's teaching priorities"
+        st.markdown(f"#### {title}")
+        today_groups = today_reteach(selected)
+        if today_groups:
+            st.caption("Today's needs · Based on students who completed the Quiz")
+            _render_standard_groups(today_groups)
         elif selected.assignment is not None and selected.complete:
             st.success("No reteaching priorities from completed work today.")
         else:
             st.caption("Today's needs will appear as students finish the Igniter or Quiz.")
+
+    if selected.assignment is not None:
+        activity = "Friday Quiz" if selected.kind == "Quiz" else "Igniter"
+        if selected.complete == 0:
+            st.caption(f"No completed {activity} responses yet. Unfinished answers are never counted as incorrect.")
+        elif selected.kind == "Quiz":
+            st.caption(f"{selected.complete} of {selected.total} students finished the {activity}.")
+    _render_historical_checkins(store, selected, day)
