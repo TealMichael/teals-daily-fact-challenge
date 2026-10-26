@@ -76,6 +76,9 @@ def _render_class_cards(lessons, groupings: dict | None = None) -> object:
         grid-column: 1 / -1; border-top: 1px solid #d4dfdb;
         padding-top: 9px; font-size: .86rem; color: #536773;
     }
+    div[class*="st-key-today_card_"] button p:nth-child(3) strong:last-of-type {
+        color: #765400;
+    }
     div[class*="st-key-today_card_active"] button {
         border: 2px solid #087968;
         background: #e6f5ef;
@@ -89,15 +92,30 @@ def _render_class_cards(lessons, groupings: dict | None = None) -> object:
     .today-result-value {font-size: 2.2rem; font-weight: 700; line-height: 1.25;
         font-variant-numeric: tabular-nums; color: #111827;}
     .today-result-detail {font-size: .83rem; margin-top: 3px;}
-    .today-name-list {display: flex; flex-wrap: wrap; gap: 6px;}
-    .today-name {display: inline-block; padding: 3px 8px; border-radius: 5px;
-        background: #f4f7f6; color: #111827; font-size: .94rem; overflow-wrap: anywhere;}
-    .st-key-today_priority {background: #fff8e5; border: 1px solid #ead8a2;
-        border-radius: 10px; padding: 14px 18px;}
-    .st-key-today_priority .today-name {background: #fff;}
-    .st-key-today_priority p strong {color: #765400;}
-    .st-key-today_question_1, .st-key-today_question_2 {
-        border: 1px solid #d6dce0; border-radius: 10px; padding: 14px 18px; height: 100%;}
+    .today-name-list {display: flex; flex-wrap: wrap; gap: 7px; align-items: flex-start;}
+    .today-name {display: inline-block; padding: 4px 9px; border-radius: 6px;
+        background: #f4f7f6; color: #111827; font-size: .94rem;
+        line-height: 1.4; overflow-wrap: anywhere;}
+    /* Each panel is a single HTML block. Its own box, not a fixed-height
+       Streamlit container, must grow with wrapped names at every width. */
+    .today-priority-panel, .today-question-panel {
+        box-sizing: border-box; width: 100%; display: flex; flex-direction: column;
+        height: auto; overflow: visible;
+    }
+    .today-priority-panel {background: #fff8e5; border: 1px solid #ead8a2;
+        border-radius: 12px; padding: 18px 20px 20px; gap: 12px;}
+    .today-priority-panel .today-name {background: #fff;}
+    .today-priority-heading {display: flex; flex-wrap: wrap; align-items: baseline;
+        gap: 4px 12px; font-size: 1.11rem; font-weight: 700; line-height: 1.4;
+        color: #111827;}
+    .today-priority-count {font-size: .97rem; font-weight: 500; color: #765400;}
+    .today-question-panel {border: 1px solid #d6dce0; border-radius: 12px;
+        padding: 18px 20px 20px; min-height: 178px; gap: 12px;}
+    .today-question-heading {font-size: 1.07rem; font-weight: 700;
+        color: #111827; line-height: 1.4;}
+    .today-question-standard {color: #647080; font-size: .9rem; line-height: 1.45;}
+    .today-question-panel .today-name-list, .today-question-empty {margin-top: auto;}
+    .today-question-empty {color: #647080; font-size: .88rem;}
     .st-key-today_unfinished {border-top: 1px solid #d6dce0; padding-top: 12px;}
     .st-key-today_history {border-top: 1px solid #d6dce0; padding-top: 18px; margin-top: 12px;}
     .today-history-row {background: #f4f7f6; border-radius: 7px; padding: 12px 15px;
@@ -110,6 +128,8 @@ def _render_class_cards(lessons, groupings: dict | None = None) -> object:
         .today-result {padding: 0 10px;}
         .today-result-value {font-size: 1.8rem;}
         .today-result-label, .today-result-detail {font-size: .8rem;}
+        .today-priority-panel, .today-question-panel {padding: 15px 16px 17px;}
+        .today-question-panel {min-height: 0;}
     }
     </style>""", unsafe_allow_html=True)
 
@@ -181,10 +201,14 @@ def _render_warmup_outlook_link(store, lesson, day: date, *, grouping: dict | No
         st.caption("Opens the familiar draft in Outlook for your review. Nothing is sent automatically.")
 
 
-def _render_names(names: list[str]) -> None:
+def _names_html(names: list[str]) -> str:
     """Nicknames are text, never interpreted as Markdown or HTML."""
     tags = "".join(f'<span class="today-name">{html.escape(str(name))}</span>' for name in names)
-    st.markdown(f'<div class="today-name-list">{tags}</div>', unsafe_allow_html=True)
+    return f'<div class="today-name-list">{tags}</div>'
+
+
+def _render_names(names: list[str]) -> None:
+    st.markdown(_names_html(names), unsafe_allow_html=True)
 
 
 def _render_igniter_snapshot(grouping: dict) -> None:
@@ -193,7 +217,8 @@ def _render_igniter_snapshot(grouping: dict) -> None:
     for slot in (1, 2):
         accuracy = grouping[f"accuracy_q{slot}"]
         value = "—" if accuracy is None else f"{accuracy:.0f}%"
-        detail = (f"{grouping[f'correct_q{slot}']} correct · {grouping[f'answered_q{slot}']} answered"
+        missed = grouping[f"answered_q{slot}"] - grouping[f"correct_q{slot}"]
+        detail = (f"{grouping[f'correct_q{slot}']} correct · {missed} missed"
                   if accuracy is not None else "No responses yet")
         values.append((f"Q{slot} accuracy", value, detail))
     cells = "".join(
@@ -214,27 +239,34 @@ def _render_igniter_priorities(lesson, grouping: dict) -> None:
     st.markdown("#### Who to pull today")
     both = grouping["missed_both"]
     if both:
-        with st.container(key="today_priority"):
-            st.markdown(f"**First priority · Missed both questions** · {len(both)} student{'s' if len(both) != 1 else ''}")
-            _render_names(both)
+        count = f"{len(both)} student{'s' if len(both) != 1 else ''}"
+        st.markdown(
+            '<div class="today-priority-panel" role="group" aria-label="First priority: missed both questions">'
+            '<div class="today-priority-heading"><span>First priority · Missed both questions</span>'
+            f'<span class="today-priority-count">{count}</span></div>'
+            f'{_names_html(both)}</div>', unsafe_allow_html=True,
+        )
     else:
         st.caption("First priority · Missed both questions: none among completed Igniters.")
 
     columns = st.columns(2, gap="medium")
     for slot, label in ((1, "Spiral Review"), (2, "Yesterday's Lesson")):
-        with columns[slot - 1], st.container(key=f"today_question_{slot}"):
+        with columns[slot - 1]:
             names = grouping[f"q{slot}_only"]
-            st.markdown(f"**Missed Q{slot} only · {len(names)} student{'s' if len(names) != 1 else ''}**")
             question = question_for_slot(lesson.assignment, slot)
             code = str(question.get("standard_code") or "").strip()
             description = str(question.get("standard_description") or "").strip()
-            st.caption(f"{label} · {code}" if code else label)
-            if description:
-                st.caption(description)
-            if names:
-                _render_names(names)
-            else:
-                st.caption(f"No students missed only Question {slot}.")
+            title_attr = f' title="{html.escape(description, quote=True)}"' if description else ""
+            subtitle = html.escape(f"{label} · {code}" if code else label)
+            count = f"{len(names)} student{'s' if len(names) != 1 else ''}"
+            names_or_empty = (_names_html(names) if names else
+                              f'<div class="today-question-empty">No students missed only Question {slot}.</div>')
+            st.markdown(
+                f'<div class="today-question-panel" role="group" aria-label="Missed Q{slot} only">'
+                f'<div class="today-question-heading">Missed Q{slot} only · {count}</div>'
+                f'<div class="today-question-standard"{title_attr}>{subtitle}</div>'
+                f'{names_or_empty}</div>', unsafe_allow_html=True,
+            )
 
     if both:
         st.caption(
