@@ -110,11 +110,10 @@ def _render_class_cards(lessons, groupings: dict | None = None) -> object:
         color: #111827;}
     .today-priority-count {font-size: .97rem; font-weight: 500; color: #765400;}
     .today-question-panel {border: 1px solid #d6dce0; border-radius: 12px;
-        padding: 18px 20px 20px; min-height: 178px; gap: 12px;}
+        padding: 14px 18px 16px; margin-top: 12px; gap: 8px;}
     .today-question-heading {font-size: 1.07rem; font-weight: 700;
         color: #111827; line-height: 1.4;}
     .today-question-standard {color: #647080; font-size: .9rem; line-height: 1.45;}
-    .today-question-panel .today-name-list, .today-question-empty {margin-top: auto;}
     .today-question-empty {color: #647080; font-size: .88rem;}
     .st-key-today_unfinished {border-top: 1px solid #d6dce0; padding-top: 12px;}
     .st-key-today_history {border-top: 1px solid #d6dce0; padding-top: 18px; margin-top: 12px;}
@@ -128,8 +127,8 @@ def _render_class_cards(lessons, groupings: dict | None = None) -> object:
         .today-result {padding: 0 10px;}
         .today-result-value {font-size: 1.8rem;}
         .today-result-label, .today-result-detail {font-size: .8rem;}
-        .today-priority-panel, .today-question-panel {padding: 15px 16px 17px;}
-        .today-question-panel {min-height: 0;}
+        .today-priority-panel {padding: 15px 16px 17px;}
+        .today-question-panel {padding: 13px 16px 15px;}
     }
     </style>""", unsafe_allow_html=True)
 
@@ -268,18 +267,18 @@ def _render_igniter_priorities(lesson, grouping: dict) -> None:
                 f'{names_or_empty}</div>', unsafe_allow_html=True,
             )
 
+    notes = []
     if both:
-        st.caption(
-            "Students who missed both are included in each question's totals "
-            "and listed once above."
-        )
+        notes.append("Missed-both students count in both question totals but appear once above.")
     recommendations = [(f"Q{slot}", _warmup_instruction_recommendation(len(grouping[f"q{slot}_support"])))
                        for slot in (1, 2) if grouping[f"q{slot}_support"]]
     if recommendations:
         if len({text for _, text in recommendations}) == 1:
-            st.caption(recommendations[0][1])
+            notes.append(recommendations[0][1])
         else:
-            st.caption(" · ".join(f"{label}: {text}" for label, text in recommendations))
+            notes.append(" · ".join(f"{label}: {text}" for label, text in recommendations))
+    if notes:
+        st.caption(" · ".join(notes))
     if grouping["completed_count"] and not (both or grouping["q1_only"] or grouping["q2_only"]):
         st.success("No students to pull from completed Igniters today.")
     with st.container(key="today_unfinished"):
