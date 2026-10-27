@@ -9,7 +9,9 @@ receive direct database credentials.
 
 from datetime import date, datetime, timedelta, timezone
 from dataclasses import replace
+from types import SimpleNamespace
 from typing import Callable, Mapping, Sequence, TypeVar
+from zoneinfo import ZoneInfo
 import hashlib
 import random
 import secrets
@@ -2551,6 +2553,125 @@ class SupabaseFactStore:
         if row is None:
             raise FactStoreError("Could not save the Recovery answer.")
         return _standard_recovery_answer(row)
+
+    # ----- v2.28 Standards Growth and teacher small-group Quick Checks -----
+    def student_standard_evidence(self, student_id: str, class_id: str, since: date | str) -> list[dict]:
+        """One bounded server-side read for the student's private progress bars."""
+        date_key = since.isoformat() if isinstance(since, date) else str(since)
+        response = _retry_transient(lambda: self.client.rpc("tdfc_student_standard_evidence", {
+            "p_student_id": str(student_id), "p_class_id": str(class_id), "p_since": date_key,
+        }).execute())
+        data = getattr(response, "data", None)
+        if isinstance(data, list):
+            return [dict(row) for row in data if isinstance(row, dict)]
+        if isinstance(data, dict):
+            return [dict(row) for row in data.get("rows", ()) if isinstance(row, dict)]
+        return []
+
+    def get_pending_standard_quick_check(self, student_id: str, class_id: str) -> dict | None:
+        row = _first(_retry_transient(lambda: self.client.table("standard_quick_checks")
+            .select("*").eq("student_id", str(student_id)).eq("class_id", str(class_id))
+            .is_("completed_at", "null").order("assigned_at").limit(1).execute()))
+        return None if row is None else dict(row)
+
+    def assign_standard_quick_checks(
+        self, *, class_id: str, student_ids: Sequence[str], standard_code: str,
+        assigned_date: date, exclude_bank_ids: Sequence[str] = (),
+    ) -> int:
+        """Idempotent one-click class-group assignment; one per student/code/day.
+
+        Questions are chosen deterministically and stored at assignment time.
+        Retrying a teacher click can never replace a completed student's item.
+        """
+        from indiana_question_bank import questions_for_standard, editor_question, SUPPORTED_BANK_TYPES
+        from indiana_math_standards import BY_CODE
+
+        code = str(standard_code or "").strip()
+        standard = BY_CODE.get(code)
+        if standard is None:
+            raise ValueError("Choose a valid Indiana standard for the Quick Check.")
+        excluded = set(map(str, exclude_bank_ids))
+        candidates = [row for row in questions_for_standard(code)
+                      if row.get("question_type") in SUPPORTED_BANK_TYPES
+                      and str(row.get("id") or "") not in excluded]
+        if not candidates:
+            # Never silently repeat the lesson's exact bank problem.
+            raise ValueError(f"No fresh bank question is available for {code}.")
+        candidates.sort(key=lambda row: str(row.get("id") or ""))
+        date_key = assigned_date.isoformat()
+        payloads = []
+        for sid in dict.fromkeys(str(sid) for sid in student_ids if str(sid)):
+            seed = hashlib.sha256(f"{sid}|{date_key}|{code}|quickcheck".encode()).digest()
+            picked = candidates[int.from_bytes(seed[:8], "big") % len(candidates)]
+            question = editor_question(picked)
+            payloads.append({
+                "student_id": sid, "class_id": str(class_id), "assigned_date": date_key,
+                "standard_code": code, "standard_description": standard.description,
+                "bank_question_id": str(picked["id"]), "question": question,
+                "prompt": str(question.get("prompt") or ""),
+            })
+        if not payloads:
+            return 0
+        # Ignore an existing unique key. Upsert without this option would reset
+        # the item and erase a completed response on a repeated click.
+        _retry_transient(lambda: self.client.table("standard_quick_checks").upsert(
+            payloads, on_conflict="student_id,class_id,assigned_date,standard_code",
+            ignore_duplicates=True,
+        ).execute())
+        return len(payloads)
+
+    def complete_standard_quick_check(
+        self, check_id: str, student_id: str, *, student_response: str, correct: bool,
+    ) -> dict:
+        payload = {"student_response": str(student_response), "correct": bool(correct),
+                   "completed_at": utc_now().isoformat()}
+        rows = _rows(_retry_transient(lambda: self.client.table("standard_quick_checks")
+            .update(payload).eq("check_id", str(check_id)).eq("student_id", str(student_id))
+            .is_("completed_at", "null").execute()))
+        if rows:
+            return dict(rows[0])
+        existing = _first(_retry_transient(lambda: self.client.table("standard_quick_checks")
+            .select("*").eq("check_id", str(check_id)).eq("student_id", str(student_id))
+            .limit(1).execute()))
+        if existing is None or existing.get("completed_at") is None:
+            raise FactStoreError("The Quick Check response was not saved.")
+        return dict(existing)
+
+    def list_standard_quick_checks(
+        self, start_date: date | str, end_date: date | str, *,
+        class_id: str | None = None, include_test: bool = False,
+    ) -> list:
+        start = start_date.isoformat() if isinstance(start_date, date) else str(start_date)
+        end = end_date.isoformat() if isinstance(end_date, date) else str(end_date)
+        rows, offset = [], 0
+        while True:
+            def page_read():
+                query = self.client.table("standard_quick_checks").select("*")
+                query = query.gte("assigned_date", start).lte("assigned_date", end)
+                if class_id is not None:
+                    query = query.eq("class_id", str(class_id))
+                return query.order("assigned_date").range(offset, offset + 999).execute()
+            page = _rows(_retry_transient(page_read))
+            rows.extend(page)
+            if len(page) < 1000:
+                break
+            offset += 1000
+        if not include_test and rows:
+            ids = list({str(row["student_id"]) for row in rows})
+            tests = _rows(_retry_transient(lambda: self.client.table("students")
+                .select("student_id").in_("student_id", ids).eq("is_test", True).execute()))
+            excluded = {str(row["student_id"]) for row in tests}
+            rows = [row for row in rows if str(row["student_id"]) not in excluded]
+        local_zone = ZoneInfo("America/Indiana/Indianapolis")
+        for row in rows:
+            stamp = str(row.get("completed_at") or "")
+            if stamp:
+                try:
+                    local_date = datetime.fromisoformat(stamp.replace("Z", "+00:00")).astimezone(local_zone).date()
+                    row["completed_date"] = local_date.isoformat()
+                except ValueError:
+                    row["completed_date"] = stamp[:10]
+        return [SimpleNamespace(**row) for row in rows]
 
     @staticmethod
     def _normalize_override(family: int | None) -> int | None:

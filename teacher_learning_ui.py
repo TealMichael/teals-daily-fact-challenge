@@ -25,6 +25,7 @@ from teacher_insights import (
     standard_student_history, summarize_student_fluency, teacher_fact_band,
 )
 from standards_recovery import combine_standards_evidence, mastery_evidence_status
+from standards_growth import growth_snapshot, needs_fresh_check
 from teacher_evidence import standard_rows
 from ui_helpers import format_seconds, strategy_tip
 
@@ -329,8 +330,8 @@ def _render_teacher_fact_fluency(store: SupabaseFactStore, selected, students) -
 def _render_teacher_standards_tracker(store: SupabaseFactStore, selected, students) -> None:
     st.markdown("#### 📚 Standards Mastery Tracker")
     st.caption(
-        "Combines Indiana-standard evidence from Igniters, Quiz of the Week, and Monday Recovery. "
-        "Statuses summarize classroom evidence; they are not automatic report-card grades."
+        "Recent independent checks from Igniters, Friday Quiz, Monday Recovery, and Small-Group Quick Checks. "
+        "Growth labels guide instruction; they are not report-card grades."
     )
 
     today = current_daily_date()
@@ -356,10 +357,17 @@ def _render_teacher_standards_tracker(store: SupabaseFactStore, selected, studen
         if str(st.query_params.get("dbcheck", "0")) == "1":
             st.exception(exc)
 
+    try:
+        quick_rows = standard_rows(store, "list_standard_quick_checks", start_date, today,
+                                   class_id=selected.class_id, students=students)
+    except Exception:
+        quick_rows = []  # Safe before v2.28's additive migration is installed.
+
     student_ids = {str(student.student_id) for student in students}
     evidence = [
         row for row in combine_standards_evidence(
-            warmup_rows=warmup_rows, quiz_sets=quiz_sets, quiz_answers=quiz_rows, recovery_rows=recovery_rows
+            warmup_rows=warmup_rows, quiz_sets=quiz_sets, quiz_answers=quiz_rows,
+            recovery_rows=recovery_rows, quick_check_rows=quick_rows,
         )
         if str(row.student_id) in student_ids
     ]
@@ -399,24 +407,22 @@ def _render_teacher_standards_tracker(store: SupabaseFactStore, selected, studen
     for row in matching:
         by_student.setdefault(str(row.student_id), []).append(row)
 
-    checked_ids = [student_id for student_id, rows in by_student.items() if rows]
-    total_checks = len(matching)
-    total_correct = sum(bool(row.correct) for row in matching)
-    accuracy = (total_correct / total_checks * 100) if total_checks else None
-    last_date = max(row.activity_date for row in matching) if matching else None
+    growth_by_student = {sid: growth_snapshot(rows) for sid, rows in by_student.items()}
+    checked_ids = [sid for sid, rows in by_student.items() if rows]
 
     t1, t2, t3, t4 = st.columns(4)
     t1.metric("Students checked", f"{len(checked_ids)}/{len(students)}")
-    t2.metric("Evidence checks", total_checks)
-    t3.metric("Correct", "—" if accuracy is None else f"{accuracy:.0f}%")
-    t4.metric("Last checked", "—" if not last_date else date.fromisoformat(last_date).strftime("%b %d"))
+    t2.metric("Learning", sum(s.label == "Learning" for s in growth_by_student.values()))
+    t3.metric("Growing", sum(s.label == "Growing" for s in growth_by_student.values()))
+    t4.metric("Confident", sum(s.label == "Confident" for s in growth_by_student.values()))
 
-    source_counts = {source: sum(row.source == source for row in matching) for source in ("Igniter", "Quiz", "Recovery")}
+    source_counts = {source: sum(row.source == source for row in matching) for source in ("Igniter", "Quiz", "Recovery", "Quick Check")}
     st.caption(
-        f"Evidence sources · Igniter {source_counts['Igniter']} · Quiz {source_counts['Quiz']} · Recovery {source_counts['Recovery']}"
+        f"Evidence sources · Igniter {source_counts['Igniter']} · Quiz {source_counts['Quiz']} · "
+        f"Recovery {source_counts['Recovery']} · Quick Check {source_counts['Quick Check']}"
     )
 
-    st.markdown("#### Student History")
+    st.markdown("#### Current Student Growth")
     history_rows = []
     for student in students:
         rows = sorted(by_student.get(str(student.student_id), []), key=lambda row: (row.activity_date, row.answered_at))
@@ -429,19 +435,27 @@ def _render_teacher_standards_tracker(store: SupabaseFactStore, selected, studen
             for row in recent
         ) if recent else "—"
         sources = ", ".join(sorted({row.source for row in rows})) if rows else "—"
+        growth = growth_snapshot(rows)
         history_rows.append({
             "Student": student.nickname,
-            "Evidence status": mastery_evidence_status(rows),
+            "Growth": growth.label,
+            "Recent checks": "—" if not growth.checks else f"{growth.recent_correct}/{growth.checks}",
             "Checks": checks,
-            "Correct": "—" if not checks else f"{correct}/{checks} ({accuracy_value * 100:.0f}%)",
+            "Historical correct": "—" if not checks else f"{correct}/{checks} ({accuracy_value * 100:.0f}%)",
             "Sources": sources,
             "Recent history": history_text,
         })
-    status_rank = {"Developing": 0, "Proficient": 1, "Strong": 2, "Not Yet Assessed": 3}
-    history_rows.sort(key=lambda item: (status_rank.get(item["Evidence status"], 9), item["Student"].casefold()))
-    st.dataframe(pd.DataFrame(history_rows), hide_index=True, use_container_width=True)
+    status_rank = {"Learning": 0, "Growing": 1, "Confident": 2, "Not Yet Checked": 3}
+    history_rows.sort(key=lambda item: (status_rank.get(item["Growth"], 9), item["Student"].casefold()))
+    st.dataframe(pd.DataFrame([
+        {"Student": row["Student"], "Growth": row["Growth"], "Recent checks": row["Recent checks"]}
+        for row in history_rows
+    ]), hide_index=True, use_container_width=True)
+    with st.expander("Detailed historical results", expanded=False):
+        st.caption("Older answers are preserved for review, but only the last four checks determine the current growth label.")
+        st.dataframe(pd.DataFrame(history_rows), hide_index=True, use_container_width=True)
 
-    st.markdown("#### One Student's History")
+    st.markdown("#### One Student's Progress")
     student_by_name = {student.nickname: student for student in students}
     detail_name = st.selectbox(
         "Student", list(student_by_name), key=f"teacher_standard_student_{selected.class_id}_{selected_code}"
@@ -453,7 +467,11 @@ def _render_teacher_standards_tracker(store: SupabaseFactStore, selected, studen
     if not detail_rows:
         st.info(f"No results for {selected_code} have been recorded for this student yet.")
     else:
-        st.metric("Evidence status", mastery_evidence_status(detail_rows))
+        progress = growth_snapshot(detail_rows)
+        st.markdown(f"**{progress.label}** · {progress.recent_correct} of the last {progress.checks} independent checks correct")
+        st.progress(progress.progress / 100)
+        if needs_fresh_check(progress.last_checked, today):
+            st.caption(f"Last checked {progress.last_checked} · A fresh check may be useful.")
         detail_frame = pd.DataFrame([
             {
                 "Date": date.fromisoformat(row.activity_date).strftime("%b %d, %Y"),
@@ -463,14 +481,17 @@ def _render_teacher_standards_tracker(store: SupabaseFactStore, selected, studen
             }
             for row in detail_rows
         ])
-        st.dataframe(detail_frame, hide_index=True, use_container_width=True)
+        with st.expander("Full question history", expanded=False):
+            st.dataframe(detail_frame, hide_index=True, use_container_width=True)
 
     with st.expander("How the standards evidence status works", expanded=False):
-        st.markdown("**Developing** — fewer than 3 checks, or the evidence is not yet consistently correct.")
-        st.markdown("**Proficient** — at least 3 checks, at least 75% correct overall, and the two most recent checks are correct.")
-        st.markdown("**Strong** — at least 5 checks, at least 85% correct overall, and the three most recent checks are correct.")
+        st.markdown("**Not Yet Checked** — no independent answers on this standard.")
+        st.markdown("**Learning** — evidence is still developing or not yet consistently correct.")
+        st.markdown("**Growing** — at least two recent correct independent checks on different days.")
+        st.markdown("**Confident** — at least three of the last four independent checks correct, across multiple days; four checks required.")
         st.caption(
-            "A single correct Monday Recovery question adds positive evidence, but it cannot by itself move a standard to Proficient or Strong."
+            "Only the four most recent independent checks determine the label. Older answers remain in the teacher history. "
+            "A correct Recovery or Quick Check contributes evidence but cannot by itself establish Confident."
         )
     st.caption(f"History shown from {start_date.strftime('%b %d, %Y')} through {today.strftime('%b %d, %Y')}.")
 

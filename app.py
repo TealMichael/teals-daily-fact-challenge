@@ -37,6 +37,8 @@ from supabase_fact_store import SupabaseFactStore
 from persistent_login import REMEMBER_DAYS, issue_student_token, peek_student_id, verify_student_token
 from ui_helpers import format_seconds, strategy_tip
 from student_igniter_ui import render_quick_warmup
+from student_quick_check_ui import render_assigned_quick_check
+from student_growth_ui import render_fact_fluency_progress
 from student_weekly_quiz_ui import render_friday_quiz
 from student_recovery_ui import render_monday_recovery
 from student_recognition import build_public_daily_recognition
@@ -1559,6 +1561,8 @@ def render_day_complete(
         unsafe_allow_html=True,
     )
 
+    render_fact_fluency_progress(store, st.session_state.student_id,
+                                 day=day, before_challenge=False)
     st.markdown("## 🕵️ Today's Mystery Reward")
     render_weekly_mystery_reward(store, day, challenge, show_heading=False)
 
@@ -1722,6 +1726,11 @@ def render_daily(store: SupabaseFactStore | None) -> None:
     assert store is not None
 
     day = current_daily_date()
+    # Teacher-assigned checks remain separate from the official attempt. A
+    # student can reopen the app after small-group instruction—even when the
+    # Daily/Mystery is already complete—and answer one short follow-up.
+    if not render_assigned_quick_check(store, day):
+        return
     # v2.21 Friday-only insertion point. A saved Quiz of the Week replaces the
     # Igniter for that class/date. Monday–Thursday and Fridays with no saved quiz
     # continue through the proven Igniter path unchanged.
@@ -1753,6 +1762,9 @@ def render_daily(store: SupabaseFactStore | None) -> None:
     st.markdown("## Daily 10")
     if daily_mode == "Multiplication":
         st.caption("10 facts. Do your best. You’ll see your results after all 10.")
+        if attempt.completed_at is None:
+            render_fact_fluency_progress(store, st.session_state.student_id,
+                                         day=day, before_challenge=True)
     else:
         st.caption(f"{daily_mode} · 10 questions. Accuracy comes first; time only breaks ties.")
 

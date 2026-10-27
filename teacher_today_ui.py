@@ -160,7 +160,28 @@ def _render_class_cards(lessons, groupings: dict | None = None) -> object:
     return next(lesson for lesson in lessons if str(lesson.class_record.class_id) == selected_id)
 
 
-def _render_standard_groups(groups: list[dict]) -> None:
+def _worked_with_button(store, lesson, *, code: str, student_ids: list[str], day: date,
+                        key: str, exclude_bank_ids=()) -> None:
+    """One-click teaching follow-through; no confirmation maze or second page."""
+    if not code or not student_ids or not hasattr(store, "assign_standard_quick_checks"):
+        return
+    if st.button("✓ Worked With · Send Quick Check", key=key, type="secondary",
+                 help="Assign one fresh independent check after teaching this small group."):
+        try:
+            count = store.assign_standard_quick_checks(
+                class_id=lesson.class_record.class_id,
+                student_ids=student_ids, standard_code=code, assigned_date=day,
+                exclude_bank_ids=tuple(exclude_bank_ids),
+            )
+            st.success(f"Quick Check available for {count} student{'s' if count != 1 else ''}. "
+                       "They can reopen the app when they return to their seats.")
+        except ValueError as exc:
+            st.warning(str(exc))
+        except Exception:
+            st.error("Quick Checks are not ready. Verify the v2.28 database setup before assigning.")
+
+
+def _render_standard_groups(groups: list[dict], *, store=None, lesson=None, day=None) -> None:
     for group in groups:
         code = html.escape(str(group["code"]))
         description = html.escape(str(group.get("description") or ""))
@@ -168,6 +189,10 @@ def _render_standard_groups(groups: list[dict]) -> None:
         title = f"{code} — {description}" if description else code
         st.markdown(f"**{title}**")
         st.write(names)
+        if store is not None and lesson is not None and day is not None:
+            _worked_with_button(store, lesson, code=str(group["code"]),
+                                student_ids=list(group.get("student_ids") or []), day=day,
+                                key=f"worked_quiz_{lesson.class_record.class_id}_{group['code']}")
 
 
 def _render_warmup_outlook_link(store, lesson, day: date, *, grouping: dict | None = None,
@@ -233,7 +258,7 @@ def _render_igniter_snapshot(grouping: dict) -> None:
         st.caption("Accuracy includes submitted answers. Pull groups require both questions to be finished.")
 
 
-def _render_igniter_priorities(lesson, grouping: dict) -> None:
+def _render_igniter_priorities(store, lesson, grouping: dict, day: date) -> None:
     """Present the existing completed-student groups, without changing evidence."""
     st.markdown("#### Who to pull today")
     both = grouping["missed_both"]
@@ -266,6 +291,15 @@ def _render_igniter_priorities(lesson, grouping: dict) -> None:
                 f'<div class="today-question-standard"{title_attr}>{subtitle}</div>'
                 f'{names_or_empty}</div>', unsafe_allow_html=True,
             )
+            from standards_tagging import reconcile_tag
+            decision = reconcile_tag(code, description, str(question.get("prompt") or ""))
+            support_names = set(grouping[f"q{slot}_support"])
+            target_ids = [str(student.student_id) for student in lesson.students
+                          if student.nickname in support_names]
+            _worked_with_button(store, lesson, code=decision.code,
+                                student_ids=target_ids, day=day,
+                                exclude_bank_ids=(str(question.get("bank_question_id") or ""),),
+                                key=f"worked_igniter_{lesson.class_record.class_id}_{slot}")
 
     notes = []
     if both:
@@ -310,8 +344,45 @@ def _render_historical_rows(store, lesson, day: date) -> None:
             names = " · ".join(html.escape(str(name)) for name in group["names"])
             st.markdown(f'<div class="today-history-row"><span>{title}</span>'
                         f'<span class="today-history-names">{names}</span></div>', unsafe_allow_html=True)
+            _worked_with_button(store, lesson, code=str(group["code"]),
+                                student_ids=list(group.get("student_ids") or []), day=day,
+                                key=f"worked_history_{lesson.class_record.class_id}_{group['code']}")
     else:
         st.caption("No historical standards currently meet the check-in criteria.")
+
+
+def _render_quick_check_results(store, lesson, day: date) -> None:
+    """Results are opt-in to avoid another Supabase read on every Today visit."""
+    key = f"show_quick_check_results_{lesson.class_record.class_id}_{day.isoformat()}"
+    if not st.button("View small-group check results", key=f"open_{key}", type="secondary"):
+        if not st.session_state.get(key):
+            return
+    st.session_state[key] = True
+    try:
+        rows = store.list_standard_quick_checks(day, day,
+                    class_id=lesson.class_record.class_id, include_test=True)
+    except Exception:
+        st.caption("Quick Check results are not available yet. Verify the v2.28 database setup.")
+        return
+    valid_ids = {str(student.student_id) for student in lesson.students}
+    rows = [row for row in rows if str(row.student_id) in valid_ids]
+    if not rows:
+        st.caption("No small-group Quick Checks were assigned to this class today.")
+        return
+    done = [row for row in rows if row.completed_at is not None]
+    correct = sum(bool(row.correct) for row in done)
+    st.caption(f"{len(done)}/{len(rows)} checks completed · {correct} correct · "
+               f"{len(done) - correct} needing another look")
+    by_code = {}
+    for row in rows:
+        cell = by_code.setdefault(str(row.standard_code), {"assigned": 0, "done": 0, "correct": 0})
+        cell["assigned"] += 1
+        if row.completed_at is not None:
+            cell["done"] += 1
+            cell["correct"] += int(bool(row.correct))
+    for code, item in sorted(by_code.items()):
+        st.write(f"**{code}** · {item['done']}/{item['assigned']} complete · "
+                 f"{item['correct']} correct")
 
 
 def render_teacher_today_command_center(
@@ -383,7 +454,7 @@ def render_teacher_today_command_center(
 
     if grouping is not None:
         if grouping["completed_count"]:
-            _render_igniter_priorities(selected, grouping)
+            _render_igniter_priorities(store, selected, grouping, day)
         else:
             st.markdown("#### Who to pull today")
             st.info("Awaiting completed Igniters. Pull groups will appear as students finish both questions."
@@ -399,7 +470,7 @@ def render_teacher_today_command_center(
         today_groups = today_reteach(selected)
         if today_groups:
             st.caption("Today's needs · Based on students who completed the Quiz")
-            _render_standard_groups(today_groups)
+            _render_standard_groups(today_groups, store=store, lesson=selected, day=day)
         elif selected.assignment is not None and selected.complete:
             st.success("No reteaching priorities from completed work today.")
         else:
@@ -412,3 +483,4 @@ def render_teacher_today_command_center(
         elif selected.kind == "Quiz":
             st.caption(f"{selected.complete} of {selected.total} students finished the {activity}.")
     _render_historical_checkins(store, selected, day)
+    _render_quick_check_results(store, selected, day)

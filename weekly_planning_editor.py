@@ -234,11 +234,26 @@ def question_changed(state, day_index, slot_index, field, key, parser=None):
     value = st.session_state[key]
     question = state['plan']['days'][day_index]['questions'][slot_index]
     old_type = question.get('question_type')
+    old_prompt = str(question.get('prompt') or '')
     question[field] = parser(value) if parser else value
+    review_key = (day_index, slot_index)
+    if field == 'prompt':
+        bank_id = str(question.get('bank_question_id') or '')
+        bank = question_by_id(bank_id) if bank_id else None
+        from standards_tagging import normalize_prompt
+        from difflib import SequenceMatcher
+        if bank and normalize_prompt(value) != normalize_prompt(bank.get('prompt', '')):
+            # The original bank ID is not evidence of alignment after the
+            # teacher rewrites the problem into a different skill.
+            question['bank_question_id'] = ''
+        if old_prompt and SequenceMatcher(None, normalize_prompt(old_prompt),
+                                          normalize_prompt(value)).ratio() < 0.75:
+            state.setdefault('review_standard_slots', set()).add(review_key)
     if field == 'standard_code':
         standard = BY_CODE.get(value)
         question['standard_description'] = standard.description if standard else ''
         remember_recent_standards(state, [value])
+        state.setdefault('review_standard_slots', set()).discard(review_key)
     if field == 'question_type' and old_type in {'Compare Values', 'Order Tiles'} and value != old_type:
         question['correct_answer'] = ''
         state.setdefault('question_epochs', {})[(day_index, slot_index)] = state.get('question_epochs', {}).get((day_index, slot_index), 0) + 1
@@ -273,6 +288,7 @@ def replace_question(state, day_index, slot_index, key):
     if not selected:
         return
     day['questions'][slot_index] = normalize_question(editor_question(selected), day['kind'], slot_index + 1)
+    state.setdefault('review_standard_slots', set()).discard((day_index, slot_index))
     state.setdefault('pending_images', {}).pop((day_index, slot_index), None)
     epochs = state.setdefault('question_epochs', {})
     epochs[(day_index, slot_index)] = epochs.get((day_index, slot_index), 0) + 1
@@ -371,6 +387,12 @@ def render_question_card(store, state, day_index, slot_index, prefix, *, disable
             st.selectbox('Replace from bank', options, format_func=lambda value: labels.get(value, 'Another random question' if value else 'Keep this question'),
                          key=bank_key, disabled=disabled or not rows,
                          on_change=replace_question, args=(state, day_index, slot_index, bank_key))
+        if (day_index, slot_index) in state.get('review_standard_slots', ()):
+            st.caption('⚠️ Question text changed. Check that the Standard beside Replace from bank still fits this skill.')
+            if st.button('Standard is correct ✓', key=base + '::standard_confirm',
+                         disabled=disabled, type='secondary'):
+                state['review_standard_slots'].discard((day_index, slot_index))
+                st.rerun()
 
         if qtype not in {'Compare Values', 'Order Tiles', 'Multiple choice'}:
             a, b = st.columns([1.5, 1])

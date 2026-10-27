@@ -16,6 +16,7 @@ from standards_recovery import (
     mastery_evidence_status,
     question_standard_metadata,
 )
+from standards_tagging import reconcile_tag
 from weekly_quiz import QUIZ_QUESTION_COUNT, quiz_is_friday
 from teacher_evidence import standard_rows
 from teacher_lesson_reads import lesson_assignments
@@ -122,15 +123,19 @@ def today_reteach(lesson: TodayLesson) -> list[dict]:
         else:
             code = str(getattr(answer, "standard_code", "") or "").strip()
             desc = str(getattr(answer, "standard_description", "") or "").strip()
+        decision = reconcile_tag(code, desc, str(getattr(answer, "prompt", "")))
+        code, desc = decision.code, decision.description
         if not code:
             continue
-        group = groups.setdefault(code, {"code": code, "description": desc, "names": set()})
+        group = groups.setdefault(code, {"code": code, "description": desc, "names": set(), "student_ids": set()})
         if not group["description"]:
             group["description"] = desc
         group["names"].add(students[sid])
+        group["student_ids"].add(sid)
     return [
         {"code": row["code"], "description": row["description"],
-         "names": sorted(row["names"], key=str.casefold)}
+         "names": sorted(row["names"], key=str.casefold),
+         "student_ids": sorted(row["student_ids"])}
         for row in sorted(groups.values(), key=lambda row: (-len(row["names"]), row["code"]))
     ]
 
@@ -143,8 +148,8 @@ def recent_mastery_checkins(store, lesson: TodayLesson, day: date, *, limit: int
     """
     end = day - timedelta(days=1)
     # Match Learning > Standards Mastery Tracker's school-year evidence window.
-    year = day.year if day.month >= 8 else day.year - 1
-    start = date(year, 8, 1)
+    year = day.year if day.month >= 7 else day.year - 1
+    start = date(year, 7, 1)
     cid = str(lesson.class_record.class_id)
     if not lesson.students:
         return []
@@ -155,9 +160,14 @@ def recent_mastery_checkins(store, lesson: TodayLesson, day: date, *, limit: int
         recoveries = standard_rows(store, "list_standard_recovery_answers", start, end, class_id=cid, students=lesson.students)
     except Exception:
         recoveries = []
+    try:
+        quick_checks = standard_rows(store, "list_standard_quick_checks", start, end,
+                                     class_id=cid, students=lesson.students)
+    except Exception:
+        quick_checks = []
     evidence = combine_standards_evidence(
         warmup_rows=warmups, quiz_sets=quizzes, quiz_answers=quiz_answers,
-        recovery_rows=recoveries,
+        recovery_rows=recoveries, quick_check_rows=quick_checks,
     )
     active = {str(student.student_id): student.nickname for student in lesson.students}
     grouped: dict[tuple[str, str], list] = defaultdict(list)
@@ -168,14 +178,15 @@ def recent_mastery_checkins(store, lesson: TodayLesson, day: date, *, limit: int
     recommendations: dict[str, dict] = {}
     for (code, sid), checks in grouped.items():
         missed_dates = {row.activity_date for row in checks if not row.correct}
-        if len(missed_dates) < 2 or mastery_evidence_status(checks) != "Developing":
+        if len(missed_dates) < 2 or mastery_evidence_status(checks) != "Learning":
             continue
         latest = max(checks, key=lambda row: (row.activity_date, row.answered_at))
         entry = recommendations.setdefault(
             code, {"code": code, "description": latest.standard_description,
-                   "names": set(), "misses": 0, "last": ""},
+                   "names": set(), "student_ids": set(), "misses": 0, "last": ""},
         )
         entry["names"].add(active[sid])
+        entry["student_ids"].add(sid)
         entry["misses"] += len(missed_dates)
         entry["last"] = max(entry["last"], str(latest.activity_date))
     ranked = sorted(
@@ -184,6 +195,7 @@ def recent_mastery_checkins(store, lesson: TodayLesson, day: date, *, limit: int
     )
     return [
         {"code": row["code"], "description": row["description"],
-         "names": sorted(row["names"], key=str.casefold)}
+         "names": sorted(row["names"], key=str.casefold),
+         "student_ids": sorted(row["student_ids"])}
         for row in ranked[:limit]
     ]

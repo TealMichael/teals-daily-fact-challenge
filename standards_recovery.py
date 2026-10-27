@@ -13,6 +13,8 @@ from typing import Iterable, Mapping, Sequence
 
 from indiana_math_standards import BY_CODE as INDIANA_STANDARD_BY_CODE
 from indiana_question_bank import editor_question, question_by_id, questions_for_standard
+from standards_growth import growth_snapshot
+from standards_tagging import reconcile_tag, normalize_prompt
 from weekly_quiz import QUIZ_QUESTION_COUNT
 
 RECOVERY_MAX_QUESTIONS = 3
@@ -31,6 +33,7 @@ class StandardsEvidenceRecord:
     correct: bool
     answered_at: datetime
     source_slot: int | None = None
+    tag_disposition: str = "teacher_tagged"
 
 
 def previous_friday_for_recovery(day: date) -> date | None:
@@ -46,14 +49,18 @@ def question_standard_metadata(question: Mapping) -> tuple[str, str]:
 
     if not code:
         bank_row = question_by_id(str(raw.get("bank_question_id") or ""))
-        if bank_row is not None:
+        # The old planner could retain a bank ID after the prompt was freely
+        # edited. Only infer a missing tag when the actual text still matches.
+        if bank_row is not None and normalize_prompt(bank_row.get("prompt", "")) == normalize_prompt(raw.get("prompt", "")):
             code = str(bank_row.get("standard_code") or "").strip()
             description = str(bank_row.get("standard_description") or "").strip()
 
-    standard = INDIANA_STANDARD_BY_CODE.get(code)
+    decision = reconcile_tag(code, description, str(raw.get("prompt") or ""),
+                             bank_question_id=str(raw.get("bank_question_id") or ""))
+    standard = INDIANA_STANDARD_BY_CODE.get(decision.code)
     if standard is None or int(standard.grade) not in RECOVERY_GRADES:
         return "", ""
-    return standard.code, description or standard.description
+    return standard.code, decision.description or standard.description
 
 
 def _stable_question_for_standard(
@@ -145,20 +152,8 @@ def build_recovery_plan(
 
 
 def mastery_evidence_status(rows: Sequence[StandardsEvidenceRecord]) -> str:
-    """Conservative evidence label; never treats one Recovery answer as mastery."""
-    ordered = sorted(rows, key=lambda row: (row.activity_date, row.answered_at))
-    if not ordered:
-        return "Not Yet Assessed"
-    if len(ordered) < 3:
-        return "Developing"
-    accuracy = sum(bool(row.correct) for row in ordered) / len(ordered)
-    recent_two = ordered[-2:]
-    recent_three = ordered[-3:]
-    if len(ordered) >= 5 and accuracy >= 0.85 and all(row.correct for row in recent_three):
-        return "Strong"
-    if accuracy >= 0.75 and all(row.correct for row in recent_two):
-        return "Proficient"
-    return "Developing"
+    """Single source of truth for both teacher and student growth labels."""
+    return growth_snapshot(rows).label
 
 
 def combine_standards_evidence(
@@ -167,21 +162,24 @@ def combine_standards_evidence(
     quiz_sets: Sequence,
     quiz_answers: Sequence,
     recovery_rows: Sequence,
+    quick_check_rows: Sequence = (),
 ) -> tuple[StandardsEvidenceRecord, ...]:
-    """Normalize Igniter, Friday Quiz, and Recovery results for one tracker."""
+    """Normalize independent results, reconciling demonstrably bad tags read-only."""
     evidence: list[StandardsEvidenceRecord] = []
 
     for row in warmup_rows:
         code = str(getattr(row, "standard_code", "") or "").strip()
-        standard = INDIANA_STANDARD_BY_CODE.get(code)
+        decision = reconcile_tag(code, getattr(row, "standard_description", ""),
+                                 getattr(row, "prompt", ""))
+        standard = INDIANA_STANDARD_BY_CODE.get(decision.code)
         if standard is None:
             continue
         evidence.append(StandardsEvidenceRecord(
             student_id=str(row.student_id), class_id=str(row.class_id), activity_date=str(row.warmup_date),
-            standard_code=code,
-            standard_description=str(getattr(row, "standard_description", "") or standard.description),
+            standard_code=decision.code,
+            standard_description=decision.description or standard.description,
             source="Igniter", prompt=str(getattr(row, "prompt", "") or ""), correct=bool(row.correct),
-            answered_at=row.answered_at, source_slot=int(row.question_slot),
+            answered_at=row.answered_at, source_slot=int(row.question_slot), tag_disposition=decision.disposition,
         ))
 
     quiz_by_id = {str(row.quiz_id): row for row in quiz_sets}
@@ -193,27 +191,49 @@ def combine_standards_evidence(
         slot = int(row.question_slot)
         if not 1 <= slot <= len(questions):
             continue
-        code, description = question_standard_metadata(questions[slot - 1])
-        if not code:
+        raw_question = dict(questions[slot - 1])
+        code, description = question_standard_metadata(raw_question)
+        decision = reconcile_tag(code, description, getattr(row, "prompt", "") or raw_question.get("prompt", ""))
+        if not decision.code:
             continue
         evidence.append(StandardsEvidenceRecord(
             student_id=str(row.student_id), class_id=str(row.class_id), activity_date=str(row.quiz_date),
-            standard_code=code, standard_description=description, source="Quiz",
+            standard_code=decision.code, standard_description=decision.description, source="Quiz",
             prompt=str(getattr(row, "prompt", "") or ""), correct=bool(row.correct),
-            answered_at=row.answered_at, source_slot=slot,
+            answered_at=row.answered_at, source_slot=slot, tag_disposition=decision.disposition,
         ))
 
     for row in recovery_rows:
         code = str(getattr(row, "standard_code", "") or "").strip()
-        standard = INDIANA_STANDARD_BY_CODE.get(code)
+        decision = reconcile_tag(code, getattr(row, "standard_description", ""),
+                                 getattr(row, "prompt", ""))
+        standard = INDIANA_STANDARD_BY_CODE.get(decision.code)
         if standard is None or int(standard.grade) not in RECOVERY_GRADES:
             continue
         evidence.append(StandardsEvidenceRecord(
             student_id=str(row.student_id), class_id=str(row.class_id), activity_date=str(row.recovery_date),
-            standard_code=code,
-            standard_description=str(getattr(row, "standard_description", "") or standard.description),
+            standard_code=decision.code,
+            standard_description=decision.description or standard.description,
             source="Recovery", prompt=str(getattr(row, "prompt", "") or ""), correct=bool(row.correct),
-            answered_at=row.answered_at, source_slot=None,
+            answered_at=row.answered_at, source_slot=None, tag_disposition=decision.disposition,
+        ))
+
+    for row in quick_check_rows:
+        get = (lambda name, default=None: row.get(name, default)) if isinstance(row, dict) else (
+            lambda name, default=None: getattr(row, name, default))
+        if get("completed_at") is None or get("correct") is None:
+            continue
+        decision = reconcile_tag(get("standard_code", ""), get("standard_description", ""),
+                                 get("prompt", ""))
+        if not decision.code:
+            continue
+        evidence.append(StandardsEvidenceRecord(
+            student_id=str(get("student_id", "")), class_id=str(get("class_id", "")),
+            activity_date=str(get("completed_date") or str(get("completed_at"))[:10]),
+            standard_code=decision.code, standard_description=decision.description,
+            source="Quick Check", prompt=str(get("prompt", "")), correct=bool(get("correct")),
+            answered_at=get("completed_at"), source_slot=None,
+            tag_disposition=decision.disposition,
         ))
 
     return tuple(sorted(evidence, key=lambda row: (row.activity_date, row.answered_at, row.student_id, row.standard_code)))

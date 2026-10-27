@@ -136,7 +136,8 @@ class TeacherReadStore:
     def prior_evidence(self, method, start, end, *, class_id, roster_ids):
         """Cache only past evidence; filter with a fresh roster in the caller."""
         if method not in {"list_warmup_answers", "list_weekly_quiz_sets",
-                           "list_weekly_quiz_answers_range", "list_standard_recovery_answers"}:
+                           "list_weekly_quiz_answers_range", "list_standard_recovery_answers",
+                           "list_standard_quick_checks"}:
             raise ValueError("Unsupported evidence reader")
         if end >= self._today:
             raise ValueError("Current-day evidence must be read live")

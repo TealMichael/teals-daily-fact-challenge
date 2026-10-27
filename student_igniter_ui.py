@@ -24,6 +24,9 @@ from curriculum_question_types import (
 )
 from interactive_math_questions import render_order_tiles
 from student_curriculum_support import render_curriculum_retry
+from student_growth_ui import (render_standard_progress, standard_snapshot,
+                               note_new_standard_answer)
+from standards_tagging import reconcile_tag
 from warmup import (correct_answer_for_storage, display_student_response, grade_question, pack_multi_part_response, question_for_slot)
 
 def render_quick_warmup(store: SupabaseFactStore, day: date) -> bool:
@@ -76,6 +79,14 @@ def render_quick_warmup(store: SupabaseFactStore, day: date) -> bool:
                 else:
                     answer_text = html.escape(str(feedback.get("correct_answer", "")))
                     st.error(f"❌ Not quite. The answer is {answer_text}.")
+                if feedback.get("growth_code"):
+                    render_standard_progress(
+                        store, student_id, class_id, day,
+                        code=feedback["growth_code"], description=feedback.get("growth_description", ""),
+                        previous_progress=feedback.get("growth_before"),
+                        show_growth=bool(feedback.get("correct")),
+                        suppress_decline=not bool(feedback.get("correct")),
+                    )
                 st.session_state.warmup_feedback = None
             st.markdown("## 🧠 Igniter complete!")
             st.info("Both questions are finished. Ready for your Daily 10!")
@@ -94,10 +105,21 @@ def render_quick_warmup(store: SupabaseFactStore, day: date) -> bool:
         else:
             answer_text = html.escape(str(feedback.get("correct_answer", "")))
             st.error(f"❌ Not quite. The answer is {answer_text}.")
+        if feedback.get("growth_code"):
+            render_standard_progress(
+                store, student_id, class_id, day,
+                code=feedback["growth_code"], description=feedback.get("growth_description", ""),
+                previous_progress=feedback.get("growth_before"),
+                show_growth=bool(feedback.get("correct")),
+                suppress_decline=not bool(feedback.get("correct")),
+            )
         st.session_state.warmup_feedback = None
 
     slot = 1 if 1 not in answered_slots else 2
     question = question_for_slot(warmup, slot)
+    decision = reconcile_tag(str(question.get("standard_code") or ""),
+                             str(question.get("standard_description") or ""),
+                             str(question.get("prompt") or ""))
     st.markdown(f"## 🧠 Igniter Question {slot}")
     raw_prompt = str(question.get("prompt") or "").strip()
     # Teacher-entered Markdown should never leak literal ** / __ / backticks to students.
@@ -121,6 +143,10 @@ def render_quick_warmup(store: SupabaseFactStore, day: date) -> bool:
             image_shown = True
     if image_path and not image_shown:
         st.caption("The question image is no longer available. Show your teacher before answering.")
+
+    if decision.code:
+        render_standard_progress(store, student_id, class_id, day,
+                                 code=decision.code, description=decision.description)
 
     form_key = f"warmup_answer_{warmup.warmup_set_id}_{student_id}_{slot}"
     qtype = str(question.get("question_type") or "Short answer")
@@ -207,6 +233,8 @@ def render_quick_warmup(store: SupabaseFactStore, day: date) -> bool:
                 st.warning("Enter both answers first." if compound else "Enter an answer first.")
             return False
         correct = grade_question(question, response, response_two)
+        before = (standard_snapshot(store, student_id, class_id, day, decision.code)
+                  if decision.code else None)
         stored_response = pack_multi_part_response(response, response_two) if compound else response
         correct_answer = correct_answer_for_storage(question)
         try:
@@ -229,11 +257,21 @@ def render_quick_warmup(store: SupabaseFactStore, day: date) -> bool:
             if str(st.query_params.get("dbcheck", "0")) == "1":
                 st.exception(exc)
             return False
+        note_new_standard_answer(
+            student_id, class_id, day,
+            code=str(question.get("standard_code") or ""),
+            description=str(question.get("standard_description") or ""),
+            prompt=str(question.get("prompt") or ""), correct=correct,
+            source="Igniter", slot=slot,
+        )
         st.session_state.warmup_feedback = {
             "warmup_set_id": warmup.warmup_set_id,
             "student_id": student_id,
             "correct": bool(correct),
             "correct_answer": display_student_response(correct_answer, qtype),
+            "growth_code": decision.code,
+            "growth_description": decision.description,
+            "growth_before": before.progress if before is not None else None,
         }
         if slot == 2:
             st.session_state.warmup_just_completed = warmup.warmup_set_id
