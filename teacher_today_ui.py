@@ -162,15 +162,55 @@ def _render_class_cards(lessons, groupings: dict | None = None) -> object:
 
 def _worked_with_button(store, lesson, *, code: str, student_ids: list[str], day: date,
                         key: str, exclude_bank_ids=()) -> None:
-    """One-click teaching follow-through; no confirmation maze or second page."""
+    """One-click for everyone, or a private subset picker when needed.
+
+    The existing missed-question group is the only eligible roster: a stale
+    widget value can never assign a check to an unrelated student.
+    """
     if not code or not student_ids or not hasattr(store, "assign_standard_quick_checks"):
         return
-    if st.button("✓ Worked With · Send Quick Check", key=key, type="secondary",
-                 help="Assign one fresh independent check after teaching this small group."):
+    roster = {str(student.student_id): str(student.nickname)
+              for student in lesson.students}
+    eligible = sorted(
+        {str(sid) for sid in student_ids if str(sid) in roster},
+        key=lambda sid: (roster[sid].casefold(), sid),
+    )
+    if not eligible:
+        return
+
+    # Separate choices per class, group, and day. Start with all students to
+    # preserve the original single-click path, but honor a teacher's subset.
+    picker_key = f"{key}::students::{day.isoformat()}"
+    if picker_key not in st.session_state:
+        st.session_state[picker_key] = list(eligible)
+    else:
+        allowed = set(eligible)
+        st.session_state[picker_key] = [sid for sid in st.session_state[picker_key]
+                                         if sid in allowed]
+
+    button_col, picker_col = st.columns([1.85, 1], gap="small")
+    with picker_col:
+        with st.popover("Choose students", width="stretch",
+                        help="Only selected students will receive the Quick Check."):
+            st.caption("Select the students you actually worked with.")
+            st.multiselect("Students to check", options=eligible,
+                           format_func=lambda sid: roster[sid], key=picker_key,
+                           placeholder="Choose students")
+
+    selected = [sid for sid in st.session_state[picker_key] if sid in set(eligible)]
+    all_selected = len(selected) == len(eligible)
+    send_label = (f"✓ Worked With · Send to all {len(eligible)}" if all_selected
+                  else f"✓ Worked With · Send to {len(selected)}")
+    with button_col:
+        send = st.button(send_label, key=key, type="secondary",
+                         disabled=not selected,
+                         help="Assign one independent check only to the selected students.",
+                         width="stretch")
+    if send:
         try:
             count = store.assign_standard_quick_checks(
                 class_id=lesson.class_record.class_id,
-                student_ids=student_ids, standard_code=code, assigned_date=day,
+                student_ids=selected, standard_code=code, assigned_date=day,
                 exclude_bank_ids=tuple(exclude_bank_ids),
             )
             st.success(f"Quick Check available for {count} student{'s' if count != 1 else ''}. "
