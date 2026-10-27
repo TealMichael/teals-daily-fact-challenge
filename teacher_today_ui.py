@@ -13,6 +13,7 @@ import streamlit as st
 
 from fact_engine import current_daily_date
 from igniter_popout import render_igniter_window_button
+from indiana_question_bank import SUPPORTED_BANK_TYPES, questions_for_standard, resolve_bank_image_path
 from teacher_today_overview import load_today_lessons, recent_mastery_checkins, today_reteach
 from teacher_warmup_ui import (
     _warmup_email_recipients,
@@ -162,7 +163,7 @@ def _render_class_cards(lessons, groupings: dict | None = None) -> object:
 
 def _worked_with_button(store, lesson, *, code: str, student_ids: list[str], day: date,
                         key: str, exclude_bank_ids=()) -> None:
-    """One-click for everyone, or a private subset picker when needed.
+    """One-click default, with optional student and bank-question choices.
 
     The existing missed-question group is the only eligible roster: a stale
     widget value can never assign a check to an unrelated student.
@@ -188,16 +189,57 @@ def _worked_with_button(store, lesson, *, code: str, student_ids: list[str], day
         st.session_state[picker_key] = [sid for sid in st.session_state[picker_key]
                                          if sid in allowed]
 
+    # Choose from this standard's built-in bank. An edited or unrelated
+    # question cannot sneak in through stale Streamlit widget state.
+    excluded = {str(item) for item in exclude_bank_ids if str(item)}
+    bank_rows = [row for row in questions_for_standard(code)
+                 if row.get("question_type") in SUPPORTED_BANK_TYPES
+                 and str(row.get("id") or "") not in excluded]
+    bank_rows.sort(key=lambda row: str(row.get("id") or ""))
+    bank_by_id = {str(row["id"]): row for row in bank_rows}
+    question_key = f"{key}::bank_question::{day.isoformat()}::{code}"
+    if question_key not in st.session_state or st.session_state[question_key] not in ("", *bank_by_id):
+        st.session_state[question_key] = ""
+
     button_col, picker_col = st.columns([1.85, 1], gap="small")
     with picker_col:
-        with st.popover("Choose students", width="stretch",
-                        help="Only selected students will receive the Quick Check."):
+        with st.popover("Customize check", width="stretch",
+                        help="Select students and optionally choose their exact question."):
             st.caption("Select the students you actually worked with.")
             st.multiselect("Students to check", options=eligible,
                            format_func=lambda sid: roster[sid], key=picker_key,
                            placeholder="Choose students")
+            st.selectbox(
+                "Question to send", ["", *bank_by_id], key=question_key,
+                format_func=lambda bank_id: (
+                    "Automatic · fresh question for each student" if not bank_id else
+                    f"Q{bank_by_id[bank_id].get('question_number', '')} · "
+                    f"{str(bank_by_id[bank_id].get('prompt') or '')[:100]}"
+                ),
+                help="Choose a bank question to give every selected student the same check. "
+                     "Automatic retains the usual fresh question per student.",
+            )
+            preview_id = str(st.session_state[question_key] or "")
+            if preview_id in bank_by_id:
+                row = bank_by_id[preview_id]
+                st.markdown("**Question preview**")
+                st.write(str(row.get("prompt") or ""))
+                if row.get("question_type") == "Multiple choice":
+                    st.caption("Choices: " + " · ".join(str(item) for item in row.get("options") or ()))
+                elif row.get("question_type") == "Compare Values":
+                    st.caption(f"Compare: {row.get('compare_left', '')} ? {row.get('compare_right', '')}")
+                elif row.get("question_type") == "Order Tiles":
+                    st.caption("Tiles: " + " · ".join(str(item) for item in row.get("order_items") or ()))
+                image_path = resolve_bank_image_path(row.get("bank_image_path") or "")
+                if image_path:
+                    st.image(image_path, width=320)
+                correct = str(row.get("correct_answer") or "").strip()
+                if correct:
+                    label = str(row.get("correct_label") or "").strip()
+                    st.caption(f"Teacher answer: {correct}{' ' + label if label else ''}")
 
     selected = [sid for sid in st.session_state[picker_key] if sid in set(eligible)]
+    chosen_bank_id = str(st.session_state[question_key] or "")
     all_selected = len(selected) == len(eligible)
     send_label = (f"✓ Worked With · Send to all {len(eligible)}" if all_selected
                   else f"✓ Worked With · Send to {len(selected)}")
@@ -212,6 +254,7 @@ def _worked_with_button(store, lesson, *, code: str, student_ids: list[str], day
                 class_id=lesson.class_record.class_id,
                 student_ids=selected, standard_code=code, assigned_date=day,
                 exclude_bank_ids=tuple(exclude_bank_ids),
+                bank_question_id=chosen_bank_id,
             )
             st.success(f"Quick Check available for {count} student{'s' if count != 1 else ''}. "
                        "They can reopen the app when they return to their seats.")
@@ -219,6 +262,9 @@ def _worked_with_button(store, lesson, *, code: str, student_ids: list[str], day
             st.warning(str(exc))
         except Exception:
             st.error("Quick Checks are not ready. Verify the v2.28 database setup before assigning.")
+    if chosen_bank_id in bank_by_id:
+        prompt = str(bank_by_id[chosen_bank_id].get("prompt") or "").strip()
+        st.caption(f"Chosen question: {prompt[:88]}{'…' if len(prompt) > 88 else ''}")
 
 
 def _render_standard_groups(groups: list[dict], *, store=None, lesson=None, day=None) -> None:

@@ -2577,10 +2577,13 @@ class SupabaseFactStore:
     def assign_standard_quick_checks(
         self, *, class_id: str, student_ids: Sequence[str], standard_code: str,
         assigned_date: date, exclude_bank_ids: Sequence[str] = (),
+        bank_question_id: str = "",
     ) -> int:
         """Idempotent one-click class-group assignment; one per student/code/day.
 
-        Questions are chosen deterministically and stored at assignment time.
+        Questions are chosen deterministically unless the teacher explicitly
+        selects a bank question for the entire small group. An explicit choice
+        must be a valid, fresh question for that exact standard.
         Retrying a teacher click can never replace a completed student's item.
         """
         from indiana_question_bank import questions_for_standard, editor_question, SUPPORTED_BANK_TYPES
@@ -2598,11 +2601,20 @@ class SupabaseFactStore:
             # Never silently repeat the lesson's exact bank problem.
             raise ValueError(f"No fresh bank question is available for {code}.")
         candidates.sort(key=lambda row: str(row.get("id") or ""))
+        selected_id = str(bank_question_id or "").strip()
+        selected_question = None
+        if selected_id:
+            selected_question = next(
+                (row for row in candidates if str(row.get("id") or "") == selected_id), None
+            )
+            if selected_question is None:
+                raise ValueError("The chosen Quick Check question does not match this standard or is already used today.")
         date_key = assigned_date.isoformat()
         payloads = []
         for sid in dict.fromkeys(str(sid) for sid in student_ids if str(sid)):
             seed = hashlib.sha256(f"{sid}|{date_key}|{code}|quickcheck".encode()).digest()
-            picked = candidates[int.from_bytes(seed[:8], "big") % len(candidates)]
+            picked = (selected_question if selected_question is not None else
+                      candidates[int.from_bytes(seed[:8], "big") % len(candidates)])
             question = editor_question(picked)
             payloads.append({
                 "student_id": sid, "class_id": str(class_id), "assigned_date": date_key,
