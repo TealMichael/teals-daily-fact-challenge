@@ -94,6 +94,45 @@ STANDARD_SKILL_NAMES = {
     '7.DSP.5': 'Probability Models & Sample Spaces',
 }
 
+# Question cards have less space than the main search. Keep these labels
+# short and distinctive; the full skill names remain in the weekly picker.
+STANDARD_CARD_SKILL_NAMES = {
+    '5.NS.1': 'Order Fractions & Decimals',
+    '5.NS.3': 'Powers of 10 & Place Value',
+    '5.NS.4': 'Percents & Fractions',
+    '5.CA.1': 'Long Division (2-Digit)',
+    '5.CA.2': 'Mult./Division Word Problems',
+    '5.CA.3': 'Unlike-Fraction Add/Subtract',
+    '5.CA.4': 'Fraction Add/Subtract Problems',
+    '5.CA.7': 'Multiply Fractions: Problems',
+    '5.CA.8': 'Divide Fractions: Problems',
+    '5.CA.11': 'Coordinate Plane & Pairs',
+    '5.G.1': 'Triangles & Circles',
+    '5.M.2': 'Fractional Side-Length Area',
+    '5.M.3': 'Polygon Area Formulas',
+    '5.M.5': 'Volume Formulas',
+    '5.M.6': 'Composite Prism Volume',
+    '5.DA.1': 'Data Graphs & Analysis',
+    '6.NS.1': 'Signed Numbers in Context',
+    '6.NS.2': 'Opposites & Number Lines',
+    '6.NS.3': 'Order Rational Numbers',
+    '6.NS.5': 'Order of Operations (PEMDAS)',
+    '6.NS.6': 'GCF & LCM',
+    '6.NS.8': 'Rational Number Exponents',
+    '6.RP.3': 'Ratio Tables & Graphs',
+    '6.AF.2': 'Check Equations & Inequalities',
+    '6.GM.2': 'Triangle & Quadrilateral Angles',
+    '6.GM.4': 'Fractional-Edge Volume',
+    '6.DS.1': 'Histograms & Box/Line Plots',
+    '7.NS.2': 'Rational Number Distance',
+    '7.NS.5': 'Prime Factorization',
+    '7.RP.1': 'Unit Rates & Constants',
+    '7.RP.3': 'Graph Proportions',
+    '7.AF.1': 'Linear Expressions & Factoring',
+    '7.GM.3': 'Cylinder & Composite Volumes',
+    '7.DSP.5': 'Probability Models',
+}
+
 STANDARD_SEARCH_ALIASES = {
     '5.CA.1': ('division algorithm', 'long division', 'divide by two digit numbers'),
     '5.CA.2': ('multistep word problems', 'multiplication problems', 'remainder'),
@@ -124,6 +163,14 @@ def standard_picker_label(code):
     if standard is None:
         return str(code)  # Preserve previously saved unknown or legacy codes.
     return f'{standard_skill_name(code)} · Grade {standard.grade} · {code}'
+
+
+def standard_question_card_label(code):
+    if not code:
+        return 'Choose skill'
+    if code not in BY_CODE:
+        return str(code)  # Previously saved custom codes must stay available.
+    return f'{STANDARD_CARD_SKILL_NAMES.get(code, standard_skill_name(code))} · {code}'
 
 
 def standard_matches_search(code, query):
@@ -304,7 +351,7 @@ def render_question_card(store, state, day_index, slot_index, prefix, *, disable
         elif qtype == 'Multi-Part — 2 answers':
             text('correct_answer_two', 'Answer · Part 2')
 
-        standard_col, bank_col = st.columns([1, 1.6])
+        standard_col, bank_col = st.columns([1.5, 1])
         with standard_col:
             code = q.get('standard_code') or ''
             selected_codes = state['plan']['standards'] if day_index < 4 else state['plan']['quiz_standards']
@@ -312,7 +359,7 @@ def render_question_card(store, state, day_index, slot_index, prefix, *, disable
             codes = list(dict.fromkeys(['', *selected_codes, *recent_codes,
                                          *[c for c, s in BY_CODE.items() if s.grade in (5, 6, 7)], code]))
             standard_key = base + '::standard_code'
-            st.selectbox('Standard', codes, index=codes.index(code), format_func=standard_picker_label,
+            st.selectbox('Standard', codes, index=codes.index(code), format_func=standard_question_card_label,
                          key=standard_key, disabled=disabled,
                          help='Search by skill name or standard code. ' + (BY_CODE[code].description if code in BY_CODE else 'Choose the skill assessed by this question.'),
                          on_change=question_changed, args=(state, day_index, slot_index, 'standard_code', standard_key))
