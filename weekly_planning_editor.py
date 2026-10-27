@@ -14,6 +14,142 @@ from weekly_quiz import QUIZ_QUESTION_TYPES
 from weekly_planning import normalize_question, question_signature
 
 
+# Teacher-facing names are intentionally shorter than the official summaries.
+# The code and grade always remain visible; the stored value is still the code.
+STANDARD_SKILL_NAMES = {
+    '5.NS.1': 'Compare & Order Fractions and Decimals',
+    '5.NS.2': 'Fractions as Division',
+    '5.NS.3': 'Powers of 10 & Decimal Place Value',
+    '5.NS.4': 'Percents & Equivalent Fractions',
+    '5.NS.5': 'Rounding Decimals',
+    '5.CA.1': 'Long Division with Two-Digit Divisors',
+    '5.CA.2': 'Multiplication & Division Word Problems',
+    '5.CA.3': 'Add & Subtract Unlike Fractions',
+    '5.CA.4': 'Fraction Addition & Subtraction Problems',
+    '5.CA.5': 'Multiply Fractions with Models',
+    '5.CA.6': 'Divide Fractions with Models',
+    '5.CA.7': 'Multiplying Fractions in Word Problems',
+    '5.CA.8': 'Dividing Fractions in Word Problems',
+    '5.CA.9': 'Decimal Operations',
+    '5.CA.10': 'Decimal Word Problems',
+    '5.CA.11': 'Ordered Pairs & Coordinate Plane',
+    '5.G.1': 'Triangles, Circles, Radius & Diameter',
+    '5.G.2': 'Classifying Polygons',
+    '5.M.1': 'Measurement Conversions',
+    '5.M.2': 'Area with Fractional Side Lengths',
+    '5.M.3': 'Triangle, Parallelogram & Trapezoid Area',
+    '5.M.4': 'Volume Using Unit Cubes',
+    '5.M.5': 'Volume Formulas for Rectangular Prisms',
+    '5.M.6': 'Composite Rectangular Prism Volume',
+    '5.DA.1': 'Collecting, Graphing & Analyzing Data',
+    '5.DA.2': 'Mean, Median & Mode',
+    '6.NS.1': 'Positive & Negative Numbers in Context',
+    '6.NS.2': 'Opposites & Rational Number Lines',
+    '6.NS.3': 'Compare & Order Rational Numbers',
+    '6.NS.4': 'Rational Number Word Problems',
+    '6.NS.5': 'Order of Operations (PEMDAS/GEMDAS)',
+    '6.NS.6': 'Greatest Common Factor & Least Common Multiple',
+    '6.NS.7': 'Equivalent Linear Expressions',
+    '6.NS.8': 'Exponents with Rational Numbers',
+    '6.RP.1': 'Fractions, Decimals & Percents',
+    '6.RP.2': 'Unit Rates',
+    '6.RP.3': 'Equivalent Ratios with Tables & Graphs',
+    '6.RP.4': 'Ratio & Rate Word Problems',
+    '6.RP.5': 'Proportional Relationships',
+    '6.AF.1': 'Expressions with Variables',
+    '6.AF.2': 'Testing Equations & Inequalities',
+    '6.AF.3': 'One-Step Equations',
+    '6.AF.4': 'One-Variable Inequalities',
+    '6.AF.5': 'Coordinates & Distances',
+    '6.GM.1': 'Measurement Unit Conversions',
+    '6.GM.2': 'Angle Sums in Triangles & Quadrilaterals',
+    '6.GM.3': 'Area of Composite Polygons',
+    '6.GM.4': 'Volume with Fractional Edge Lengths',
+    '6.DS.1': 'Histograms, Box Plots & Line Plots',
+    '6.DS.2': 'Statistical Questions & Data',
+    '6.DS.3': 'Data Center, Spread & Shape',
+    '7.NS.1': 'Adding Rational Numbers',
+    '7.NS.2': 'Distance Between Rational Numbers',
+    '7.NS.3': 'Multiplying Signed Numbers',
+    '7.NS.4': 'Dividing Signed Numbers',
+    '7.NS.5': 'Prime Factorization with Exponents',
+    '7.NS.6': 'Squares & Square Roots',
+    '7.NS.7': 'Rational Number Operations',
+    '7.RP.1': 'Unit Rates & Constants of Proportionality',
+    '7.RP.2': 'Multistep Percent Problems',
+    '7.RP.3': 'Graphs & Equations of Proportions',
+    '7.AF.1': 'Equivalent Linear Expressions & Factoring',
+    '7.AF.2': 'Rational Number Word Problems',
+    '7.AF.3': 'Two-Step Linear Equations',
+    '7.AF.4': 'Linear Inequalities',
+    '7.AF.5': 'Slope & Rate of Change',
+    '7.AF.6': 'Graphing Lines with Slope',
+    '7.GM.1': 'Scale Drawings',
+    '7.GM.2': 'Circle Area & Circumference',
+    '7.GM.3': 'Cylinder & Composite Figure Volume',
+    '7.DSP.1': 'Random Samples & Populations',
+    '7.DSP.2': 'Comparing Populations',
+    '7.DSP.3': 'Distributions & Outliers',
+    '7.DSP.4': 'Probability Scale',
+    '7.DSP.5': 'Probability Models & Sample Spaces',
+}
+
+STANDARD_SEARCH_ALIASES = {
+    '5.CA.1': ('division algorithm', 'long division', 'divide by two digit numbers'),
+    '5.CA.2': ('multistep word problems', 'multiplication problems', 'remainder'),
+    '5.NS.3': ('place value', 'multiply decimals by 10', 'divide decimals by 10'),
+    '5.M.4': ('rectangular prism volume', 'unit cubes'),
+    '5.M.5': ('rectangular prism volume', 'length times width times height'),
+    '6.NS.5': ('PEMDAS', 'GEMDAS', 'BEDMAS', 'evaluate numerical expressions', 'parentheses', 'exponents'),
+    '6.NS.6': ('GCF', 'LCM', 'factors and multiples'),
+    '6.NS.7': ('distributive property', 'combine like terms'),
+    '6.AF.1': ('substitution', 'evaluate algebraic expressions'),
+    '7.NS.1': ('integer addition', 'adding integers'),
+    '7.NS.3': ('integer multiplication', 'multiply integers'),
+    '7.NS.4': ('integer division', 'divide integers'),
+    '7.NS.7': ('integer operations', 'positive negative operations'),
+    '7.AF.3': ('solving equations', 'two-step equations'),
+}
+
+
+def standard_skill_name(code):
+    standard = BY_CODE.get(code)
+    return STANDARD_SKILL_NAMES.get(code, standard.description.rstrip('.') if standard else str(code))
+
+
+def standard_picker_label(code):
+    if not code:
+        return 'Choose skill'
+    standard = BY_CODE.get(code)
+    if standard is None:
+        return str(code)  # Preserve previously saved unknown or legacy codes.
+    return f'{standard_skill_name(code)} · Grade {standard.grade} · {code}'
+
+
+def standard_matches_search(code, query):
+    if not str(query or '').strip():
+        return True
+    standard = BY_CODE.get(code)
+    if standard is None:
+        return str(query).casefold().strip() in str(code).casefold()
+    searchable = ' '.join((code, standard.domain, standard.description,
+                           standard_skill_name(code), *STANDARD_SEARCH_ALIASES.get(code, ())))
+    words = str(query).casefold().split()
+    return all(word in searchable.casefold() for word in words)
+
+
+def remember_recent_standards(state, codes):
+    valid = [code for code in codes if code in BY_CODE]
+    if not valid:
+        return
+    recent = list(dict.fromkeys([*valid, *state.get('recent_standard_codes', [])]))[:8]
+    state['recent_standard_codes'] = recent
+    # Session-local, isolated by block. Saved plans also retain current and
+    # previous-week standards, so nothing new is written to Supabase.
+    by_class = st.session_state.setdefault('weekly_planner_recent_by_class', {})
+    by_class[str(state['plan']['class_id'])] = recent
+
+
 PLANNER_CSS = '''<style>
 /* Wider only while this teacher workspace is mounted. */
 .block-container:has(.st-key-weekly-planner) {max-width:1180px!important}
@@ -55,6 +191,7 @@ def question_changed(state, day_index, slot_index, field, key, parser=None):
     if field == 'standard_code':
         standard = BY_CODE.get(value)
         question['standard_description'] = standard.description if standard else ''
+        remember_recent_standards(state, [value])
     if field == 'question_type' and old_type in {'Compare Values', 'Order Tiles'} and value != old_type:
         question['correct_answer'] = ''
         state.setdefault('question_epochs', {})[(day_index, slot_index)] = state.get('question_epochs', {}).get((day_index, slot_index), 0) + 1
@@ -171,10 +308,13 @@ def render_question_card(store, state, day_index, slot_index, prefix, *, disable
         with standard_col:
             code = q.get('standard_code') or ''
             selected_codes = state['plan']['standards'] if day_index < 4 else state['plan']['quiz_standards']
-            codes = list(dict.fromkeys(['', *selected_codes, *[c for c, s in BY_CODE.items() if s.grade in (5, 6, 7)], code]))
+            recent_codes = state.get('recent_standard_codes', [])
+            codes = list(dict.fromkeys(['', *selected_codes, *recent_codes,
+                                         *[c for c, s in BY_CODE.items() if s.grade in (5, 6, 7)], code]))
             standard_key = base + '::standard_code'
-            st.selectbox('Standard', codes, index=codes.index(code), format_func=lambda value: value or 'Choose skill',
-                         key=standard_key, disabled=disabled, help=BY_CODE[code].description if code in BY_CODE else 'Choose the skill assessed by this question.',
+            st.selectbox('Standard', codes, index=codes.index(code), format_func=standard_picker_label,
+                         key=standard_key, disabled=disabled,
+                         help='Search by skill name or standard code. ' + (BY_CODE[code].description if code in BY_CODE else 'Choose the skill assessed by this question.'),
                          on_change=question_changed, args=(state, day_index, slot_index, 'standard_code', standard_key))
         with bank_col:
             rows = [row for row in questions_for_standard(code) if row.get('question_type') in types]

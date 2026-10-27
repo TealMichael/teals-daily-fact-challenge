@@ -21,7 +21,9 @@ from planning_question_images import question_for_date
 from teacher_planning import monday_for
 from weekly_planning import (new_plan, plan_repository, suggest_questions, normalize_question,
                              validate_plan, duplicate_slots, content, state_label)
-from weekly_planning_editor import PLANNER_CSS, render_question_card, mark_edited
+from weekly_planning_editor import (PLANNER_CSS, render_question_card, mark_edited,
+                                    standard_picker_label, standard_skill_name,
+                                    standard_matches_search, remember_recent_standards)
 from weekly_planning_bulk import preview_targets, publish_targets
 
 
@@ -30,11 +32,6 @@ def _message(exc):
     if any(token in message for token in ('PGRST202', 'PGRST205', 'schema cache', 'does not exist')):
         return 'Weekly Planning needs the v2.25.1 SQL update. Existing classroom activities and Display Igniter remain available.'
     return message if len(message) < 650 else 'The draft could not save. Your edits are still here; try saving again.'
-
-
-def _label(code):
-    standard = BY_CODE.get(code)
-    return standard.label if standard else code
 
 
 def _accept_record(state, record):
@@ -113,6 +110,19 @@ def _flush_working_drafts(store, repository):
 
 def _setting_changed(state, field, key):
     state['plan'][field] = st.session_state[key]
+    if field in ('standards', 'quiz_standards'):
+        remember_recent_standards(state, st.session_state[key])
+    mark_edited(state)
+
+
+def _add_recent_standard(state, field, code, widget_key):
+    selected = state['plan'][field]
+    if code not in BY_CODE or code in selected:
+        return
+    chosen = [*selected, code]
+    state['plan'][field] = chosen
+    st.session_state[widget_key] = chosen
+    remember_recent_standards(state, [code])
     mark_edited(state)
 
 
@@ -230,10 +240,41 @@ def _render_standards(state, prefix):
             st.selectbox('Igniter grade' if grade_field == 'grade' else 'Quiz grade', [5, 6, 7],
                          index=[5, 6, 7].index(plan.get(grade_field, 5)), key=grade_key,
                          on_change=_setting_changed, args=(state, grade_field, grade_key))
-            options = list(dict.fromkeys([*standard_codes_for(plan[grade_field]), *plan[codes_field]]))
+            query = st.text_input('Search skills or codes', key=prefix + codes_field + '::find',
+                                  placeholder='e.g. order of operations, PEMDAS, 6.NS.5',
+                                  help='Search all Grades 5–7 by skill name, official description, synonym, or standard code.')
+            selected_codes = plan[codes_field]
+            recent = [c for c in state.get('recent_standard_codes', [])
+                      if c in BY_CODE and BY_CODE[c].grade == plan[grade_field]]
+            if query.strip():
+                # Look across all three grades so advanced classes can search
+                # without first knowing which grade owns the standard.
+                matches = [code for grade in (5, 6, 7) for code in standard_codes_for(grade)
+                           if standard_matches_search(code, query)]
+                options = list(dict.fromkeys([*selected_codes, *matches]))
+                if not matches:
+                    st.caption('No bank standards match yet. Try another skill word or code.')
+            else:
+                options = list(dict.fromkeys([*selected_codes, *recent,
+                                              *standard_codes_for(plan[grade_field])]))
             code_key = prefix + codes_field
-            st.multiselect(label, options, default=plan[codes_field], format_func=_label, key=code_key,
+            st.multiselect(label, options, default=selected_codes,
+                           format_func=standard_picker_label, key=code_key,
+                           placeholder='Type to search and select skills',
+                           filter_mode='contains',
                            on_change=_setting_changed, args=(state, codes_field, code_key))
+            if not query.strip():
+                suggestions = [code for code in recent if code not in selected_codes][:2]
+                if suggestions:
+                    st.caption('Recently used in this block · click to add')
+                    for col, code in zip(st.columns(len(suggestions)), suggestions):
+                        with col:
+                            st.button('↻ ' + standard_skill_name(code),
+                                      help=standard_picker_label(code),
+                                      key=prefix + codes_field + '::recent::' + code,
+                                      on_click=_add_recent_standard,
+                                      args=(state, codes_field, code, code_key),
+                                      use_container_width=True)
     st.caption(f"Friday starts with skills taught the week of {date.fromisoformat(plan['prior_week']):%b %d}. Choose them here if no prior week is available.")
     st.button('Fill week with questions', type='primary', key=prefix+'fill', on_click=_fill_week, args=(state,))
     for warning in state.get('suggestion_warnings', []):
@@ -516,6 +557,15 @@ def render_weekly_planning(store):
             st.error(_message(exc))
             return
         state = st.session_state[session_key]
+        if 'recent_standard_codes' not in state:
+            previous = st.session_state.get('weekly_planner_recent_by_class', {}).get(str(class_id), [])
+            current = state['plan']
+            from_questions = [q.get('standard_code') for day in current['days'] for q in day['questions']]
+            # Current class's saved plan and previously taught quiz standards
+            # provide useful recents across sessions without extra database reads.
+            state['recent_standard_codes'] = list(dict.fromkeys(
+                code for code in [*previous, *current['standards'], *current['quiz_standards'],
+                                  *from_questions] if code in BY_CODE))[:8]
         prefix = f"{session_key}::sheet252::{state.get('editor_epoch', 0)}::"
         for failed_key in failed_drafts:
             if failed_key != session_key:
