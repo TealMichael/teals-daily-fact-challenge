@@ -256,8 +256,11 @@ def _worked_with_button(store, lesson, *, code: str, student_ids: list[str], day
                 exclude_bank_ids=tuple(exclude_bank_ids),
                 bank_question_id=chosen_bank_id,
             )
-            st.success(f"Quick Check available for {count} student{'s' if count != 1 else ''}. "
-                       "They can reopen the app when they return to their seats.")
+            # The database intentionally ignores duplicate assignments so a
+            # second click never replaces a student's pending or completed
+            # question. Count here means selected recipients, not new rows.
+            st.success(f"Quick Check requested for {count} selected student{'s' if count != 1 else ''}. "
+                       "Existing checks stay unchanged. Students can reopen the app at their seats.")
         except ValueError as exc:
             st.warning(str(exc))
         except Exception:
@@ -437,6 +440,46 @@ def _render_historical_rows(store, lesson, day: date) -> None:
         st.caption("No historical standards currently meet the check-in criteria.")
 
 
+def _quick_check_results_summary(rows, students) -> tuple[dict, list[dict], list[dict]]:
+    """Small, teacher-only follow-up summary without additional store reads.
+
+    Excludes former or unrelated class roster entries and never shows an
+    unfinished response as incorrect. No identifying information leaves the
+    teacher's current session.
+    """
+    roster = {str(student.student_id): str(student.nickname) for student in students}
+    valid = [row for row in rows if str(row.student_id) in roster]
+    totals = {"assigned": len(valid), "completed": 0, "correct": 0, "review": 0, "pending": 0}
+    by_code: dict[str, dict] = {}
+    details = []
+    for row in valid:
+        code = str(row.standard_code)
+        group = by_code.setdefault(code, {"assigned": 0, "completed": 0, "correct": 0, "review": 0, "pending": 0})
+        group["assigned"] += 1
+        if row.completed_at is None:
+            status = "Not answered"
+            totals["pending"] += 1
+            group["pending"] += 1
+        else:
+            totals["completed"] += 1
+            group["completed"] += 1
+            if row.correct:
+                totals["correct"] += 1
+                group["correct"] += 1
+                status = "Correct"
+            else:
+                totals["review"] += 1
+                group["review"] += 1
+                status = "Needs review"
+        details.append({
+            "Student": roster[str(row.student_id)], "Standard": code,
+            "Result": status, "Question": str(row.prompt or ""),
+        })
+    details.sort(key=lambda item: (item["Standard"], item["Student"].casefold()))
+    groups = [{"standard": code, **item} for code, item in sorted(by_code.items())]
+    return totals, groups, details
+
+
 def _render_quick_check_results(store, lesson, day: date) -> None:
     """Results are opt-in to avoid another Supabase read on every Today visit."""
     key = f"show_quick_check_results_{lesson.class_record.class_id}_{day.isoformat()}"
@@ -450,25 +493,18 @@ def _render_quick_check_results(store, lesson, day: date) -> None:
     except Exception:
         st.caption("Quick Check results are not available yet. Verify the v2.28 database setup.")
         return
-    valid_ids = {str(student.student_id) for student in lesson.students}
-    rows = [row for row in rows if str(row.student_id) in valid_ids]
-    if not rows:
+    totals, groups, details = _quick_check_results_summary(rows, lesson.students)
+    if not totals["assigned"]:
         st.caption("No small-group Quick Checks were assigned to this class today.")
         return
-    done = [row for row in rows if row.completed_at is not None]
-    correct = sum(bool(row.correct) for row in done)
-    st.caption(f"{len(done)}/{len(rows)} checks completed · {correct} correct · "
-               f"{len(done) - correct} needing another look")
-    by_code = {}
-    for row in rows:
-        cell = by_code.setdefault(str(row.standard_code), {"assigned": 0, "done": 0, "correct": 0})
-        cell["assigned"] += 1
-        if row.completed_at is not None:
-            cell["done"] += 1
-            cell["correct"] += int(bool(row.correct))
-    for code, item in sorted(by_code.items()):
-        st.write(f"**{code}** · {item['done']}/{item['assigned']} complete · "
-                 f"{item['correct']} correct")
+    st.caption(f"{totals['completed']}/{totals['assigned']} completed · "
+               f"{totals['correct']} correct · {totals['review']} needing another look · "
+               f"{totals['pending']} not answered")
+    for item in groups:
+        st.write(f"**{item['standard']}** · {item['completed']}/{item['assigned']} complete · "
+                 f"{item['correct']} correct · {item['review']} review")
+    with st.expander("See individual student results", expanded=False):
+        st.dataframe(details, hide_index=True, width="stretch")
 
 
 def render_teacher_today_command_center(
@@ -568,5 +604,5 @@ def render_teacher_today_command_center(
             st.caption(f"No completed {activity} responses yet. Unfinished answers are never counted as incorrect.")
         elif selected.kind == "Quiz":
             st.caption(f"{selected.complete} of {selected.total} students finished the {activity}.")
-    _render_historical_checkins(store, selected, day)
     _render_quick_check_results(store, selected, day)
+    _render_historical_checkins(store, selected, day)

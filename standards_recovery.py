@@ -7,7 +7,7 @@ It does not contain student names, roster data, or external/AI calls.
 """
 
 from dataclasses import dataclass
-from datetime import date, timedelta, datetime
+from datetime import date, timedelta, datetime, timezone
 import hashlib
 from typing import Iterable, Mapping, Sequence
 
@@ -223,6 +223,20 @@ def combine_standards_evidence(
             lambda name, default=None: getattr(row, name, default))
         if get("completed_at") is None or get("correct") is None:
             continue
+        # Supabase's older answer adapters return timezone-aware datetime
+        # objects, while this additive Quick Check reader returns raw ISO
+        # strings. Mixing them breaks same-day evidence sorting (and the
+        # teacher's Standards/Today views) as soon as the first check lands.
+        timestamp = get("completed_at")
+        try:
+            answered_at = (timestamp if isinstance(timestamp, datetime) else
+                           datetime.fromisoformat(str(timestamp).replace("Z", "+00:00")))
+        except (TypeError, ValueError):
+            # An invalid supplemental timestamp must not take down the
+            # established Igniter / Quiz / Recovery tracker.
+            continue
+        if answered_at.tzinfo is None:
+            answered_at = answered_at.replace(tzinfo=timezone.utc)
         decision = reconcile_tag(get("standard_code", ""), get("standard_description", ""),
                                  get("prompt", ""))
         if not decision.code:
@@ -232,7 +246,7 @@ def combine_standards_evidence(
             activity_date=str(get("completed_date") or str(get("completed_at"))[:10]),
             standard_code=decision.code, standard_description=decision.description,
             source="Quick Check", prompt=str(get("prompt", "")), correct=bool(get("correct")),
-            answered_at=get("completed_at"), source_slot=None,
+            answered_at=answered_at, source_slot=None,
             tag_disposition=decision.disposition,
         ))
 
