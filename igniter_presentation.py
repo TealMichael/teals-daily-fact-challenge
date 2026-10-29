@@ -69,13 +69,55 @@ def math_text(value: str) -> str:
     return result
 
 
+def _unlettered_option(value: str, index: int) -> str:
+    """Remove teacher-entered A./A) prefixes; the slide supplies its own labels."""
+    option = str(value or "").strip()
+    letter = chr(ord("A") + index)
+    while True:
+        stripped = re.sub(rf"^{letter}\s*[.)]\s*", "", option, count=1, flags=re.I).strip()
+        if stripped == option:
+            return option
+        option = stripped
+
+
+def _presentation_prompt(prompt: str, options: list[str]) -> str:
+    """Hide a copied A–D answer list *only* if it matches the real options.
+
+    Teachers sometimes paste an entire multiple-choice item into the prompt
+    while also filling its option fields. Never remove a different or partial
+    answer list: it could be meaningful teacher-authored question content.
+    """
+    lines = str(prompt or "").splitlines()
+    if len(options) < 2:
+        return str(prompt or "")
+    nonblank = [(i, line.strip()) for i, line in enumerate(lines) if line.strip()]
+    if len(nonblank) < len(options) + 1:
+        return str(prompt or "")
+    tail = nonblank[-len(options):]
+    for index, (_, line) in enumerate(tail):
+        letter = chr(ord("A") + index)
+        match = re.fullmatch(rf"{letter}\s*[.)]\s*(.+)", line, flags=re.I)
+        if not match:
+            return str(prompt or "")
+        actual = _unlettered_option(match.group(1), index)
+        expected = _unlettered_option(options[index], index)
+        normalize = lambda value: re.sub(r"\s+", " ", value).strip().casefold()
+        if normalize(actual) != normalize(expected):
+            return str(prompt or "")
+    return "\n".join(lines[:tail[0][0]]).rstrip()
+
+
 def question_html(question: dict, image_url: str = "") -> str:
     q = question
-    content = '<div class="prompt">' + math_text(q.get("prompt", "")) + '</div>'
     kind = q.get("question_type")
+    options = q.get("options") or []
+    prompt = (_presentation_prompt(q.get("prompt", ""), options)
+              if kind == "Multiple choice" else q.get("prompt", ""))
+    content = '<div class="prompt">' + math_text(prompt) + '</div>'
     if kind == "Multiple choice":
         content += '<ol class="choices" type="A">' + ''.join(
-            '<li>' + math_text(x) + '</li>' for x in q.get("options", [])) + '</ol>'
+            '<li>' + math_text(_unlettered_option(x, i)) + '</li>'
+            for i, x in enumerate(options)) + '</ol>'
     elif kind == "Compare Values":
         content += '<div class="compare">' + math_text(q.get("compare_left", "")) + \
             '<span class="compare-blank">?</span>' + math_text(q.get("compare_right", "")) + '</div>'
@@ -180,7 +222,9 @@ def render_igniter_presentation(store) -> None:
         return
     st.markdown("""<style>
     [data-testid="stHeader"], [data-testid="stToolbar"], footer {display:none!important}
-    .block-container {max-width:none!important;padding:0.4rem 1rem!important}
+    .block-container, [data-testid="stMainBlockContainer"]
+      {max-width:none!important;padding:0!important;margin:0!important}
+    [data-testid="stMainBlockContainer"] > [data-testid="stVerticalBlock"] {gap:0!important}
     </style>""", unsafe_allow_html=True)
     questions = [warmup.question_one, warmup.question_two]
     cards = [{"content": question_html(q, question_image_url(store, q)),

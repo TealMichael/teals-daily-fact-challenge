@@ -318,7 +318,7 @@ def test_small_card_labels_and_version():
     assert "1/3 Igniter complete" in label
     assert "Awaiting" not in label and "Missed Q1" not in label
     src = Path(__file__).parent
-    assert 'APP_VERSION = "2.29.1"' in (src / "fact_engine.py").read_text()
+    assert 'APP_VERSION = "2.29.2"' in (src / "fact_engine.py").read_text()
 
 
 if __name__ == "__main__":

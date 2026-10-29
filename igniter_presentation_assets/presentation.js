@@ -8,6 +8,20 @@ export default function({parentElement, data, setTriggerValue}) {
   root.dataset.scoped = data.scoped ? 'true' : 'false';
   byId('class-name').textContent = data.className || '';
   byId('lesson-date').textContent = data.date || '';
+  const fitQuestionText = () => {
+    ['one', 'two'].forEach(word => {
+      const body = byId('question-' + word);
+      if (!body || !body.clientHeight) return;
+      body.style.fontSize = '';
+      let size = parseFloat(getComputedStyle(body).fontSize);
+      // Ordinary published problems should fit entirely, with no slide scroll.
+      // Very long custom questions can still scroll within their own card.
+      while (body.scrollHeight > body.clientHeight + 2 && size > 17) {
+        size = Math.max(17, size - 1);
+        body.style.fontSize = size + 'px';
+      }
+    });
+  };
   ['one', 'two'].forEach((word, i) => {
     byId('question-' + word).innerHTML = data.cards[i].content;
     const answer = byId('answer-' + word), button = byId('reveal-' + word);
@@ -15,8 +29,15 @@ export default function({parentElement, data, setTriggerValue}) {
     if (reset) answer.hidden = true;
     const update = () => {button.textContent = (answer.hidden ? 'Show' : 'Hide') + ' Answer ' + (i+1); button.setAttribute('aria-expanded', String(!answer.hidden));};
     update();
-    button.onclick = () => {answer.hidden = !answer.hidden; update();};
+    button.onclick = () => {answer.hidden = !answer.hidden; update(); requestAnimationFrame(fitQuestionText);};
   });
+  requestAnimationFrame(fitQuestionText);
+  // The display window may be moved to a projector or resized mid-lesson.
+  if (root.__fitObserver) root.__fitObserver.disconnect();
+  if (typeof ResizeObserver !== 'undefined') {
+    root.__fitObserver = new ResizeObserver(() => requestAnimationFrame(fitQuestionText));
+    root.__fitObserver.observe(root);
+  }
   const fullscreen = byId('fullscreen');
   const isFull = () => !!(document.fullscreenElement || root.getRootNode()?.fullscreenElement);
   fullscreen.onclick = async () => {
@@ -26,6 +47,7 @@ export default function({parentElement, data, setTriggerValue}) {
       else throw new Error('unavailable');
       fullscreen.textContent = isFull() ? 'Exit full screen' : 'Full screen';
       byId('screen-status').textContent = '';
+      requestAnimationFrame(fitQuestionText);
     } catch (_) {
       byId('screen-status').textContent = 'Theater view is active. This browser does not allow full screen here.';
     }
@@ -47,5 +69,8 @@ export default function({parentElement, data, setTriggerValue}) {
       setTriggerValue('action', {action, identity: data.identity});
     };
   });
-  root.onfullscreenchange = () => {fullscreen.textContent = isFull() ? 'Exit full screen' : 'Full screen';};
+  root.onfullscreenchange = () => {
+    fullscreen.textContent = isFull() ? 'Exit full screen' : 'Full screen';
+    requestAnimationFrame(fitQuestionText);
+  };
 }
