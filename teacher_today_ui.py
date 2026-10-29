@@ -7,6 +7,7 @@ student writes occur here.
 """
 
 import html
+import time
 from datetime import date
 
 import streamlit as st
@@ -14,6 +15,8 @@ import streamlit as st
 from fact_engine import current_daily_date
 from igniter_popout import render_igniter_window_button
 from indiana_question_bank import SUPPORTED_BANK_TYPES, questions_for_standard, resolve_bank_image_path
+from standards_recovery import question_standard_metadata
+from standards_tagging import reconcile_tag
 from teacher_today_overview import load_today_lessons, recent_mastery_checkins, today_reteach
 from teacher_warmup_ui import (
     _warmup_email_recipients,
@@ -25,6 +28,9 @@ from teacher_warmup_ui import (
 from warmup import question_for_slot
 
 
+_CHECK_CACHE_SECONDS = 20
+
+
 def _date_label(day: date) -> str:
     return day.strftime("%A, %B %d").replace(" 0", " ")
 
@@ -32,21 +38,11 @@ def _date_label(day: date) -> str:
 def _card_label(lesson, grouping: dict | None = None) -> str:
     name = str(lesson.class_record.class_name)
     if lesson.error:
-        return f"{name}\n\nUnavailable · Refresh"
+        return f"{name}\n\nUnavailable"
     if lesson.assignment is None:
         return f"{name}\n\nNo activity assigned"
-    noun = "Quiz submitted" if lesson.kind == "Quiz" else "Igniter complete"
-    label = f"{name}\n\n{lesson.complete}/{lesson.total} {noun}"
-    if grouping is not None:
-        if grouping["completed_count"]:
-            label += (
-                f"\n\nMissed Q1 **{len(grouping['q1_support'])}** · "
-                f"Missed Q2 **{len(grouping['q2_support'])}** · "
-                f"Missed both **{len(grouping['missed_both'])}**"
-            )
-        else:
-            label += "\n\nAwaiting completed Igniters" if lesson.total else "\n\nNo active students"
-    return label
+    noun = "quiz submitted" if lesson.kind == "Quiz" else "Igniter complete"
+    return f"{name}\n\n{lesson.complete}/{lesson.total} {noun}"
 
 
 def _select_today_class(class_id: str) -> None:
@@ -54,43 +50,153 @@ def _select_today_class(class_id: str) -> None:
     st.session_state["teacher_today_class_id"] = class_id
 
 
+def _today_standard_targets(lesson, grouping: dict | None) -> dict[str, set[str]]:
+    """Exact student/standard pairs requiring follow-up from completed work.
+
+    A student missing both questions on the same standard needs only one
+    assignment, since the database permits one independent check per standard
+    per day. Anonymous student IDs avoid duplicate-nickname collisions.
+    """
+    if lesson.error or lesson.assignment is None:
+        return {}
+    if lesson.kind == "Quiz":
+        return {str(group["code"]): set(map(str, group["student_ids"]))
+                for group in today_reteach(lesson) if group.get("code")}
+    if lesson.kind != "Igniter" or not grouping:
+        return {}
+
+    targets: dict[str, set[str]] = {}
+    for slot in (1, 2):
+        question = question_for_slot(lesson.assignment, slot)
+        decision = reconcile_tag(
+            question.get("standard_code", ""), question.get("standard_description", ""),
+            question.get("prompt", ""),
+        )
+        if not decision.code:
+            continue
+        missed_ids = {
+            str(row.student_id) for row in lesson.rows
+            if str(row.student_id) in lesson.completed_ids
+            and int(row.question_slot) == slot and not bool(row.correct)
+        }
+        if missed_ids:
+            targets.setdefault(decision.code, set()).update(missed_ids)
+    return targets
+
+
+def _today_followup_coverage(lesson, targets: dict[str, set[str]], rows) -> dict:
+    """A group is addressed only when every missed student/code has a check.
+
+    'Assigned' means the check exists, whether answered or pending. One button
+    click does not clear a group if the teacher selected only a subset.
+    """
+    required = {(str(sid), code) for code, students in targets.items() for sid in students}
+    class_id = str(lesson.class_record.class_id)
+    assigned = {
+        (str(row.student_id), str(row.standard_code)) for row in (rows or ())
+        if str(row.class_id) == class_id
+    }
+    covered = required & assigned
+    return {"required": len(required), "assigned": len(covered),
+            "remaining": required - assigned, "clear": not (required - assigned)}
+
+
+def _today_has_unmatched_misses(lesson) -> bool:
+    """Do not hide a wrong answer merely because its standard tag is unusable."""
+    if lesson.assignment is None or lesson.error:
+        return False
+    for answer in lesson.rows:
+        if str(answer.student_id) not in lesson.completed_ids or bool(answer.correct):
+            continue
+        slot = int(answer.question_slot)
+        if lesson.kind == "Quiz":
+            questions = tuple(getattr(lesson.assignment, "questions", ()) or ())
+            if not 1 <= slot <= len(questions):
+                return True
+            code, description = question_standard_metadata(questions[slot - 1])
+            prompt = str(getattr(answer, "prompt", "") or questions[slot - 1].get("prompt") or "")
+        else:
+            if slot not in (1, 2):
+                return True
+            question = question_for_slot(lesson.assignment, slot)
+            code = str(question.get("standard_code") or "")
+            description = str(question.get("standard_description") or "")
+            prompt = str(question.get("prompt") or "")
+        if not reconcile_tag(code, description, prompt).code:
+            return True
+    return False
+
+
+def _history_is_next_priority(lesson, targets: dict[str, set[str]], coverage: dict | None,
+                              *, unmatched_misses: bool = False) -> bool:
+    """Option B: prior standards become primary after today's checks are sent."""
+    if lesson.error:
+        return False
+    if lesson.assignment is None:
+        return True  # No classroom activity scheduled for this block today.
+    if not lesson.complete:
+        return False  # No completed work: today's needs are still unknown.
+    if unmatched_misses:
+        return False  # A bad standard tag must not be interpreted as 'addressed'.
+    return not targets or bool(coverage and coverage["clear"])
+
+
+def _checks_cache_key(lesson, day: date) -> str:
+    return f"teacher_today_v229_checks_{lesson.class_record.class_id}_{day.isoformat()}"
+
+
+def _today_quick_checks(store, lesson, day: date, *, fresh: bool = False) -> list:
+    """One short-lived class-scoped read, shared by priorities and results.
+
+    A successful teacher assignment invalidates this entry immediately. The
+    explicit Refresh and View Results actions force a new read as well.
+    """
+    key = _checks_cache_key(lesson, day)
+    saved = st.session_state.get(key)
+    now = time.monotonic()
+    if (not fresh and saved and now - saved["at"] < _CHECK_CACHE_SECONDS):
+        return saved["rows"]
+    rows = store.list_standard_quick_checks(
+        day, day, class_id=lesson.class_record.class_id, include_test=True,
+    )
+    roster = {str(student.student_id) for student in lesson.students}
+    valid = [row for row in rows
+             if str(row.student_id) in roster
+             and str(row.class_id) == str(lesson.class_record.class_id)]
+    st.session_state[key] = {"at": now, "rows": valid}
+    return valid
+
+
 def _render_class_cards(lessons, groupings: dict | None = None) -> object:
     st.markdown("""<style>
-    .block-container:has(div[class*="st-key-today_card_"]) {max-width: 1100px;}
+    .block-container:has(div[class*="st-key-today_card_"]) {max-width: 1200px;}
     div[class*="st-key-today_card_"] button {
-        min-height: 104px;
-        border-radius: 14px;
+        min-height: 76px;
+        border-radius: 12px;
         border-width: 1.5px;
-        padding: 15px 18px;
+        padding: 11px 13px;
         text-align: left;
     }
     div[class*="st-key-today_card_"] button > div {width: 100%;}
     div[class*="st-key-today_card_"] button [data-has-shortcut] {width: 100%;}
     div[class*="st-key-today_card_"] button [data-testid="stMarkdownContainer"] {
-        display: grid; grid-template-columns: 1fr auto;
-        gap: 10px 12px; width: 100%;
+        display: flex; flex-direction: column;
+        gap: 3px; width: 100%; align-items: flex-start;
     }
-    div[class*="st-key-today_card_"] button p {margin: 0; line-height: 1.45;}
+    div[class*="st-key-today_card_"] button p {margin: 0; line-height: 1.32;}
     div[class*="st-key-today_card_"] button p:first-child {font-weight: 650;}
-    div[class*="st-key-today_card_"] button p:nth-child(2) {font-size: .94rem; text-align: right;}
-    div[class*="st-key-today_card_"] button p:nth-child(3) {
-        grid-column: 1 / -1; border-top: 1px solid #d4dfdb;
-        padding-top: 9px; font-size: .86rem; color: #536773;
-    }
-    div[class*="st-key-today_card_"] button p:nth-child(3) strong:last-of-type {
-        color: #765400;
-    }
+    div[class*="st-key-today_card_"] button p:nth-child(2) {font-size: .87rem; color: #536773;}
     div[class*="st-key-today_card_active"] button {
         border: 2px solid #087968;
         background: #e6f5ef;
         color: #163f36;
     }
     .today-results {display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
-        padding: 4px 0 20px; border-bottom: 1px solid #d6dce0; margin-bottom: 4px;}
-    .today-result {padding: 0 22px; border-left: 1px solid #d6dce0; min-width: 0;}
+        padding: 2px 0 12px; border-bottom: 1px solid #d6dce0; margin-bottom: 4px;}
+    .today-result {padding: 0 16px; border-left: 1px solid #d6dce0; min-width: 0;}
     .today-result:first-child {padding-left: 0; border-left: 0;}
     .today-result-label, .today-result-detail {color: #647080; font-size: .88rem;}
-    .today-result-value {font-size: 2.2rem; font-weight: 700; line-height: 1.25;
+    .today-result-value {font-size: 1.65rem; font-weight: 700; line-height: 1.2;
         font-variant-numeric: tabular-nums; color: #111827;}
     .today-result-detail {font-size: .83rem; margin-top: 3px;}
     .today-name-list {display: flex; flex-wrap: wrap; gap: 7px; align-items: flex-start;}
@@ -123,10 +229,8 @@ def _render_class_cards(lessons, groupings: dict | None = None) -> object:
     .today-history-names {color: #647080; overflow-wrap: anywhere;}
     .st-key-today_actions [data-testid="stLinkButton"] a {min-height: 46px;}
     @media (max-width: 650px) {
-        div[class*="st-key-today_card_"] button [data-testid="stMarkdownContainer"] {grid-template-columns: 1fr;}
-        div[class*="st-key-today_card_"] button p:nth-child(2) {text-align: left;}
         .today-result {padding: 0 10px;}
-        .today-result-value {font-size: 1.8rem;}
+        .today-result-value {font-size: 1.4rem;}
         .today-result-label, .today-result-detail {font-size: .8rem;}
         .today-priority-panel {padding: 15px 16px 17px;}
         .today-question-panel {padding: 13px 16px 15px;}
@@ -139,13 +243,12 @@ def _render_class_cards(lessons, groupings: dict | None = None) -> object:
         selected_id = str(lessons[0].class_record.class_id)
         st.session_state["teacher_today_class_id"] = selected_id
 
-    # Four classroom blocks look balanced as two equal rows of two cards.
-    # Always retain the empty columns in a partial final row so no card expands
-    # to the full page width when another class is added later.
-    per_row = 2 if len(lessons) == 4 else 3
+    # Four compact cards across on desktop. Streamlit automatically stacks the
+    # columns on small screens; partial final rows retain their column width.
+    per_row = 4
     for start in range(0, len(lessons), per_row):
         row = lessons[start:start + per_row]
-        cols = st.columns(per_row, gap="medium")
+        cols = st.columns(per_row, gap="small")
         for offset, lesson in enumerate(row):
             index = start + offset
             cid = str(lesson.class_record.class_id)
@@ -256,6 +359,7 @@ def _worked_with_button(store, lesson, *, code: str, student_ids: list[str], day
                 exclude_bank_ids=tuple(exclude_bank_ids),
                 bank_question_id=chosen_bank_id,
             )
+            st.session_state.pop(_checks_cache_key(lesson, day), None)
             # The database intentionally ignores duplicate assignments so a
             # second click never replaces a student's pending or completed
             # question. Count here means selected recipients, not new rows.
@@ -326,13 +430,13 @@ def _render_names(names: list[str]) -> None:
 
 def _render_igniter_snapshot(grouping: dict) -> None:
     values = [("Igniter complete", f"{grouping['completed_count']}/{grouping['student_count']}",
-               f"{len(grouping['unfinished'])} not finished")]
+               f"{len(grouping['unfinished'])} remaining")]
     for slot in (1, 2):
         accuracy = grouping[f"accuracy_q{slot}"]
         value = "—" if accuracy is None else f"{accuracy:.0f}%"
         missed = grouping[f"answered_q{slot}"] - grouping[f"correct_q{slot}"]
         detail = (f"{grouping[f'correct_q{slot}']} correct · {missed} missed"
-                  if accuracy is not None else "No responses yet")
+                  if accuracy is not None else "0 responses")
         values.append((f"Q{slot} accuracy", value, detail))
     cells = "".join(
         '<div class="today-result">'
@@ -359,32 +463,29 @@ def _render_igniter_priorities(store, lesson, grouping: dict, day: date) -> None
             f'<span class="today-priority-count">{count}</span></div>'
             f'{_names_html(both)}</div>', unsafe_allow_html=True,
         )
-    else:
-        st.caption("First priority · Missed both questions: none among completed Igniters.")
-
-    columns = st.columns(2, gap="medium")
-    for slot, label in ((1, "Spiral Review"), (2, "Yesterday's Lesson")):
-        with columns[slot - 1]:
-            names = grouping[f"q{slot}_only"]
+    active_slots = [slot for slot in (1, 2) if grouping[f"q{slot}_support"]]
+    columns = st.columns(len(active_slots), gap="small") if active_slots else []
+    for index, slot in enumerate(active_slots):
+        label = "Spiral Review" if slot == 1 else "Yesterday's Lesson"
+        with columns[index]:
+            names = grouping[f"q{slot}_support"]
             question = question_for_slot(lesson.assignment, slot)
             code = str(question.get("standard_code") or "").strip()
             description = str(question.get("standard_description") or "").strip()
             title_attr = f' title="{html.escape(description, quote=True)}"' if description else ""
             subtitle = html.escape(f"{label} · {code}" if code else label)
             count = f"{len(names)} student{'s' if len(names) != 1 else ''}"
-            names_or_empty = (_names_html(names) if names else
-                              f'<div class="today-question-empty">No students missed only Question {slot}.</div>')
             st.markdown(
-                f'<div class="today-question-panel" role="group" aria-label="Missed Q{slot} only">'
-                f'<div class="today-question-heading">Missed Q{slot} only · {count}</div>'
+                f'<div class="today-question-panel" role="group" aria-label="Missed Q{slot}">'
+                f'<div class="today-question-heading">Q{slot} needs support · {count}</div>'
                 f'<div class="today-question-standard"{title_attr}>{subtitle}</div>'
-                f'{names_or_empty}</div>', unsafe_allow_html=True,
+                f'{_names_html(names)}</div>', unsafe_allow_html=True,
             )
-            from standards_tagging import reconcile_tag
             decision = reconcile_tag(code, description, str(question.get("prompt") or ""))
-            support_names = set(grouping[f"q{slot}_support"])
-            target_ids = [str(student.student_id) for student in lesson.students
-                          if student.nickname in support_names]
+            target_ids = [str(row.student_id) for row in lesson.rows
+                          if int(row.question_slot) == slot
+                          and str(row.student_id) in lesson.completed_ids
+                          and not bool(row.correct)]
             _worked_with_button(store, lesson, code=decision.code,
                                 student_ids=target_ids, day=day,
                                 exclude_bank_ids=(str(question.get("bank_question_id") or ""),),
@@ -392,7 +493,7 @@ def _render_igniter_priorities(store, lesson, grouping: dict, day: date) -> None
 
     notes = []
     if both:
-        notes.append("Missed-both students count in both question totals but appear once above.")
+        notes.append("Students who missed both are included in each question group.")
     recommendations = [(f"Q{slot}", _warmup_instruction_recommendation(len(grouping[f"q{slot}_support"])))
                        for slot in (1, 2) if grouping[f"q{slot}_support"]]
     if recommendations:
@@ -404,18 +505,29 @@ def _render_igniter_priorities(store, lesson, grouping: dict, day: date) -> None
         st.caption(" · ".join(notes))
     if grouping["completed_count"] and not (both or grouping["q1_only"] or grouping["q2_only"]):
         st.success("No students to pull from completed Igniters today.")
-    with st.container(key="today_unfinished"):
-        st.markdown(f"**Not finished · {len(grouping['unfinished'])}**")
-        if grouping["unfinished"]:
+    if grouping["unfinished"]:
+        with st.expander(f"Not finished · {len(grouping['unfinished'])}", expanded=False):
             _render_names(grouping["unfinished"])
-        st.caption("Incomplete work is separate from incorrect answers.")
+            st.caption("Incomplete work is not counted as incorrect.")
 
 
-def _render_historical_checkins(store, lesson, day: date) -> None:
-    """Always show the selected class's bounded, prior-day evidence separately."""
+def _render_historical_checkins(store, lesson, day: date, *, ready: bool) -> None:
+    """Prior standards become the default only after today's groups are clear.
+
+    The older evidence is still one optional click away before then, and is
+    never fetched while hidden. This avoids lengthy history reads on a fresh
+    Today visit before the teacher needs them.
+    """
+    key = f"teacher_today_history_open_{lesson.class_record.class_id}_{day.isoformat()}"
     with st.container(key="today_history"):
+        if not ready and not st.session_state.get(key):
+            if st.button("Review previous missed standards (optional)",
+                         key=f"open_{key}", type="secondary"):
+                st.session_state[key] = True
+            else:
+                return
         st.markdown("##### Previous missed standards")
-        st.caption("Follow up after today's Igniter or Quiz groups · Repeated misses on prior dates; excludes today's results.")
+        st.caption("Based on repeated misses before today. Use these for additional follow-up.")
         _render_historical_rows(store, lesson, day)
 
 
@@ -427,15 +539,15 @@ def _render_historical_rows(store, lesson, day: date) -> None:
         return
     if recent:
         for group in recent:
-            code = html.escape(str(group["code"]))
-            description = html.escape(str(group.get("description") or ""))
-            title = f"<strong>{code}</strong> · {description}" if description else f"<strong>{code}</strong>"
-            names = " · ".join(html.escape(str(name)) for name in group["names"])
-            st.markdown(f'<div class="today-history-row"><span>{title}</span>'
-                        f'<span class="today-history-names">{names}</span></div>', unsafe_allow_html=True)
-            _worked_with_button(store, lesson, code=str(group["code"]),
-                                student_ids=list(group.get("student_ids") or []), day=day,
-                                key=f"worked_history_{lesson.class_record.class_id}_{group['code']}")
+            code = str(group["code"])
+            description = str(group.get("description") or "")
+            count = len(group.get("student_ids") or ())
+            title = f"{code} · {description}" if description else code
+            with st.expander(f"{title} · {count} students", expanded=False):
+                _render_names(list(group["names"]))
+                _worked_with_button(store, lesson, code=code,
+                                    student_ids=list(group.get("student_ids") or []), day=day,
+                                    key=f"worked_history_{lesson.class_record.class_id}_{code}")
     else:
         st.caption("No historical standards currently meet the check-in criteria.")
 
@@ -480,31 +592,35 @@ def _quick_check_results_summary(rows, students) -> tuple[dict, list[dict], list
     return totals, groups, details
 
 
-def _render_quick_check_results(store, lesson, day: date) -> None:
-    """Results are opt-in to avoid another Supabase read on every Today visit."""
+def _render_quick_check_results(store, lesson, day: date, *, preloaded=None) -> None:
+    """Compact status from a shared read; detail remains teacher-controlled."""
     key = f"show_quick_check_results_{lesson.class_record.class_id}_{day.isoformat()}"
-    if not st.button("View small-group check results", key=f"open_{key}", type="secondary"):
+    if preloaded is None:
+        if st.button("View small-group check results", key=f"open_{key}", type="secondary"):
+            st.session_state[key] = True
         if not st.session_state.get(key):
             return
-    st.session_state[key] = True
     try:
-        rows = store.list_standard_quick_checks(day, day,
-                    class_id=lesson.class_record.class_id, include_test=True)
+        rows = (preloaded if preloaded is not None else
+                _today_quick_checks(store, lesson, day, fresh=True))
     except Exception:
         st.caption("Quick Check results are not available yet. Verify the v2.28 database setup.")
         return
     totals, groups, details = _quick_check_results_summary(rows, lesson.students)
     if not totals["assigned"]:
-        st.caption("No small-group Quick Checks were assigned to this class today.")
+        if preloaded is None:
+            st.caption("No small-group Quick Checks were assigned to this class today.")
         return
-    st.caption(f"{totals['completed']}/{totals['assigned']} completed · "
-               f"{totals['correct']} correct · {totals['review']} needing another look · "
-               f"{totals['pending']} not answered")
-    for item in groups:
-        st.write(f"**{item['standard']}** · {item['completed']}/{item['assigned']} complete · "
-                 f"{item['correct']} correct · {item['review']} review")
-    with st.expander("See individual student results", expanded=False):
+    st.markdown(f"**Small-group checks** · {totals['completed']}/{totals['assigned']} answered · "
+                f"{totals['correct']} correct · {totals['review']} needs review · "
+                f"{totals['pending']} pending")
+    with st.expander("Check results by standard and student", expanded=False):
+        for item in groups:
+            st.write(f"**{item['standard']}** · {item['completed']}/{item['assigned']} answered · "
+                     f"{item['correct']} correct · {item['review']} needs review")
         st.dataframe(details, hide_index=True, width="stretch")
+        st.caption("Mastery labels use each student's four most recent independent checks, "
+                   "not a single Quick Check result. See Learning for their current labels.")
 
 
 def render_teacher_today_command_center(
@@ -518,7 +634,7 @@ def render_teacher_today_command_center(
     st.session_state.setdefault("teacher_today_day", day)
     # A new school date should not retain stale selected-slide state.
     st.session_state["teacher_today_day"] = day
-    title, refresh = st.columns([5, 1.5], vertical_alignment="center")
+    title, refresh = st.columns([6, 1], vertical_alignment="center")
     with title:
         st.markdown("## Today")
         st.caption(_date_label(day))
@@ -536,7 +652,8 @@ def render_teacher_today_command_center(
         st.session_state.pop("teacher_refresh_pending", None)
         return
 
-    if st.session_state.get("teacher_refresh_pending"):
+    force_checks_refresh = bool(st.session_state.get("teacher_refresh_pending"))
+    if force_checks_refresh:
         finish_refresh()
     else:
         set_refresh_stamp()
@@ -568,7 +685,7 @@ def render_teacher_today_command_center(
         st.markdown(f"### {html.escape(selected.class_record.class_name)}")
     if selected.error:
         st.warning("This class's Igniter or Quiz results are temporarily unavailable. Refresh to try again.")
-        _render_historical_checkins(store, selected, day)
+        _render_historical_checkins(store, selected, day, ready=False)
         return
 
     if selected.assignment is None:
@@ -579,13 +696,12 @@ def render_teacher_today_command_center(
             _render_igniter_priorities(store, selected, grouping, day)
         else:
             st.markdown("#### Who to pull today")
-            st.info("Awaiting completed Igniters. Pull groups will appear as students finish both questions."
-                    if selected.total else "No active students in this class.")
-            with st.container(key="today_unfinished"):
+            st.caption("Groups appear after students finish both questions. "
+                       "Unfinished work is not counted as incorrect."
+                       if selected.total else "No active students in this class.")
+            if grouping["unfinished"]:
                 st.markdown(f"**Not finished · {len(grouping['unfinished'])}**")
-                if grouping["unfinished"]:
-                    _render_names(grouping["unfinished"])
-                st.caption("Incomplete work is separate from incorrect answers.")
+                _render_names(grouping["unfinished"])
     else:
         title = "Today's Friday Quiz: Students to Pull" if selected.kind == "Quiz" else "Today's teaching priorities"
         st.markdown(f"#### {title}")
@@ -598,11 +714,38 @@ def render_teacher_today_command_center(
         else:
             st.caption("Today's needs will appear as students finish the Igniter or Quiz.")
 
-    if selected.assignment is not None:
-        activity = "Friday Quiz" if selected.kind == "Quiz" else "Igniter"
-        if selected.complete == 0:
-            st.caption(f"No completed {activity} responses yet. Unfinished answers are never counted as incorrect.")
-        elif selected.kind == "Quiz":
-            st.caption(f"{selected.complete} of {selected.total} students finished the {activity}.")
-    _render_quick_check_results(store, selected, day)
-    _render_historical_checkins(store, selected, day)
+    if selected.kind == "Quiz" and selected.complete:
+        st.caption(f"{selected.complete} of {selected.total} students finished the Friday Quiz.")
+
+    # 'Today's groups addressed' means every student who missed a *tagged*
+    # standard has a Quick Check assigned for that same code and school date.
+    # Pending responses still count as assigned, but partial subsets do not.
+    targets = _today_standard_targets(selected, grouping)
+    unmatched_misses = _today_has_unmatched_misses(selected)
+    today_checks = None
+    coverage = None
+    if targets:
+        try:
+            today_checks = _today_quick_checks(
+                store, selected, day, fresh=force_checks_refresh,
+            )
+            coverage = _today_followup_coverage(selected, targets, today_checks)
+        except Exception:
+            st.caption("Could not verify which follow-ups have been assigned. "
+                       "Previous standards remain available on request.")
+    if coverage and coverage["assigned"]:
+        if coverage["clear"]:
+            st.caption(f"Today's follow-ups · all {coverage['required']} "
+                       "student-standard checks assigned.")
+        else:
+            st.caption(f"Today's follow-ups · {coverage['assigned']}/{coverage['required']} "
+                       "student-standard checks assigned; finish the remaining groups first.")
+    if unmatched_misses:
+        st.warning("Some incorrect answers could not be matched to a valid Indiana standard. "
+                   "Check the published question's standard before treating today's groups as addressed.")
+
+    _render_quick_check_results(store, selected, day, preloaded=today_checks)
+    ready_for_history = _history_is_next_priority(
+        selected, targets, coverage, unmatched_misses=unmatched_misses,
+    )
+    _render_historical_checkins(store, selected, day, ready=ready_for_history)
