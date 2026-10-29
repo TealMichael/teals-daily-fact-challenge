@@ -515,17 +515,26 @@ def _render_historical_checkins(store, lesson, day: date, *, ready: bool) -> Non
     """Prior standards become the default only after today's groups are clear.
 
     The older evidence is still one optional click away before then, and is
-    never fetched while hidden. This avoids lengthy history reads on a fresh
-    Today visit before the teacher needs them.
+    never fetched while hidden. The teacher can also tuck it away again, even
+    once it becomes the next recommended priority.
     """
     key = f"teacher_today_history_open_{lesson.class_record.class_id}_{day.isoformat()}"
+    ready_seen_key = f"teacher_today_history_ready_seen_{lesson.class_record.class_id}_{day.isoformat()}"
     with st.container(key="today_history"):
-        if not ready and not st.session_state.get(key):
-            if st.button("Review previous missed standards (optional)",
-                         key=f"open_{key}", type="secondary"):
-                st.session_state[key] = True
-            else:
-                return
+        # Open once automatically when today's student-standard checks are
+        # fully assigned; afterward, respect the teacher's manual preference.
+        if ready and not st.session_state.get(ready_seen_key):
+            st.session_state[key] = True
+            st.session_state[ready_seen_key] = True
+
+        visible = bool(st.session_state.get(key, False))
+        label = ("Hide previous missed standards" if visible
+                 else "Review previous missed standards (optional)")
+        if st.button(label, key=f"toggle_{key}", type="secondary"):
+            visible = not visible
+            st.session_state[key] = visible
+        if not visible:
+            return
         st.markdown("##### Previous missed standards")
         st.caption("Based on repeated misses before today. Use these for additional follow-up.")
         _render_historical_rows(store, lesson, day)

@@ -263,13 +263,16 @@ def test_history_is_lazily_read_only_when_visible():
         def __init__(self):
             self.session_state = {}
             self.clicked = False
+            self.labels = []
 
         def container(self, **_kwargs):
             from contextlib import nullcontext
             return nullcontext()
 
-        def button(self, *_args, **_kwargs):
-            return self.clicked
+        def button(self, label, **_kwargs):
+            self.labels.append(label)
+            clicked, self.clicked = self.clicked, False
+            return clicked
 
         def markdown(self, *_args, **_kwargs):
             pass
@@ -284,11 +287,25 @@ def test_history_is_lazily_read_only_when_visible():
         with patch.object(today, "_render_historical_rows") as history:
             today._render_historical_checkins(None, _lesson(), DAY, ready=False)
             history.assert_not_called()
+            assert fake.labels[-1] == "Review previous missed standards (optional)"
             fake.clicked = True
             today._render_historical_checkins(None, _lesson(), DAY, ready=False)
             history.assert_called_once()
-            today._render_historical_checkins(None, _lesson(), DAY, ready=True)
+            today._render_historical_checkins(None, _lesson(), DAY, ready=False)
+            assert fake.labels[-1] == "Hide previous missed standards"
             assert history.call_count == 2
+            fake.clicked = True
+            today._render_historical_checkins(None, _lesson(), DAY, ready=False)
+            assert history.call_count == 2  # Closed: no historical fetch.
+            assert fake.labels[-1] == "Hide previous missed standards"
+            # The first completed follow-up cycle opens history automatically.
+            today._render_historical_checkins(None, _lesson(), DAY, ready=True)
+            assert history.call_count == 3
+            fake.clicked = True
+            today._render_historical_checkins(None, _lesson(), DAY, ready=True)
+            assert history.call_count == 3  # Can hide after automatic open.
+            today._render_historical_checkins(None, _lesson(), DAY, ready=True)
+            assert history.call_count == 3  # Does not reopen on every rerun.
     finally:
         today.st = prior_streamlit
 
@@ -301,7 +318,7 @@ def test_small_card_labels_and_version():
     assert "1/3 Igniter complete" in label
     assert "Awaiting" not in label and "Missed Q1" not in label
     src = Path(__file__).parent
-    assert 'APP_VERSION = "2.29.0"' in (src / "fact_engine.py").read_text()
+    assert 'APP_VERSION = "2.29.1"' in (src / "fact_engine.py").read_text()
 
 
 if __name__ == "__main__":
@@ -317,4 +334,4 @@ if __name__ == "__main__":
     test_missed_question_buttons_retain_correct_student_ids()
     test_history_is_lazily_read_only_when_visible()
     test_small_card_labels_and_version()
-    print("v2.29.0 Today redesign: 12 offline tests passed")
+    print("v2.29.1 Today redesign + history toggle: 12 offline tests passed")
