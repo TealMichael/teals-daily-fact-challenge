@@ -64,7 +64,7 @@ def test_slide_is_bounded_and_left_routine_uses_its_height():
 
 
 def test_version():
-    assert 'APP_VERSION = "2.29.2"' in (HERE / "fact_engine.py").read_text()
+    assert 'APP_VERSION = "2.29.3"' in (HERE / "fact_engine.py").read_text()
 
 
 if __name__ == "__main__":

@@ -131,6 +131,28 @@ def _day_changed(state, index, key):
     mark_edited(state)
 
 
+def _exclude_past_days_from_publish(state, *, today=None):
+    """Preserve past questions but never treat locked dates as new work to publish.
+
+    A partially planned week is common after an absence. Past dates are not
+    editable, so requiring their missing prompts to publish Friday's complete
+    quiz traps the teacher. Disabled days retain the original question data
+    and preserve any previously published assignment in the database.
+    """
+    today = today or current_daily_date()
+    excluded = []
+    for item in state['plan']['days']:
+        if date.fromisoformat(item['date']) < today and item.get('enabled', True):
+            item['enabled'] = False
+            excluded.append(item['date'])
+    if excluded:
+        mark_edited(state)
+        state['notice'] = ('Past dates were excluded from new publication; '
+                           'any previously published activities remain unchanged. '
+                           'Your current Quiz questions are preserved.')
+    return excluded
+
+
 def _quiz_setting(state, field, key):
     state['plan']['days'][4][field] = st.session_state[key]
     mark_edited(state)
@@ -557,6 +579,7 @@ def render_weekly_planning(store):
             st.error(_message(exc))
             return
         state = st.session_state[session_key]
+        _exclude_past_days_from_publish(state)
         if 'recent_standard_codes' not in state:
             previous = st.session_state.get('weekly_planner_recent_by_class', {}).get(str(class_id), [])
             current = state['plan']
