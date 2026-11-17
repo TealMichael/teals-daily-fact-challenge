@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone, timedelta
+import hashlib
 import html
 import hmac
 import random
@@ -35,6 +36,7 @@ from adaptive_engine import (
 )
 from supabase_fact_store import SupabaseFactStore
 from persistent_login import REMEMBER_DAYS, issue_student_token, peek_student_id, verify_student_token
+from teacher_persistent_login import issue_teacher_token, verify_teacher_token
 from ui_helpers import format_seconds, strategy_tip
 from student_igniter_ui import render_quick_warmup
 from student_quick_check_ui import render_assigned_quick_check
@@ -97,6 +99,11 @@ DAILY_SPRINT_COMPONENT = components.declare_component(
 PERSISTENT_LOGIN_COMPONENT = components.declare_component(
     "tdfc_persistent_login",
     path=str(Path(__file__).with_name("persistent_login_component")),
+)
+
+TEACHER_LOGIN_COMPONENT = components.declare_component(
+    "tdfc_teacher_login",
+    path=str(Path(__file__).with_name("teacher_persistent_login_component")),
 )
 
 ANSWER_PAD_COMPONENT = components.declare_component(
@@ -464,6 +471,10 @@ def init_state() -> None:
         "student_class_id": None,
         "student_class_name": None,
         "teacher_authed": False,
+        "teacher_remember_pending_action": None,
+        "teacher_remember_check_complete": False,
+        "teacher_remember_reader_nonce": 0,
+        "teacher_remember_notice": None,
         "practice_fact": None,
         "practice_result": None,
         "practice_recent": [],
@@ -522,6 +533,100 @@ def _persistent_login_secret() -> str:
         return str(st.secrets.get("SUPABASE_SECRET_KEY") or "")
     except Exception:
         return ""
+
+
+def _teacher_remember_secret() -> str:
+    """Keep the signing key server-side; use the already-configured classroom key."""
+    try:
+        return str(
+            st.secrets.get("TEACHER_REMEMBER_SECRET")
+            or st.secrets.get("SUPABASE_SECRET_KEY")
+            or ""
+        )
+    except Exception:
+        return ""
+
+
+def handle_persistent_teacher_login() -> None:
+    """Restore a saved teacher session or carry out a pending browser write.
+
+    This is separate from the student reader. In particular, a teacher logout
+    must finish the browser clear before any subsequent token read is allowed.
+    """
+    pending = st.session_state.get("teacher_remember_pending_action")
+    if pending:
+        action = str(pending.get("action") or "")
+        if action not in ("store", "clear"):
+            st.session_state.teacher_remember_pending_action = None
+            return
+        token = str(pending.get("token") or "")
+        token_key = hashlib.sha256(token.encode("utf-8")).hexdigest()[:16] if token else "empty"
+        result = TEACHER_LOGIN_COMPONENT(
+            action=action,
+            token=token,
+            default={"ready": False},
+            key=f"teacher_remember_{action}_{token_key}_{st.session_state.get('teacher_remember_reader_nonce', 0)}",
+        )
+        if isinstance(result, dict) and result.get("ready"):
+            st.session_state.teacher_remember_pending_action = None
+            st.session_state.teacher_remember_check_complete = True
+            if action == "store" and not result.get("stored"):
+                st.session_state.teacher_remember_notice = (
+                    "This browser could not save your teacher sign-in. "
+                    "You are signed in for now, but may need your password next time."
+                )
+            elif action == "clear" and not result.get("cleared"):
+                st.session_state.teacher_remember_notice = (
+                    "The browser could not clear the saved teacher sign-in. "
+                    "Clear this site's storage before using a shared device."
+                )
+            st.session_state.teacher_remember_reader_nonce += 1
+        return
+
+    if st.session_state.get("teacher_authed") or st.session_state.get("teacher_remember_check_complete"):
+        return
+    # Don't interrupt an already signed-in student on the same browser.
+    # Opening Teacher explicitly can still restore a saved teacher session.
+    if student_signed_in() and st.session_state.get("app_mode") != "Teacher":
+        return
+
+    result = TEACHER_LOGIN_COMPONENT(
+        action="read",
+        token="",
+        default={"ready": False},
+        key=f"teacher_remember_reader_{st.session_state.get('teacher_remember_reader_nonce', 0)}",
+    )
+    if not isinstance(result, dict) or not result.get("ready"):
+        return
+    st.session_state.teacher_remember_check_complete = True
+    token = str(result.get("token") or "")
+    if not token:
+        return
+    try:
+        password = str(st.secrets.get("TEACHER_PASSWORD") or "")
+    except Exception:
+        password = ""
+    if verify_teacher_token(token, password, _teacher_remember_secret()):
+        st.session_state.teacher_authed = True
+        st.session_state.app_mode = "Teacher"
+        st.rerun()
+    else:
+        # An expired token or a changed teacher password must not linger.
+        st.session_state.teacher_remember_pending_action = {"action": "clear"}
+        st.rerun()
+
+
+def teacher_sign_out() -> None:
+    """End teacher access and clear the teacher-only browser token."""
+    from teacher_read_store import clear_teacher_read_cache
+    clear_teacher_read_cache(st.session_state)
+    st.session_state.teacher_authed = False
+    st.session_state["teacher_login_remember"] = False
+    st.session_state.teacher_remember_pending_action = {"action": "clear"}
+    # Prevent reading and re-authenticating with an old token while it clears.
+    st.session_state.teacher_remember_check_complete = True
+    st.session_state["teacher_projector_mode"] = False
+    st.session_state.pop("igniter_presentation", None)
 
 def _set_student_session(student, class_record) -> None:
     st.session_state.student_id = student.student_id
@@ -1937,13 +2042,30 @@ def teacher_login() -> bool:
         return False
     st.markdown("## 🔒 Teacher Dashboard")
     st.caption("This area shows full class results and roster tools. Students only see the Top 10.")
+    remember_notice = st.session_state.pop("teacher_remember_notice", None)
+    if remember_notice:
+        st.warning(remember_notice)
     with st.form("teacher_login_form"):
         password = st.text_input("Teacher password", type="password")
+        remember_device = st.checkbox(
+            f"Remember this device for {REMEMBER_DAYS} days",
+            value=False,
+            disabled=not bool(_teacher_remember_secret()),
+            key="teacher_login_remember",
+        )
+        st.caption("Use only on your personal device. Leave unchecked on shared classroom computers.")
         submit = st.form_submit_button("Open Teacher Dashboard", use_container_width=True, type="primary")
     if submit:
         expected = str(st.secrets.get("TEACHER_PASSWORD") or "")
         if hmac.compare_digest(str(password), expected):
             st.session_state.teacher_authed = True
+            st.session_state.teacher_remember_check_complete = True
+            if remember_device:
+                token = issue_teacher_token(expected, _teacher_remember_secret())
+                st.session_state.teacher_remember_pending_action = {"action": "store", "token": token}
+            else:
+                # A sign-in without Remember must discard any old saved teacher session.
+                st.session_state.teacher_remember_pending_action = {"action": "clear"}
             st.rerun()
         else:
             st.error("That teacher password did not match.")
@@ -2963,11 +3085,11 @@ def render_teacher(store: SupabaseFactStore | None) -> None:
             Teal's Daily Fact Challenge</div>""", unsafe_allow_html=True)
     with top_right:
         if st.button("Log out"):
-            clear_teacher_read_cache(st.session_state)
-            st.session_state.teacher_authed = False
-            st.session_state["teacher_projector_mode"] = False
-            st.session_state.pop("igniter_presentation", None)
+            teacher_sign_out()
             st.rerun()
+    remember_notice = st.session_state.pop("teacher_remember_notice", None)
+    if remember_notice:
+        st.warning(remember_notice)
 
     teacher_primary_sections = ["Today", "Plan", "Results", "Learning", "Manage"]
     legacy_routes = {
@@ -3145,6 +3267,11 @@ if _teacher_igniter_display:
     mode = "Teacher"
 else:
     mode = render_header()
+# The teacher browser token is checked before student DB loading, so a
+# remembered teacher returns directly to the Dashboard after a fresh visit.
+# The independent projector window above never invokes this reader.
+handle_persistent_teacher_login()
+mode = st.session_state.app_mode
 store = _timed_app_call("create_store", get_store, log_after_seconds=0.75)
 if mode != "Teacher":
     _timed_app_call(
